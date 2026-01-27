@@ -120,3 +120,6 @@ credentials/
 # Linux
 .directory
 .Trash-*
+
+.claude/
+CLAUDE.md
