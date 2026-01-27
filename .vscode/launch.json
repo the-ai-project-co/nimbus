@@ -1,0 +1,50 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug CLI Service",
+      "program": "${workspaceFolder}/services/cli-service/src/index.ts",
+      "cwd": "${workspaceFolder}/services/cli-service",
+      "stopOnEntry": false,
+      "watchMode": true
+    },
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug Core Engine Service",
+      "program": "${workspaceFolder}/services/core-engine-service/src/index.ts",
+      "cwd": "${workspaceFolder}/services/core-engine-service",
+      "stopOnEntry": false,
+      "watchMode": true
+    },
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug LLM Service",
+      "program": "${workspaceFolder}/services/llm-service/src/index.ts",
+      "cwd": "${workspaceFolder}/services/llm-service",
+      "stopOnEntry": false,
+      "watchMode": true
+    },
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug State Service",
+      "program": "${workspaceFolder}/services/state-service/src/index.ts",
+      "cwd": "${workspaceFolder}/services/state-service",
+      "stopOnEntry": false,
+      "watchMode": true
+    },
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Run Tests",
+      "program": "${workspaceFolder}/node_modules/.bin/bun",
+      "args": ["test"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}

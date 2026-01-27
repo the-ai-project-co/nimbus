@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <linearGradient id="hexGradientNet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="coreGradientNet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#EA580C;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#DC2626;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <style>
+    .connection-line {
+      stroke: #D97706;
+      stroke-width: 2;
+      stroke-dasharray: 8, 4;
+      fill: none;
+      opacity: 0.6;
+    }
+
+    .data-dot {
+      fill: #FCD34D;
+      filter: drop-shadow(0 0 4px #FBBF24);
+    }
+
+    .dot1 { animation: moveDot1 2s linear infinite; }
+    .dot2 { animation: moveDot2 2s linear infinite 0.5s; }
+    .dot3 { animation: moveDot3 2s linear infinite 1s; }
+    .dot4 { animation: moveDot4 2s linear infinite 0.3s; }
+    .dot5 { animation: moveDot5 2s linear infinite 0.7s; }
+    .dot6 { animation: moveDot6 2s linear infinite 1.2s; }
+
+    @keyframes moveDot1 {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translate(0, 35px); opacity: 0; }
+    }
+
+    @keyframes moveDot2 {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translate(-30px, 35px); opacity: 0; }
+    }
+
+    @keyframes moveDot3 {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translate(30px, 35px); opacity: 0; }
+    }
+
+    @keyframes moveDot4 {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translate(30px, 35px); opacity: 0; }
+    }
+
+    @keyframes moveDot5 {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translate(-30px, 35px); opacity: 0; }
+    }
+
+    @keyframes moveDot6 {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translate(0, 35px); opacity: 0; }
+    }
+
+    .hex-static {
+      opacity: 0.9;
+    }
+
+    .core-hex {
+      filter: drop-shadow(0 0 6px #EA580C);
+    }
+  </style>
+
+  <!-- Connection Lines -->
+  <!-- Top to Row 2 -->
+  <line class="connection-line" x1="200" y1="53" x2="170" y2="88" />
+  <line class="connection-line" x1="200" y1="53" x2="230" y2="88" />
+
+  <!-- Row 2 to Core -->
+  <line class="connection-line" x1="170" y1="88" x2="200" y2="123" />
+  <line class="connection-line" x1="230" y1="88" x2="200" y2="123" />
+
+  <!-- Row 2 to Row 3 sides -->
+  <line class="connection-line" x1="170" y1="88" x2="140" y2="123" />
+  <line class="connection-line" x1="230" y1="88" x2="260" y2="123" />
+
+  <!-- Core to Row 4 -->
+  <line class="connection-line" x1="200" y1="123" x2="170" y2="158" />
+  <line class="connection-line" x1="200" y1="123" x2="230" y2="158" />
+
+  <!-- Row 3 sides to Row 4 -->
+  <line class="connection-line" x1="140" y1="123" x2="170" y2="158" />
+  <line class="connection-line" x1="260" y1="123" x2="230" y2="158" />
+
+  <!-- Row 4 to Bottom -->
+  <line class="connection-line" x1="170" y1="158" x2="200" y2="193" />
+  <line class="connection-line" x1="230" y1="158" x2="200" y2="193" />
+
+  <!-- Data Dots (Animated) -->
+  <circle class="data-dot dot1" cx="200" cy="53" r="4" />
+  <circle class="data-dot dot2" cx="170" cy="88" r="4" />
+  <circle class="data-dot dot3" cx="230" cy="88" r="4" />
+  <circle class="data-dot dot4" cx="140" cy="123" r="4" />
+  <circle class="data-dot dot5" cx="260" cy="123" r="4" />
+  <circle class="data-dot dot6" cx="200" cy="158" r="4" />
+
+  <!-- Hexagons -->
+  <polygon class="hex-static" points="200,30 220,41.5 220,64.5 200,76 180,64.5 180,41.5" fill="url(#hexGradientNet)" />
+  <polygon class="hex-static" points="170,65 190,76.5 190,99.5 170,111 150,99.5 150,76.5" fill="url(#hexGradientNet)" />
+  <polygon class="hex-static" points="230,65 250,76.5 250,99.5 230,111 210,99.5 210,76.5" fill="url(#hexGradientNet)" />
+  <polygon class="hex-static" points="140,100 160,111.5 160,134.5 140,146 120,134.5 120,111.5" fill="url(#hexGradientNet)" />
+  <polygon class="core-hex" points="200,100 220,111.5 220,134.5 200,146 180,134.5 180,111.5" fill="url(#coreGradientNet)" />
+  <polygon class="hex-static" points="260,100 280,111.5 280,134.5 260,146 240,134.5 240,111.5" fill="url(#hexGradientNet)" />
+  <polygon class="hex-static" points="170,135 190,146.5 190,169.5 170,181 150,169.5 150,146.5" fill="url(#hexGradientNet)" />
+  <polygon class="hex-static" points="230,135 250,146.5 250,169.5 230,181 210,169.5 210,146.5" fill="url(#hexGradientNet)" />
+  <polygon class="hex-static" points="200,170 220,181.5 220,204.5 200,216 180,204.5 180,181.5" fill="url(#hexGradientNet)" />
+
+  <!-- Text -->
+  <text x="200" y="255" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="32" font-weight="600" fill="#1F2937" letter-spacing="10">NIMBUS</text>
+  <text x="200" y="280" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="400" fill="#6B7280" letter-spacing="1">$ orchestrating...</text>
+</svg>

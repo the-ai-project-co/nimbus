@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="hgc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24"/><stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="cgc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EA580C"/><stop offset="100%" stop-color="#DC2626"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .hs{animation:sh 3s ease-in-out infinite}
+    .hs:nth-child(1){animation-delay:0s}.hs:nth-child(2){animation-delay:.2s}.hs:nth-child(3){animation-delay:.4s}.hs:nth-child(4){animation-delay:.6s}.hs:nth-child(5){animation-delay:.8s}.hs:nth-child(6){animation-delay:1s}.hs:nth-child(7){animation-delay:1.2s}.hs:nth-child(8){animation-delay:1.4s}
+    .cc{animation:cb 2s ease-in-out infinite;filter:drop-shadow(0 0 2px #EA580C)}
+    @keyframes sh{0%,100%{opacity:.85}50%{opacity:1}}
+    @keyframes cb{0%,100%{opacity:.9}50%{opacity:1}}
+  </style>
+  <g transform="translate(0,-4) scale(0.85)">
+    <polygon class="hs" points="32,2 38,5.5 38,12.5 32,16 26,12.5 26,5.5" fill="url(#hgc)"/>
+    <polygon class="hs" points="23,11 29,14.5 29,21.5 23,25 17,21.5 17,14.5" fill="url(#hgc)"/>
+    <polygon class="hs" points="41,11 47,14.5 47,21.5 41,25 35,21.5 35,14.5" fill="url(#hgc)"/>
+    <polygon class="hs" points="14,20 20,23.5 20,30.5 14,34 8,30.5 8,23.5" fill="url(#hgc)"/>
+    <polygon class="cc" points="32,20 38,23.5 38,30.5 32,34 26,30.5 26,23.5" fill="url(#cgc)"/>
+    <polygon class="hs" points="50,20 56,23.5 56,30.5 50,34 44,30.5 44,23.5" fill="url(#hgc)"/>
+    <polygon class="hs" points="23,29 29,32.5 29,39.5 23,43 17,39.5 17,32.5" fill="url(#hgc)"/>
+    <polygon class="hs" points="41,29 47,32.5 47,39.5 41,43 35,39.5 35,32.5" fill="url(#hgc)"/>
+    <polygon class="hs" points="32,38 38,41.5 38,48.5 32,52 26,48.5 26,41.5" fill="url(#hgc)"/>
+  </g>
+  <text x="32" y="56" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="#F59E0B" text-anchor="middle" letter-spacing="1">NIMBUS</text>
+  <text x="32" y="62" font-family="'JetBrains Mono', monospace" font-size="4" fill="#D97706" text-anchor="middle" opacity=".8">READY</text>
+</svg>

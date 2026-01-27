@@ -1,0 +1,30 @@
+{
+  "name": "nimbus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-Powered Cloud Engineering Agent",
+  "workspaces": [
+    "services/*",
+    "shared/*"
+  ],
+  "scripts": {
+    "dev": "./scripts/start-all.sh",
+    "health": "./scripts/check-health.sh",
+    "setup": "./scripts/dev-setup.sh",
+    "clean": "./scripts/clean.sh",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "test:watch": "bun test --watch",
+    "lint": "bun run --filter '*' lint",
+    "type-check": "bun run --filter '*' type-check",
+    "build": "bun run --filter '*' build",
+    "build:cli": "cd services/cli-service && bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

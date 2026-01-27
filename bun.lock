@@ -1,0 +1,243 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "nimbus",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/aws-tools-service": {
+      "name": "@nimbus/aws-tools-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/cli-service": {
+      "name": "@nimbus/cli-service",
+      "version": "0.1.0",
+      "bin": {
+        "nimbus": "./src/index.ts",
+      },
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/core-engine-service": {
+      "name": "@nimbus/core-engine-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/fs-tools-service": {
+      "name": "@nimbus/fs-tools-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/generator-service": {
+      "name": "@nimbus/generator-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/git-tools-service": {
+      "name": "@nimbus/git-tools-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/github-tools-service": {
+      "name": "@nimbus/github-tools-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/helm-tools-service": {
+      "name": "@nimbus/helm-tools-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/k8s-tools-service": {
+      "name": "@nimbus/k8s-tools-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/llm-service": {
+      "name": "@nimbus/llm-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/state-service": {
+      "name": "@nimbus/state-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "services/terraform-tools-service": {
+      "name": "@nimbus/terraform-tools-service",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-clients": "workspace:*",
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "shared/clients": {
+      "name": "@nimbus/shared-clients",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-types": "workspace:*",
+        "@nimbus/shared-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "shared/types": {
+      "name": "@nimbus/shared-types",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+    "shared/utils": {
+      "name": "@nimbus/shared-utils",
+      "version": "0.1.0",
+      "dependencies": {
+        "@nimbus/shared-types": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.3.3",
+      },
+    },
+  },
+  "packages": {
+    "@nimbus/aws-tools-service": ["@nimbus/aws-tools-service@workspace:services/aws-tools-service"],
+
+    "@nimbus/cli-service": ["@nimbus/cli-service@workspace:services/cli-service"],
+
+    "@nimbus/core-engine-service": ["@nimbus/core-engine-service@workspace:services/core-engine-service"],
+
+    "@nimbus/fs-tools-service": ["@nimbus/fs-tools-service@workspace:services/fs-tools-service"],
+
+    "@nimbus/generator-service": ["@nimbus/generator-service@workspace:services/generator-service"],
+
+    "@nimbus/git-tools-service": ["@nimbus/git-tools-service@workspace:services/git-tools-service"],
+
+    "@nimbus/github-tools-service": ["@nimbus/github-tools-service@workspace:services/github-tools-service"],
+
+    "@nimbus/helm-tools-service": ["@nimbus/helm-tools-service@workspace:services/helm-tools-service"],
+
+    "@nimbus/k8s-tools-service": ["@nimbus/k8s-tools-service@workspace:services/k8s-tools-service"],
+
+    "@nimbus/llm-service": ["@nimbus/llm-service@workspace:services/llm-service"],
+
+    "@nimbus/shared-clients": ["@nimbus/shared-clients@workspace:shared/clients"],
+
+    "@nimbus/shared-types": ["@nimbus/shared-types@workspace:shared/types"],
+
+    "@nimbus/shared-utils": ["@nimbus/shared-utils@workspace:shared/utils"],
+
+    "@nimbus/state-service": ["@nimbus/state-service@workspace:services/state-service"],
+
+    "@nimbus/terraform-tools-service": ["@nimbus/terraform-tools-service@workspace:services/terraform-tools-service"],
+
+    "@types/bun": ["@types/bun@1.3.6", "", { "dependencies": { "bun-types": "1.3.6" } }, "sha512-uWCv6FO/8LcpREhenN1d1b6fcspAB+cefwD7uti8C8VffIv0Um08TKMn98FynpTiU38+y2dUO55T11NgDt8VAA=="],
+
+    "@types/node": ["@types/node@25.0.10", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-zWW5KPngR/yvakJgGOmZ5vTBemDoSqF3AcV/LrO5u5wTWyEAVVh+IT39G4gtyAkh3CtTZs8aX/yRM82OfzHJRg=="],
+
+    "bun-types": ["bun-types@1.3.6", "", { "dependencies": { "@types/node": "*" } }, "sha512-OlFwHcnNV99r//9v5IIOgQ9Uk37gZqrNMCcqEaExdkVq3Avwqok1bJFmvGMCkCE0FqzdY8VMOZpfpR3lwI+CsQ=="],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
+  }
+}

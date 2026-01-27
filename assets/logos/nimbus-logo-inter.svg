@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <linearGradient id="hexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="coreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#EA580C;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#DC2626;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background (transparent) -->
+
+  <!-- Hexagon Cloud Formation -->
+  <!-- Top hexagon -->
+  <polygon points="200,30 220,41.5 220,64.5 200,76 180,64.5 180,41.5" fill="url(#hexGradient)" />
+
+  <!-- Second row - 2 hexagons -->
+  <polygon points="170,65 190,76.5 190,99.5 170,111 150,99.5 150,76.5" fill="url(#hexGradient)" />
+  <polygon points="230,65 250,76.5 250,99.5 230,111 210,99.5 210,76.5" fill="url(#hexGradient)" />
+
+  <!-- Third row - 3 hexagons (center is core) -->
+  <polygon points="140,100 160,111.5 160,134.5 140,146 120,134.5 120,111.5" fill="url(#hexGradient)" />
+  <polygon points="200,100 220,111.5 220,134.5 200,146 180,134.5 180,111.5" fill="url(#coreGradient)" />
+  <polygon points="260,100 280,111.5 280,134.5 260,146 240,134.5 240,111.5" fill="url(#hexGradient)" />
+
+  <!-- Fourth row - 2 hexagons -->
+  <polygon points="170,135 190,146.5 190,169.5 170,181 150,169.5 150,146.5" fill="url(#hexGradient)" />
+  <polygon points="230,135 250,146.5 250,169.5 230,181 210,169.5 210,146.5" fill="url(#hexGradient)" />
+
+  <!-- Bottom hexagon -->
+  <polygon points="200,170 220,181.5 220,204.5 200,216 180,204.5 180,181.5" fill="url(#hexGradient)" />
+
+  <!-- NIMBUS Text - Inter Font Style -->
+  <text x="200" y="255" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="36" font-weight="600" fill="#1F2937" letter-spacing="8">NIMBUS</text>
+
+  <!-- Tagline -->
+  <text x="200" y="280" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#6B7280" letter-spacing="2">AI-POWERED CLOUD CLI</text>
+</svg>

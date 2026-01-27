@@ -1,0 +1,20 @@
+[install]
+# Bun workspace configuration
+# Install dependencies for all packages
+optional = true
+dev = true
+peer = true
+
+[install.cache]
+# Cache location
+dir = ".bun-cache"
+
+[test]
+# Test runner configuration
+coverage = true
+coverageDir = "coverage"
+preload = []
+
+[run]
+# Runtime configuration
+bun = true

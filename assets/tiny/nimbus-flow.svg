@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="hgf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24"/><stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="cgf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EA580C"/><stop offset="100%" stop-color="#DC2626"/>
+    </linearGradient>
+    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF3C7"/><stop offset="100%" stop-color="#FCD34D"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .r1{animation:fp 2s ease-in-out infinite}
+    .r2{animation:fp 2s ease-in-out infinite .4s}
+    .r3{animation:fp 2s ease-in-out infinite .8s}
+    .r4{animation:fp 2s ease-in-out infinite 1.2s}
+    .r5{animation:fp 2s ease-in-out infinite 1.6s}
+    .rc{animation:cg 2s ease-in-out infinite .8s}
+    @keyframes fp{0%,60%,100%{fill:url(#hgf);filter:none}30%{fill:url(#ag);filter:drop-shadow(0 0 3px #FBBF24)}}
+    @keyframes cg{0%,60%,100%{fill:url(#cgf)}30%{fill:#FF6B35;filter:drop-shadow(0 0 4px #EA580C)}}
+  </style>
+  <g transform="translate(0,-4) scale(0.85)">
+    <polygon class="r1" points="32,2 38,5.5 38,12.5 32,16 26,12.5 26,5.5" fill="url(#hgf)"/>
+    <polygon class="r2" points="23,11 29,14.5 29,21.5 23,25 17,21.5 17,14.5" fill="url(#hgf)"/>
+    <polygon class="r2" points="41,11 47,14.5 47,21.5 41,25 35,21.5 35,14.5" fill="url(#hgf)"/>
+    <polygon class="r3" points="14,20 20,23.5 20,30.5 14,34 8,30.5 8,23.5" fill="url(#hgf)"/>
+    <polygon class="rc" points="32,20 38,23.5 38,30.5 32,34 26,30.5 26,23.5" fill="url(#cgf)"/>
+    <polygon class="r3" points="50,20 56,23.5 56,30.5 50,34 44,30.5 44,23.5" fill="url(#hgf)"/>
+    <polygon class="r4" points="23,29 29,32.5 29,39.5 23,43 17,39.5 17,32.5" fill="url(#hgf)"/>
+    <polygon class="r4" points="41,29 47,32.5 47,39.5 41,43 35,39.5 35,32.5" fill="url(#hgf)"/>
+    <polygon class="r5" points="32,38 38,41.5 38,48.5 32,52 26,48.5 26,41.5" fill="url(#hgf)"/>
+  </g>
+  <text x="32" y="56" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="700" fill="#F59E0B" text-anchor="middle" letter-spacing="1">NIMBUS</text>
+  <text x="32" y="62" font-family="'JetBrains Mono', monospace" font-size="4" fill="#D97706" text-anchor="middle" opacity=".8">PROCESSING</text>
+</svg>
