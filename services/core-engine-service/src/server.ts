@@ -15,7 +15,7 @@ export async function startServer(port: number, wsPort: number) {
   setupRoutes(httpApp);
 
   // Start HTTP server
-  httpApp.listen(port);
+  const httpServer = httpApp.listen(port);
 
   logger.info(`Core Engine Service HTTP server listening on port ${port}`);
   logger.info('Available routes:');
@@ -33,10 +33,17 @@ export async function startServer(port: number, wsPort: number) {
   setupWebSocket(wsApp);
 
   // Start WebSocket server
-  wsApp.listen(wsPort);
+  const wsServer = wsApp.listen(wsPort);
 
   logger.info(`Core Engine Service WebSocket server listening on port ${wsPort}`);
   logger.info('WebSocket endpoint: ws://localhost:' + wsPort);
 
-  return { httpApp, wsApp };
+  return {
+    httpApp,
+    wsApp,
+    stop: () => {
+      httpServer.stop();
+      wsServer.stop();
+    },
+  };
 }
