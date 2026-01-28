@@ -27,37 +27,50 @@ export class OllamaProvider extends BaseProvider {
   async complete(request: CompletionRequest): Promise<LLMResponse> {
     const messages = this.convertMessages(request.messages);
 
-    const response = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: request.model || this.defaultModel,
-        messages,
-        options: {
-          temperature: request.temperature,
-          num_predict: request.maxTokens,
-          stop: request.stopSequences,
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: request.model || this.defaultModel,
+          messages,
+          options: {
+            temperature: request.temperature,
+            num_predict: request.maxTokens,
+            stop: request.stopSequences,
+          },
+          stream: false,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Ollama API error: ${response.status} ${await response.text()}`);
+      }
+
+      const data: any = await response.json();
+
+      return {
+        content: data.message.content,
+        usage: {
+          promptTokens: data.prompt_eval_count || 0,
+          completionTokens: data.eval_count || 0,
+          totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
         },
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status} ${await response.text()}`);
+        model: data.model,
+        finishReason: 'stop',
+      };
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Ollama request timed out after 120 seconds');
+      }
+      throw error;
     }
-
-    const data: any = await response.json();
-
-    return {
-      content: data.message.content,
-      usage: {
-        promptTokens: data.prompt_eval_count || 0,
-        completionTokens: data.eval_count || 0,
-        totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
-      },
-      model: data.model,
-      finishReason: 'stop',
-    };
   }
 
   async *stream(request: CompletionRequest): AsyncIterable<StreamChunk> {

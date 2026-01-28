@@ -56,15 +56,15 @@ export class SQLiteAdapter {
     return rows.map(row => this.rowToOperation(row));
   }
 
-  listOperationsByType(type: string, limit: number = 50): Operation[] {
+  listOperationsByType(type: string, limit: number = 50, offset: number = 0): Operation[] {
     const stmt = this.db.prepare(`
       SELECT * FROM operations
       WHERE type = ?
       ORDER BY timestamp DESC
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `);
 
-    const rows: any[] = stmt.all(type, limit) as any[];
+    const rows: any[] = stmt.all(type, limit, offset) as any[];
     return rows.map(row => this.rowToOperation(row));
   }
 
@@ -172,8 +172,14 @@ export class SQLiteAdapter {
   // Conversations
   saveConversation(id: string, title: string, messages: any[], model?: string, metadata?: any): void {
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO conversations (id, title, messages, model, created_at, updated_at, metadata)
-      VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM conversations WHERE id = ?), CURRENT_TIMESTAMP), CURRENT_TIMESTAMP, ?)
+      INSERT INTO conversations (id, title, messages, model, created_at, updated_at, metadata)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        messages = excluded.messages,
+        model = excluded.model,
+        updated_at = CURRENT_TIMESTAMP,
+        metadata = excluded.metadata
     `);
 
     stmt.run(
@@ -181,7 +187,6 @@ export class SQLiteAdapter {
       title,
       JSON.stringify(messages),
       model || null,
-      id,
       metadata ? JSON.stringify(metadata) : null
     );
 

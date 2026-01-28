@@ -12,6 +12,10 @@ function getCredentialsManager(): CredentialsManager {
 }
 
 export async function credentialsRouter(req: Request, path: string): Promise<Response> {
+  // WARNING: This endpoint exposes credential information (sanitized)
+  // In production, this should be protected with authentication middleware
+  // TODO: Add authentication check before accessing credentials
+
   try {
     const manager = getCredentialsManager();
 
@@ -37,7 +41,7 @@ export async function credentialsRouter(req: Request, path: string): Promise<Res
       const credentials = await manager.getCredentials(provider, { profile });
 
       // Sanitize credentials (don't send secrets in response)
-      const sanitized = this.sanitizeCredentials(credentials);
+      const sanitized = sanitizeCredentials(credentials);
 
       return Response.json({
         success: true,
@@ -121,11 +125,11 @@ function sanitizeCredentials(credentials: any): any {
 
   // Mask access keys
   if (sanitized.accessKeyId) {
-    sanitized.accessKeyId = this.maskString(sanitized.accessKeyId);
+    sanitized.accessKeyId = maskString(sanitized.accessKeyId);
   }
 
   if (sanitized.keyFile) {
-    sanitized.keyFile = this.maskString(sanitized.keyFile);
+    sanitized.keyFile = maskString(sanitized.keyFile);
   }
 
   return sanitized;

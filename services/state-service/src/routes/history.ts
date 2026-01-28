@@ -86,7 +86,8 @@ export async function historyRouter(req: Request, path: string): Promise<Respons
       let operations: Operation[];
 
       if (type) {
-        operations = adapter.listOperationsByType(type, limit);
+        // When filtering by type, use offset for consistency
+        operations = adapter.listOperationsByType(type, limit, offset);
       } else {
         operations = adapter.listOperations(limit, offset);
       }
@@ -96,7 +97,7 @@ export async function historyRouter(req: Request, path: string): Promise<Respons
         data: operations,
         pagination: {
           limit,
-          offset,
+          offset: type ? offset : offset, // Offset is now used consistently
           count: operations.length,
         },
         filters: {

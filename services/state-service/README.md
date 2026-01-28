@@ -353,7 +353,7 @@ bun run build
 
 ## Architecture
 
-```
+```text
 state-service/
 ├── src/
 │   ├── config/          # Configuration management

@@ -39,16 +39,21 @@ export class OpenAIProvider extends BaseProvider {
       response_format: request.responseFormat,
     });
 
+    const choice = response.choices?.[0];
+    if (!choice) {
+      throw new Error('OpenAI response missing choices');
+    }
+
     return {
-      content: response.choices[0].message.content || '',
-      toolCalls: response.choices[0].message.tool_calls?.map(this.convertToolCall),
+      content: choice.message.content || '',
+      toolCalls: choice.message.tool_calls?.map(this.convertToolCall),
       usage: {
         promptTokens: response.usage?.prompt_tokens || 0,
         completionTokens: response.usage?.completion_tokens || 0,
         totalTokens: response.usage?.total_tokens || 0,
       },
       model: response.model,
-      finishReason: this.mapFinishReason(response.choices[0].finish_reason),
+      finishReason: this.mapFinishReason(choice.finish_reason),
     };
   }
 
@@ -77,6 +82,9 @@ export class OpenAIProvider extends BaseProvider {
 
       if (delta?.tool_calls) {
         // Tool calls in streaming mode
+        // Note: Tool call data may be incomplete/partial in streaming mode.
+        // Consumers must accumulate tool_calls across chunks before processing,
+        // as arguments may arrive across multiple deltas.
         const toolCalls = delta.tool_calls.map((tc) => ({
           id: tc.id || '',
           type: 'function' as const,
@@ -117,16 +125,21 @@ export class OpenAIProvider extends BaseProvider {
       temperature: request.temperature,
     });
 
+    const choice = response.choices?.[0];
+    if (!choice) {
+      throw new Error('OpenAI response missing choices');
+    }
+
     return {
-      content: response.choices[0].message.content || '',
-      toolCalls: response.choices[0].message.tool_calls?.map(this.convertToolCall),
+      content: choice.message.content || '',
+      toolCalls: choice.message.tool_calls?.map(this.convertToolCall),
       usage: {
         promptTokens: response.usage?.prompt_tokens || 0,
         completionTokens: response.usage?.completion_tokens || 0,
         totalTokens: response.usage?.total_tokens || 0,
       },
       model: response.model,
-      finishReason: this.mapFinishReason(response.choices[0].finish_reason),
+      finishReason: this.mapFinishReason(choice.finish_reason),
     };
   }
 

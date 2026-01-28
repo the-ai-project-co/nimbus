@@ -136,7 +136,10 @@ export class ConfigurationManager {
       throw new Error('Invalid key path');
     }
 
-    let target: any = this.config;
+    // Create a deep copy to avoid mutating config if validation fails
+    const newConfig = JSON.parse(JSON.stringify(this.config));
+
+    let target: any = newConfig;
     for (const key of keys) {
       if (!(key in target)) {
         target[key] = {};
@@ -146,8 +149,11 @@ export class ConfigurationManager {
 
     target[lastKey] = value;
 
-    // Validate the entire config after update
-    this.config = NimbusConfigSchema.parse(this.config);
+    // Validate the new config before updating in-memory state
+    const validatedConfig = NimbusConfigSchema.parse(newConfig);
+
+    // Only update if validation passes
+    this.config = validatedConfig;
 
     // Save to file
     await this.save();

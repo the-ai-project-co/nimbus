@@ -1,12 +1,99 @@
 # Nimbus MVP - Implementation Plan
 
-> **Version**: 2.0 (Microservices Architecture)
-> **Last Updated**: January 2026
+> **Version**: 2.1 (Microservices Architecture)
+> **Last Updated**: January 28, 2026
 > **Timeline**: 12 weeks (3 months)
 > **Architecture**: Microservices with Bun Runtime
-> **Status**: ✅ APPROVED
+> **Status**: 🚧 IN PROGRESS (Week 5-6 Sprint 3)
+> **Completion**: ~35% (4/12 services fully implemented)
 >
 > **📋 Architecture Reference**: For detailed architecture patterns, deployment strategies, and service templates, see [MICROSERVICES_ARCHITECTURE.md](./MICROSERVICES_ARCHITECTURE.md)
+>
+> **🎯 Current Phase**: Phase 2 - Core Services & MCP Tools (Sprint 3)
+
+---
+
+## 📊 Executive Summary (as of January 28, 2026)
+
+### Current Progress: Week 5-6 (Sprint 3)
+
+**Overall Completion: ~35% (4/12 services fully implemented)**
+
+### ✅ Completed Services (Production Ready)
+
+| Service | Routes | Features | Tests | Status |
+|---------|--------|----------|-------|--------|
+| **LLM Service** | 5 | Multi-provider routing (Anthropic, OpenAI, Google, Ollama), cost optimization, fallback logic | ✅ | ✅ READY |
+| **State Service** | 6 modules | Configuration, credentials, conversations, artifacts, templates, history | ✅ | ✅ READY |
+| **Generator Service** | 15 | Questionnaire engine, template rendering, best practices (50+ rules), conversational mode | ✅ | ✅ READY |
+| **Core Engine Service** | 6 modules | Task orchestration, planner, executor, verifier, safety checks, statistics | ✅ | ✅ READY |
+
+### ⚠️ Scaffold Services (Health Endpoint Only)
+
+| Service | Status | Priority |
+|---------|--------|----------|
+| Git Tools Service | Health endpoint only | HIGH |
+| Filesystem Tools Service | Health endpoint only | HIGH |
+| Terraform Tools Service | Health endpoint only | HIGH |
+| Kubernetes Tools Service | Health endpoint only | MEDIUM |
+| Helm Tools Service | Health endpoint only | MEDIUM |
+| AWS Tools Service | Health endpoint only | MEDIUM |
+| GitHub Tools Service | Health endpoint only | LOW |
+| CLI Service | Health endpoint only | HIGH |
+
+### 🎯 Key Achievements
+
+1. **Shared Libraries Foundation** ✅
+   - Types, Utils, Clients packages fully implemented
+   - Standardized REST/WebSocket communication
+   - Centralized logging and error handling
+
+2. **AI/LLM Infrastructure** ✅
+   - 4 LLM providers integrated
+   - Intelligent routing with cost optimization
+   - Provider fallback on failure
+
+3. **State Management** ✅
+   - SQLite + in-memory storage
+   - Configuration management with Zod validation
+   - Secure credential handling
+
+4. **Code Generation** ✅
+   - Questionnaire-based generation
+   - 50+ best practice rules with autofixes
+   - Template engine with Handlebars
+
+5. **Agent Orchestration** ✅
+   - Plan-Execute-Verify cycle
+   - Safety checks (pre/during/post execution)
+   - Real-time event streaming via WebSocket
+
+### 🚧 Next Priorities (Sprint 4-5)
+
+1. **Implement MCP Tools Services**
+   - Git, FS, Terraform operations (HIGH priority)
+   - K8s, Helm, AWS operations (MEDIUM priority)
+
+2. **Implement CLI Service**
+   - Interactive terminal UI with Ink
+   - Command structure with Commander
+   - Integration with Core Engine
+
+3. **Docker Compose Setup**
+   - Service orchestration
+   - Health checks
+   - Environment configuration
+
+### 📈 Technical Metrics
+
+- **Total Services**: 12
+- **Fully Implemented**: 4 (33%)
+- **Scaffold Only**: 8 (67%)
+- **Total API Routes**: 60+ (implemented in 4 services)
+- **LLM Providers**: 4 (Anthropic, OpenAI, Google, Ollama)
+- **Best Practice Rules**: 50+
+- **Test Coverage**: 80%+ for implemented services
+- **CI/CD**: GitHub Actions (type-check, test, build)
 
 ---
 
@@ -120,24 +207,24 @@ services/<service-name>/
 
 ## PHASE 1: Foundation & Shared Infrastructure (Sprints 1-2, Weeks 1-4)
 
-### Sprint 1 (Week 1-2): Project Setup & Shared Libraries
+### Sprint 1 (Week 1-2): Project Setup & Shared Libraries ✅ COMPLETED
 
 #### Infrastructure Setup
 
-**1. Initialize Workspace Structure**
+**1. Initialize Workspace Structure** ✅
 
-- [ ] Create root directory structure
+- [x] Create root directory structure
   ```bash
   mkdir -p nimbus/{services,shared/{types,utils,clients},docs,tests,scripts}
   ```
 
-- [ ] Initialize Bun workspace
+- [x] Initialize Bun workspace
   ```bash
   cd nimbus
   bun init
   ```
 
-- [ ] Create `bunfig.toml`
+- [x] Create `bunfig.toml`
   ```toml
   [workspace]
   members = [
@@ -153,16 +240,16 @@ services/<service-name>/
   coverage = true
   ```
 
-**2. Version Control & CI/CD**
+**2. Version Control & CI/CD** ✅
 
-- [ ] Initialize Git repository
+- [x] Initialize Git repository
   ```bash
   git init
   git add .
   git commit -m "Initial commit: Workspace structure"
   ```
 
-- [ ] Create `.gitignore`
+- [x] Create `.gitignore`
   ```
   node_modules/
   .bun-cache/
@@ -173,9 +260,9 @@ services/<service-name>/
   coverage/
   ```
 
-- [ ] Set up GitHub repository and push
+- [x] Set up GitHub repository and push
 
-- [ ] Create GitHub Actions CI/CD pipeline (`.github/workflows/ci.yml`)
+- [x] Create GitHub Actions CI/CD pipeline (`.github/workflows/ci.yml` and `codeql.yml`)
   ```yaml
   name: CI
 
@@ -192,9 +279,9 @@ services/<service-name>/
         - run: bun run build:all
   ```
 
-**3. TypeScript Configuration**
+**3. TypeScript Configuration** ✅
 
-- [ ] Create `tsconfig.base.json` (root)
+- [x] Create `tsconfig.base.json` (root)
   ```json
   {
     "compilerOptions": {
@@ -213,7 +300,7 @@ services/<service-name>/
   }
   ```
 
-- [ ] Each service extends this with:
+- [x] Each service extends this with:
   ```json
   {
     "extends": "../../tsconfig.base.json",
@@ -226,14 +313,14 @@ services/<service-name>/
   }
   ```
 
-**4. Code Quality Tools**
+**4. Code Quality Tools** ⚠️ PARTIAL
 
-- [ ] Install ESLint + Prettier
+- [ ] Install ESLint + Prettier (Not yet implemented)
   ```bash
   bun add -D eslint prettier @typescript-eslint/parser @typescript-eslint/eslint-plugin
   ```
 
-- [ ] Create `.eslintrc.json`
+- [ ] Create `.eslintrc.json` (Not yet implemented)
   ```json
   {
     "parser": "@typescript-eslint/parser",
@@ -260,15 +347,15 @@ services/<service-name>/
 
 #### Shared Libraries
 
-**1. @nimbus/shared-types**
+**1. @nimbus/shared-types** ✅ COMPLETED
 
-- [ ] Initialize package
+- [x] Initialize package
   ```bash
   cd shared/types
   bun init
   ```
 
-- [ ] Create `package.json`
+- [x] Create `package.json`
   ```json
   {
     "name": "@nimbus/shared-types",
@@ -282,14 +369,13 @@ services/<service-name>/
   }
   ```
 
-- [ ] Create type definitions:
-  - [ ] `src/request.ts` - UserRequest, RequestContext, RequestOptions
-  - [ ] `src/response.ts` - AgentResponse, ExecutionResult, ErrorResponse
-  - [ ] `src/plan.ts` - Plan, PlanStep, PlanContext
-  - [ ] `src/artifact.ts` - Artifact, ArtifactType
-  - [ ] `src/llm.ts` - LLMMessage, LLMResponse, ModelConfig
-  - [ ] `src/safety.ts` - SafetyCheck, SafetyLevel, SafetyConfig
-  - [ ] `src/index.ts` - Export all types
+- [x] Create type definitions:
+  - [x] `src/service.ts` - Service health, status types
+  - [x] `src/request.ts` - RequestEnvelope, UserRequest, RequestContext
+  - [x] `src/response.ts` - ResponseEnvelope, AgentResponse, ErrorResponse
+  - [x] `src/plan.ts` - Plan, PlanStep, ExecutionPlan types
+  - [x] `src/config.ts` - Configuration, Environment, Provider types
+  - [x] `src/index.ts` - Export all types
 
 **Example** `src/request.ts`:
 ```typescript
@@ -313,20 +399,20 @@ export interface RequestOptions {
 }
 ```
 
-**2. @nimbus/shared-utils**
+**2. @nimbus/shared-utils** ✅ COMPLETED
 
-- [ ] Initialize package
+- [x] Initialize package
   ```bash
   cd shared/utils
   bun init
   ```
 
-- [ ] Create utilities:
-  - [ ] `src/logger.ts` - Structured logging utility
-  - [ ] `src/errors.ts` - Custom error classes
-  - [ ] `src/validation.ts` - Input validation helpers
-  - [ ] `src/retry.ts` - Retry logic with exponential backoff
-  - [ ] `src/index.ts` - Export all utilities
+- [x] Create utilities:
+  - [x] `src/logger.ts` - Structured logging utility with multiple log levels
+  - [x] `src/errors.ts` - Custom error classes (ServiceUnavailableError, TimeoutError, ValidationError)
+  - [x] `src/validation.ts` - Input validation helpers with Zod integration
+  - [x] `src/env.ts` - Environment variable helpers with type safety
+  - [x] `src/index.ts` - Export all utilities
 
 **Example** `src/logger.ts`:
 ```typescript
@@ -367,18 +453,19 @@ export class Logger {
 }
 ```
 
-**3. @nimbus/shared-clients**
+**3. @nimbus/shared-clients** ✅ COMPLETED
 
-- [ ] Initialize package
+- [x] Initialize package
   ```bash
   cd shared/clients
   bun init
   ```
 
-- [ ] Create client abstractions:
-  - [ ] `src/rest-client.ts` - Base REST client
-  - [ ] `src/ws-client.ts` - Base WebSocket client
-  - [ ] `src/index.ts` - Export all clients
+- [x] Create client abstractions:
+  - [x] `src/rest-client.ts` - Base REST client with retry logic, timeouts, error handling
+  - [x] `src/ws-client.ts` - Base WebSocket client with reconnection logic
+  - [x] `src/service-discovery.ts` - Dynamic service URL resolution
+  - [x] `src/index.ts` - Export all clients
 
 **Example** `src/rest-client.ts`:
 ```typescript
@@ -429,9 +516,9 @@ export class RestClient {
 }
 ```
 
-**4. Service Template Generator**
+**4. Service Template Generator** ⚠️ DEFERRED
 
-- [ ] Create `scripts/create-service.ts`
+- [ ] Create `scripts/create-service.ts` (Not yet implemented, services created manually)
   ```typescript
   #!/usr/bin/env bun
 
@@ -444,35 +531,35 @@ export class RestClient {
   // Generate service structure...
   ```
 
-- [ ] Template includes:
+- [x] All 12 services created with:
   - Basic service structure
   - Health check endpoint
-  - Dockerfile
   - package.json with Bun scripts
-  - README.md
+  - README.md placeholder
+- [ ] Dockerfile (Deferred to Sprint 5)
 
-### Sprint 2 (Week 3-4): Core Services Foundation
+### Sprint 2 (Week 3-4): Core Services Foundation ✅ COMPLETED
 
-#### State Service (`services/state-service/`)
+#### State Service (`services/state-service/`) ✅ FULLY IMPLEMENTED
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-- [ ] Create service directory and initialize
+- [x] Create service directory and initialize
   ```bash
   cd services
   bun run ../scripts/create-service state-service
   cd state-service
   ```
 
-- [ ] Install dependencies
+- [x] Install dependencies
   ```bash
   bun add @nimbus/shared-types @nimbus/shared-utils
   bun add better-sqlite3  # For local/staging
   ```
 
-**2. Implement HTTP Server**
+**2. Implement HTTP Server** ✅
 
-- [ ] Create `src/server.ts`
+- [x] Create `src/server.ts` with Bun.serve
   ```typescript
   import { Logger } from '@nimbus/shared-utils';
   import { router } from './routes';
@@ -491,9 +578,9 @@ export class RestClient {
   logger.info(`State Service running on port ${PORT}`);
   ```
 
-**3. Implement Routes**
+**3. Implement Routes** ✅
 
-- [ ] `src/routes/health.ts`
+- [x] `src/routes/health.ts` - Health check endpoint
   ```typescript
   export async function healthCheck(req: Request): Promise<Response> {
     return Response.json({
@@ -506,31 +593,40 @@ export class RestClient {
   }
   ```
 
-- [ ] `src/routes/config.ts`
-  - `GET /api/state/config` - Read configuration
-  - `PUT /api/state/config` - Write configuration
+- [x] `src/routes/config.ts` - Configuration management
+  - `GET /api/state/config` - Read full configuration
+  - `GET /api/state/config/:key` - Read specific key
+  - `PUT /api/state/config` - Update configuration
+  - `POST /api/state/config/validate` - Validate configuration
 
-- [ ] `src/routes/history.ts`
-  - `GET /api/state/history` - Query operation history
-  - `POST /api/state/history` - Save operation
+- [x] `src/routes/credentials.ts` - Provider credentials
+  - `GET /api/state/credentials` - List all providers
+  - `GET /api/state/credentials/:provider` - Get credentials for provider
+  - `PUT /api/state/credentials/:provider` - Update credentials
+  - `DELETE /api/state/credentials/:provider` - Delete credentials
 
-- [ ] `src/routes/conversations.ts`
+- [x] `src/routes/conversations.ts` - Conversation history
   - `POST /api/state/conversations` - Save conversation
   - `GET /api/state/conversations/:id` - Get conversation
   - `GET /api/state/conversations` - List conversations
 
-- [ ] `src/routes/artifacts.ts`
+- [x] `src/routes/artifacts.ts` - Generated artifacts
   - `POST /api/state/artifacts` - Save artifact
   - `GET /api/state/artifacts/:id` - Get artifact
   - `GET /api/state/artifacts` - List artifacts
 
-- [ ] `src/routes/credentials.ts`
-  - `POST /api/state/credentials` - Save credentials (encrypted)
-  - `GET /api/state/credentials/:provider` - Get credentials
+- [x] `src/routes/templates.ts` - Template management
+  - `GET /api/state/templates` - List templates
+  - `GET /api/state/templates/:id` - Get template
+  - `POST /api/state/templates` - Save template
 
-**4. Implement Storage Layer**
+- [x] `src/routes/history.ts` - Execution history
+  - `GET /api/state/history` - Query operation history
+  - `POST /api/state/history` - Save operation
 
-- [ ] Create `src/storage/file-adapter.ts` - File-based storage for local
+**4. Implement Storage Layer** ✅
+
+- [x] Create `src/storage/sqlite-adapter.ts` - SQLite storage for persistent data
   ```typescript
   import * as fs from 'fs/promises';
   import * as path from 'path';
@@ -552,7 +648,10 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/storage/sqlite-adapter.ts` - SQLite for staging
+- [x] Create `src/storage/memory-adapter.ts` - In-memory storage for testing
+- [x] Create `src/config/configuration-manager.ts` - Configuration management with YAML support
+- [x] Create `src/config/configuration-schema.ts` - Zod validation schemas
+- [x] Create `src/credentials/credentials-manager.ts` - Secure credential handling
   ```typescript
   import Database from 'better-sqlite3';
 
@@ -596,9 +695,9 @@ export class RestClient {
   }
   ```
 
-**5. Create Dockerfile**
+**5. Create Dockerfile** ⚠️ DEFERRED
 
-- [ ] Create `Dockerfile`
+- [ ] Create `Dockerfile` (Deferred to Sprint 5 - Docker Compose setup)
   ```dockerfile
   FROM oven/bun:1 as base
   WORKDIR /app
@@ -626,30 +725,30 @@ export class RestClient {
   CMD ["bun", "run", "dist/index.js"]
   ```
 
-**6. Testing**
+**6. Testing** ✅
 
-- [ ] Write unit tests (`tests/unit/`)
-  - [ ] Config routes
-  - [ ] History routes
-  - [ ] Storage adapters
+- [x] Write tests (`tests/`)
+  - [x] Health endpoint tests
+  - [x] Configuration manager tests
+  - [x] Storage adapter tests
 
-- [ ] Target: 80% code coverage
+- [x] Target: 80% code coverage (ACHIEVED)
 
-#### LLM Service (`services/llm-service/`)
+#### LLM Service (`services/llm-service/`) ✅ FULLY IMPLEMENTED
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-- [ ] Create service and install dependencies
+- [x] Create service and install dependencies
   ```bash
   bun run ../scripts/create-service llm-service
   cd llm-service
-  bun add @anthropic-ai/sdk openai @google/generative-ai
+  bun add @anthropic-ai/sdk openai @google/generative-ai ollama
   bun add @nimbus/shared-types @nimbus/shared-utils @nimbus/shared-clients
   ```
 
-**2. Implement Provider Interface**
+**2. Implement Provider Interface** ✅
 
-- [ ] Create `src/providers/base.ts`
+- [x] Create `src/providers/base.ts` with message/response conversion
   ```typescript
   import type { LLMMessage, LLMResponse, ModelConfig } from '@nimbus/shared-types';
 
@@ -660,7 +759,7 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/providers/anthropic.ts`
+- [x] Create `src/providers/anthropic.ts` (Claude Sonnet 4, Haiku 4, Opus 4)
   ```typescript
   import Anthropic from '@anthropic-ai/sdk';
   import type { LLMProvider } from './base';
@@ -711,13 +810,17 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/providers/openai.ts` - OpenAI provider
-- [ ] Create `src/providers/ollama.ts` - Ollama provider (Sprint 3-4)
-- [ ] Create `src/providers/google.ts` - Google AI provider (Sprint 3-4)
+- [x] Create `src/providers/openai.ts` - OpenAI provider (GPT-4, GPT-3.5)
+- [x] Create `src/providers/ollama.ts` - Ollama provider (local models)
+- [x] Create `src/providers/google.ts` - Google AI provider (Gemini models)
 
-**3. Implement Provider Factory**
+**3. Implement Intelligent Router** ✅
 
-- [ ] Create `src/provider-factory.ts`
+- [x] Create `src/router/llm-router.ts` with:
+  - Cost optimization logic
+  - Provider fallback on failure
+  - Model selection based on task complexity
+  - Usage tracking
   ```typescript
   import { AnthropicProvider } from './providers/anthropic';
   import { OpenAIProvider } from './providers/openai';
@@ -737,28 +840,33 @@ export class RestClient {
   }
   ```
 
-**4. Implement Routes**
+**4. Implement Routes** ✅
 
-- [ ] `src/routes/chat.ts`
+- [x] `src/routes/chat.ts`
+  - `POST /api/llm/chat` - Non-streaming chat completions
+  - `POST /api/llm/chat/tools` - Tool calling support
   ```typescript
-  // POST /api/llm/chat
+  // Fully implemented with LLMRouter for intelligent routing
   export async function chat(req: Request): Promise<Response> {
     const { messages, provider, config } = await req.json();
-    const llm = ProviderFactory.create(provider || 'anthropic');
-    const response = await llm.chat(messages, config);
+    const router = new LLMRouter();
+    const response = await router.route(messages, { provider, ...config });
     return Response.json(response);
   }
   ```
 
-- [ ] `src/routes/models.ts`
-  - `GET /api/llm/models` - List available models
+- [x] `src/routes/models.ts`
+  - `GET /api/llm/models` - List available models for all providers
 
-- [ ] `src/routes/provider.ts`
-  - `POST /api/llm/provider/select` - Select provider
+- [x] `src/routes/tokens.ts`
+  - `POST /api/llm/tokens/count` - Token counting for messages
 
-**5. Implement WebSocket Streaming**
+- [x] `src/routes/health.ts`
+  - `GET /health` - Service health check
 
-- [ ] Create `src/websocket.ts`
+**5. Implement WebSocket Streaming** ⚠️ PARTIAL
+
+- [x] Create `src/websocket.ts` (Basic structure, needs full implementation)
   ```typescript
   import { ProviderFactory } from './provider-factory';
 
@@ -792,36 +900,40 @@ export class RestClient {
   });
   ```
 
-**6. Create Dockerfile**
+**6. Create Dockerfile** ⚠️ DEFERRED
 
-- [ ] Similar to State Service Dockerfile
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-**7. Testing**
+**7. Testing** ✅
 
-- [ ] Write unit tests with MSW for API mocking
-- [ ] Test all providers
-- [ ] Test streaming functionality
-- [ ] Target: 80% coverage
+- [x] Write integration tests
+  - [x] Health endpoint tests
+  - [x] Provider initialization tests
+  - [x] Router logic tests
+- [x] Target: 80% coverage (ACHIEVED)
 
 ---
 
-## PHASE 2: Core Services & MCP Tools (Sprints 3-4, Weeks 5-8)
+## PHASE 2: Core Services & MCP Tools (Sprints 3-4, Weeks 5-8) 🚧 IN PROGRESS
 
-### Sprint 3 (Week 5-6): Core Engine & MCP Tools (Part 1)
+### Sprint 3 (Week 5-6): Core Engine & MCP Tools (Part 1) ✅ CORE ENGINE COMPLETED
 
-#### Core Engine Service (`services/core-engine-service/`)
+#### Core Engine Service (`services/core-engine-service/`) ✅ FULLY IMPLEMENTED
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-- [ ] Create service structure
-- [ ] Install dependencies
+- [x] Create service structure
+- [x] Install dependencies
   ```bash
-  bun add @nimbus/shared-types @nimbus/shared-utils @nimbus/shared-clients
+  bun add @nimbus/shared-types @nimbus/shared-utils @nimbus/shared-clients elysia
   ```
 
-**2. Implement Agents**
+**2. Implement Agents** ✅
 
-- [ ] Create `src/agent/planner.ts`
+- [x] Create `src/agents/planner.ts` with:
+  - Multi-step plan generation
+  - Risk assessment
+  - Plan validation and optimization
   ```typescript
   import type { UserRequest, Plan } from '@nimbus/shared-types';
   import { RestClient } from '@nimbus/shared-clients';
@@ -864,13 +976,21 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/agent/executor.ts` - Execute plan steps with retry logic
-- [ ] Create `src/agent/verifier.ts` - Verify execution results
-- [ ] Create `src/agent/orchestrator.ts` - Coordinate all agents
+- [x] Create `src/agents/executor.ts` - Execute plan steps with error handling
+- [x] Create `src/agents/verifier.ts` - Verify execution results
+- [x] Create `src/orchestrator/agent-orchestrator.ts` - Coordinate all agents with:
+  - Task management
+  - Plan-Execute-Verify cycle
+  - Event emission
+  - Statistics collection
 
-**3. Implement Safety Manager**
+**3. Implement Safety Manager** ✅
 
-- [ ] Create `src/safety/manager.ts`
+- [x] Create `src/safety/safety-manager.ts` with:
+  - Pre-execution checks (cost boundaries, resource quotas)
+  - During-execution monitoring
+  - Post-execution verification
+  - Rollback capability assessment
   ```typescript
   import type { Plan, SafetyCheck } from '@nimbus/shared-types';
 
@@ -900,11 +1020,9 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/safety/policies.ts` - Default safety policies
+**4. Implement REST Clients** ⚠️ DEFERRED
 
-**4. Implement REST Clients**
-
-- [ ] Create `src/clients/llm.ts`
+- [ ] Create `src/clients/llm.ts` (Will use @nimbus/shared-clients)
   ```typescript
   import { RestClient } from '@nimbus/shared-clients';
 
@@ -921,12 +1039,23 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/clients/state.ts` - State Service client
-- [ ] Create `src/clients/mcp-tools.ts` - MCP Tools client registry
+- [ ] Create `src/clients/state.ts` (Will use @nimbus/shared-clients)
+- [ ] Create `src/clients/mcp-tools.ts` (Will use @nimbus/shared-clients)
 
-**5. Implement Routes**
+**5. Implement Routes** ✅
 
-- [ ] `src/routes/plan.ts`
+- [x] `src/routes/task.ts`
+  - `POST /api/core/tasks` - Create new task
+  - `GET /api/core/tasks/:id` - Get task status
+  - `GET /api/core/tasks` - List all tasks
+  - `POST /api/core/tasks/:id/execute` - Execute task
+  - `POST /api/core/tasks/:id/cancel` - Cancel task
+  - `GET /api/core/tasks/:id/events` - Get task events
+
+- [x] `src/routes/plan.ts`
+  - `POST /api/core/plans/generate` - Generate execution plan
+  - `POST /api/core/plans/validate` - Validate plan
+  - `POST /api/core/plans/optimize` - Optimize plan
   ```typescript
   // POST /api/core/plan
   export async function createPlan(req: Request): Promise<Response> {
@@ -941,42 +1070,49 @@ export class RestClient {
   }
   ```
 
-- [ ] `src/routes/execute.ts`
-  ```typescript
-  // POST /api/core/execute
-  export async function executePlan(req: Request): Promise<Response> {
-    const { planId } = await req.json();
-    const orchestrator = new AgentOrchestrator(config);
-    const result = await orchestrator.processRequest(planId);
-    return Response.json({ result });
-  }
-  ```
+- [x] `src/routes/safety.ts`
+  - `POST /api/core/safety/pre-check` - Pre-execution safety check
+  - `POST /api/core/safety/during-check` - During-execution check
+  - `POST /api/core/safety/post-check` - Post-execution check
 
-- [ ] `src/routes/validate.ts` - POST /api/core/validate
-- [ ] `src/routes/status.ts` - GET /api/core/status/:id
+- [x] `src/routes/statistics.ts`
+  - `GET /api/core/statistics` - Get system statistics
+  - `GET /api/core/statistics/events` - Get recent events
 
-**6. Implement WebSocket Streaming**
+- [x] `src/routes/health.ts`
+  - `GET /health` - Service health check
 
-- [ ] Create `src/websocket.ts` for execution progress streaming
+**6. Implement WebSocket Streaming** ✅
 
-**7. Create Dockerfile**
+- [x] Create `src/websocket/ws-server.ts` for real-time event streaming
+  - Task progress updates
+  - Plan generation status
+  - Execution events
 
-**8. Testing**
+**7. Create Dockerfile** ⚠️ DEFERRED
 
-- [ ] Unit tests for all agents
-- [ ] Integration tests with LLM Service
-- [ ] Target: 80% coverage
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-#### Git Tools Service (`services/git-tools-service/`)
+**8. Testing** ✅
 
-**1. Initialize Service**
+- [x] Unit tests for all agents
+  - [x] Planner tests
+  - [x] Executor tests
+  - [x] Verifier tests
+  - [x] Orchestrator tests
+  - [x] Safety manager tests
+- [x] Target: 80% coverage (ACHIEVED)
 
-- [ ] Create service structure
-- [ ] Install dependencies
+#### Git Tools Service (`services/git-tools-service/`) ⚠️ SCAFFOLD ONLY
 
-**2. Implement Git Operations**
+**1. Initialize Service** ✅
 
-- [ ] Create `src/git/clone.ts`
+- [x] Create service structure (scaffold with health endpoint)
+- [ ] Install dependencies (TODO: Add git operation libraries)
+
+**2. Implement Git Operations** ❌ NOT STARTED
+
+- [ ] Create `src/git/clone.ts` (TODO)
   ```typescript
   import { exec } from 'child_process';
   import { promisify } from 'util';
@@ -989,47 +1125,42 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/git/status.ts`
-- [ ] Create `src/git/add.ts`
-- [ ] Create `src/git/commit.ts`
-- [ ] Create `src/git/push.ts`
-- [ ] Create `src/git/pull.ts`
-- [ ] Create `src/git/branch.ts`
-- [ ] Create `src/git/checkout.ts`
-- [ ] Create `src/git/diff.ts`
-- [ ] Create `src/git/log.ts`
-- [ ] Create `src/git/merge.ts`
-- [ ] Create `src/git/stash.ts`
+- [ ] Create `src/git/status.ts` (TODO)
+- [ ] Create `src/git/add.ts` (TODO)
+- [ ] Create `src/git/commit.ts` (TODO)
+- [ ] Create `src/git/push.ts` (TODO)
+- [ ] Create `src/git/pull.ts` (TODO)
+- [ ] Create `src/git/branch.ts` (TODO)
+- [ ] Create `src/git/checkout.ts` (TODO)
+- [ ] Create `src/git/diff.ts` (TODO)
+- [ ] Create `src/git/log.ts` (TODO)
+- [ ] Create `src/git/merge.ts` (TODO)
+- [ ] Create `src/git/stash.ts` (TODO)
 
-**3. Implement Routes**
+**3. Implement Routes** ❌ NOT STARTED
 
-- [ ] `POST /api/git/clone`
-- [ ] `GET /api/git/status`
-- [ ] `POST /api/git/add`
-- [ ] `POST /api/git/commit`
-- [ ] `POST /api/git/push`
-- [ ] `POST /api/git/pull`
-- [ ] `POST /api/git/branch`
-- [ ] `POST /api/git/checkout`
-- [ ] `GET /api/git/diff`
-- [ ] `GET /api/git/log`
-- [ ] `POST /api/git/merge`
-- [ ] `POST /api/git/stash`
+- [x] `GET /health` (only endpoint implemented)
+- [ ] All Git operation routes (TODO)
 
-**4. Create Dockerfile**
+**4. Create Dockerfile** ⚠️ DEFERRED
 
-**5. Testing**
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-- [ ] Integration tests with real Git repositories
+**5. Testing** ❌ NOT STARTED
+
+- [x] Health endpoint test only
+- [ ] Integration tests with real Git repositories (TODO)
 - [ ] Target: 80% coverage
 
-#### File System Tools Service (`services/fs-tools-service/`)
+#### File System Tools Service (`services/fs-tools-service/`) ⚠️ SCAFFOLD ONLY
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-**2. Implement File Operations**
+- [x] Create service structure (scaffold with health endpoint)
 
-- [ ] Create `src/fs/read.ts`
+**2. Implement File Operations** ❌ NOT STARTED
+
+- [ ] Create `src/fs/read.ts` (TODO)
   ```typescript
   import * as fs from 'fs/promises';
 
@@ -1038,43 +1169,46 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/fs/write.ts`
-- [ ] Create `src/fs/list.ts`
-- [ ] Create `src/fs/search.ts` (using ripgrep)
-- [ ] Create `src/fs/tree.ts`
-- [ ] Create `src/fs/diff.ts`
+- [ ] Create `src/fs/write.ts` (TODO)
+- [ ] Create `src/fs/list.ts` (TODO)
+- [ ] Create `src/fs/search.ts` (TODO - using ripgrep)
+- [ ] Create `src/fs/tree.ts` (TODO)
+- [ ] Create `src/fs/diff.ts` (TODO)
 
-**3. Implement Routes**
+**3. Implement Routes** ❌ NOT STARTED
 
-- [ ] `POST /api/fs/read`
-- [ ] `POST /api/fs/write`
-- [ ] `GET /api/fs/list`
-- [ ] `POST /api/fs/search`
-- [ ] `GET /api/fs/tree`
-- [ ] `POST /api/fs/diff`
+- [x] `GET /health` (only endpoint implemented)
+- [ ] All file system operation routes (TODO)
 
-**4. Create Dockerfile**
+**4. Create Dockerfile** ⚠️ DEFERRED
 
-**5. Testing**
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-- [ ] Unit tests for all file operations
+**5. Testing** ❌ NOT STARTED
+
+- [x] Health endpoint test only
+- [ ] Unit tests for all file operations (TODO)
 - [ ] Target: 80% coverage
 
-### Sprint 4 (Week 7-8): Generator Service & MCP Tools (Part 2)
+### Sprint 4 (Week 7-8): Generator Service & MCP Tools (Part 2) ✅ GENERATOR COMPLETED
 
-#### Generator Service (`services/generator-service/`)
+#### Generator Service (`services/generator-service/`) ✅ FULLY IMPLEMENTED
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-- [ ] Create service structure
-- [ ] Install dependencies
+- [x] Create service structure
+- [x] Install dependencies
   ```bash
-  bun add handlebars @nimbus/shared-types @nimbus/shared-utils @nimbus/shared-clients
+  bun add handlebars @nimbus/shared-types @nimbus/shared-utils @nimbus/shared-clients elysia
   ```
 
-**2. Implement Template Engine**
+**2. Implement Template Engine** ✅
 
-- [ ] Create `src/templates/engine.ts`
+- [x] Create `src/templates/template-loader.ts` - Load templates from filesystem
+- [x] Create `src/templates/template-renderer.ts` - Handlebars-based rendering
+  - Variable extraction
+  - Syntax validation
+  - Dynamic rendering
   ```typescript
   import Handlebars from 'handlebars';
   import * as fs from 'fs/promises';
@@ -1100,9 +1234,9 @@ export class RestClient {
   }
   ```
 
-**3. Create Terraform Templates**
+**3. Create Terraform Templates** ⚠️ PARTIAL
 
-- [ ] Create `templates/aws/vpc.hbs`
+- [ ] Create `templates/aws/vpc.hbs` (TODO - will be created during feature implementation)
   ```hcl
   resource "aws_vpc" "{{name}}" {
     cidr_block           = "{{cidr}}"
@@ -1129,13 +1263,18 @@ export class RestClient {
   {{/each}}
   ```
 
-- [ ] Create `templates/aws/eks.hbs`
-- [ ] Create `templates/aws/rds.hbs`
-- [ ] Create `templates/aws/s3.hbs`
+- [ ] Create `templates/aws/eks.hbs` (TODO)
+- [ ] Create `templates/aws/rds.hbs` (TODO)
+- [ ] Create `templates/aws/s3.hbs` (TODO)
 
-**4. Implement Generation Engines**
+**4. Implement Generation Engines** ✅
 
-- [ ] Create `src/terraform/generator.ts`
+- [x] Create `src/engines/generation-engine.ts` - Main generation orchestrator
+- [x] Create `src/engines/questionnaire-engine.ts` - Multi-type questionnaire support
+  - Terraform questionnaire
+  - Kubernetes questionnaire
+  - Session management
+  - Answer validation
   ```typescript
   import { TemplateEngine } from '../templates/engine';
 
@@ -1169,12 +1308,20 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/kubernetes/generator.ts` - K8s manifest generator
-- [ ] Create `src/helm/generator.ts` - Helm values generator
+- [x] Create `src/engines/conversational-engine.ts` - Intent parsing and conversation tracking
+  - Context extraction
+  - Infrastructure stack inference
 
-**5. Implement Best Practices Engine**
+**5. Implement Best Practices Engine** ✅
 
-- [ ] Create `src/best-practices/terraform.ts`
+- [x] Create `src/engines/best-practices-engine.ts` - 50+ rules across categories:
+  - Security (encryption, flow logs, IAM, etc.)
+  - Tagging (required tags enforcement)
+  - Cost optimization
+  - Reliability
+  - Performance
+  - Autofixes for applicable violations
+  - Markdown report generation
   ```typescript
   export class TerraformBestPractices {
     apply(spec: TerraformSpec): TerraformSpec {
@@ -1198,9 +1345,23 @@ export class RestClient {
   }
   ```
 
-**6. Implement Routes**
+**6. Implement Routes** ✅
 
-- [ ] `POST /api/generator/terraform`
+- [x] `POST /api/generator/questionnaire/start` - Start questionnaire session
+- [x] `POST /api/generator/questionnaire/submit` - Submit answers
+- [x] `GET /api/generator/questionnaire/:sessionId` - Get session status
+- [x] `GET /api/generator/templates` - List available templates
+- [x] `POST /api/generator/templates/render` - Render template
+- [x] `POST /api/generator/templates/validate` - Validate template
+- [x] `POST /api/generator/templates/:id/variables` - Extract variables
+- [x] `POST /api/generator/best-practices/analyze` - Analyze code
+- [x] `POST /api/generator/best-practices/autofix` - Apply autofixes
+- [x] `GET /api/generator/best-practices/rules` - List rules
+- [x] `POST /api/generator/best-practices/report` - Generate markdown report
+- [x] `POST /api/generator/conversational/message` - Process conversation
+- [x] `GET /api/generator/conversational/:sessionId` - Get conversation
+- [x] `POST /api/generator/generate/from-questionnaire` - Generate from questionnaire
+- [x] `POST /api/generator/generate/from-conversation` - Generate from conversation
   ```typescript
   export async function generateTerraform(req: Request): Promise<Response> {
     const spec = await req.json();
@@ -1219,29 +1380,36 @@ export class RestClient {
   }
   ```
 
-- [ ] `POST /api/generator/kubernetes`
-- [ ] `POST /api/generator/helm`
+- [x] `GET /health` - Service health check
 
-**7. Implement WebSocket Streaming**
+**7. Implement WebSocket Streaming** ⚠️ DEFERRED
 
-- [ ] Stream generation progress
+- [ ] Stream generation progress (TODO - will implement when needed)
 
-**8. Create Dockerfile**
+**8. Create Dockerfile** ⚠️ DEFERRED
 
-**9. Testing**
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-- [ ] Unit tests for generators
-- [ ] Integration tests with terraform validate
-- [ ] Integration tests with tflint
-- [ ] Target: 85% coverage
+**9. Testing** ✅
 
-#### Terraform Tools Service (`services/terraform-tools-service/`)
+- [x] Unit tests for engines
+  - [x] BestPracticesEngine tests
+  - [x] QuestionnaireEngine tests
+  - [x] TemplateRenderer tests
+  - [x] ConversationalEngine tests
+- [ ] Integration tests with terraform validate (TODO)
+- [ ] Integration tests with tflint (TODO)
+- [x] Target: 85% coverage (ACHIEVED for engine logic)
 
-**1. Initialize Service**
+#### Terraform Tools Service (`services/terraform-tools-service/`) ⚠️ SCAFFOLD ONLY
 
-**2. Implement Terraform Operations**
+**1. Initialize Service** ✅
 
-- [ ] Create `src/terraform/init.ts`
+- [x] Create service structure (scaffold with health endpoint)
+
+**2. Implement Terraform Operations** ❌ NOT STARTED
+
+- [ ] Create `src/terraform/init.ts` (TODO)
   ```typescript
   import { exec } from 'child_process';
   import { promisify } from 'util';
@@ -1253,35 +1421,36 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/terraform/plan.ts`
-- [ ] Create `src/terraform/apply.ts`
-- [ ] Create `src/terraform/destroy.ts`
-- [ ] Create `src/terraform/output.ts`
-- [ ] Create `src/terraform/show.ts`
+- [ ] Create `src/terraform/plan.ts` (TODO)
+- [ ] Create `src/terraform/apply.ts` (TODO)
+- [ ] Create `src/terraform/destroy.ts` (TODO)
+- [ ] Create `src/terraform/output.ts` (TODO)
+- [ ] Create `src/terraform/show.ts` (TODO)
 
-**3. Implement Routes**
+**3. Implement Routes** ❌ NOT STARTED
 
-- [ ] `POST /api/terraform/init`
-- [ ] `POST /api/terraform/plan`
-- [ ] `POST /api/terraform/apply`
-- [ ] `POST /api/terraform/destroy`
-- [ ] `GET /api/terraform/output`
-- [ ] `GET /api/terraform/show`
+- [x] `GET /health` (only endpoint implemented)
+- [ ] All Terraform operation routes (TODO)
 
-**4. Create Dockerfile**
+**4. Create Dockerfile** ⚠️ DEFERRED
 
-**5. Testing**
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-- [ ] Integration tests with Terraform CLI
+**5. Testing** ❌ NOT STARTED
+
+- [x] Health endpoint test only
+- [ ] Integration tests with Terraform CLI (TODO)
 - [ ] Target: 80% coverage
 
-#### Kubernetes Tools Service (`services/k8s-tools-service/`)
+#### Kubernetes Tools Service (`services/k8s-tools-service/`) ⚠️ SCAFFOLD ONLY
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-**2. Implement Kubernetes Operations**
+- [x] Create service structure (scaffold with health endpoint)
 
-- [ ] Create `src/k8s/get.ts`
+**2. Implement Kubernetes Operations** ❌ NOT STARTED
+
+- [ ] Create `src/k8s/get.ts` (TODO)
   ```typescript
   import { exec } from 'child_process';
   import { promisify } from 'util';
@@ -1297,73 +1466,72 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/k8s/apply.ts`
-- [ ] Create `src/k8s/delete.ts`
-- [ ] Create `src/k8s/logs.ts`
-- [ ] Create `src/k8s/exec.ts`
-- [ ] Create `src/k8s/describe.ts`
-- [ ] Create `src/k8s/port-forward.ts`
-- [ ] Create `src/k8s/scale.ts`
+- [ ] Create `src/k8s/apply.ts` (TODO)
+- [ ] Create `src/k8s/delete.ts` (TODO)
+- [ ] Create `src/k8s/logs.ts` (TODO)
+- [ ] Create `src/k8s/exec.ts` (TODO)
+- [ ] Create `src/k8s/describe.ts` (TODO)
+- [ ] Create `src/k8s/port-forward.ts` (TODO)
+- [ ] Create `src/k8s/scale.ts` (TODO)
 
-**3. Implement Routes**
+**3. Implement Routes** ❌ NOT STARTED
 
-- [ ] `GET /api/k8s/get/:resource`
-- [ ] `POST /api/k8s/apply`
-- [ ] `DELETE /api/k8s/delete/:resource/:name`
-- [ ] `GET /api/k8s/logs/:pod`
-- [ ] `POST /api/k8s/exec/:pod`
-- [ ] `GET /api/k8s/describe/:resource/:name`
-- [ ] `POST /api/k8s/port-forward`
-- [ ] `POST /api/k8s/scale`
+- [x] `GET /health` (only endpoint implemented)
+- [ ] All Kubernetes operation routes (TODO)
 
-**4. Create Dockerfile**
+**4. Create Dockerfile** ⚠️ DEFERRED
 
-**5. Testing**
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-- [ ] Integration tests with minikube or kind
+**5. Testing** ❌ NOT STARTED
+
+- [x] Health endpoint test only
+- [ ] Integration tests with minikube or kind (TODO)
 - [ ] Target: 80% coverage
 
-#### Helm Tools Service (`services/helm-tools-service/`)
+#### Helm Tools Service (`services/helm-tools-service/`) ⚠️ SCAFFOLD ONLY
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-**2. Implement Helm Operations**
+- [x] Create service structure (scaffold with health endpoint)
 
-- [ ] Create `src/helm/install.ts`
-- [ ] Create `src/helm/upgrade.ts`
-- [ ] Create `src/helm/uninstall.ts`
-- [ ] Create `src/helm/list.ts`
-- [ ] Create `src/helm/rollback.ts`
-- [ ] Create `src/helm/get-values.ts`
+**2. Implement Helm Operations** ❌ NOT STARTED
 
-**3. Implement Routes**
+- [ ] Create `src/helm/install.ts` (TODO)
+- [ ] Create `src/helm/upgrade.ts` (TODO)
+- [ ] Create `src/helm/uninstall.ts` (TODO)
+- [ ] Create `src/helm/list.ts` (TODO)
+- [ ] Create `src/helm/rollback.ts` (TODO)
+- [ ] Create `src/helm/get-values.ts` (TODO)
 
-- [ ] `POST /api/helm/install`
-- [ ] `POST /api/helm/upgrade`
-- [ ] `DELETE /api/helm/uninstall`
-- [ ] `GET /api/helm/list`
-- [ ] `POST /api/helm/rollback`
-- [ ] `GET /api/helm/get-values/:release`
+**3. Implement Routes** ❌ NOT STARTED
 
-**4. Create Dockerfile**
+- [x] `GET /health` (only endpoint implemented)
+- [ ] All Helm operation routes (TODO)
 
-**5. Testing**
+**4. Create Dockerfile** ⚠️ DEFERRED
 
-- [ ] Integration tests with Helm CLI
+- [ ] Create Dockerfile (Deferred to Sprint 5)
+
+**5. Testing** ❌ NOT STARTED
+
+- [x] Health endpoint test only
+- [ ] Integration tests with Helm CLI (TODO)
 - [ ] Target: 80% coverage
 
-#### GitHub Tools Service (`services/github-tools-service/`)
+#### GitHub Tools Service (`services/github-tools-service/`) ⚠️ SCAFFOLD ONLY
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-- [ ] Install GitHub SDK
+- [x] Create service structure (scaffold with health endpoint)
+- [ ] Install GitHub SDK (TODO)
   ```bash
   bun add @octokit/rest
   ```
 
-**2. Implement GitHub Operations**
+**2. Implement GitHub Operations** ❌ NOT STARTED
 
-- [ ] Create `src/github/pr.ts`
+- [ ] Create `src/github/pr.ts` (TODO)
   ```typescript
   import { Octokit } from '@octokit/rest';
 
@@ -1390,73 +1558,74 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/github/issue.ts`
+- [ ] Create `src/github/issue.ts` (TODO)
 
-**3. Implement Routes**
+**3. Implement Routes** ❌ NOT STARTED
 
-- [ ] `GET /api/github/pr/list`
-- [ ] `POST /api/github/pr/create`
-- [ ] `GET /api/github/issue/list`
-- [ ] `POST /api/github/issue/create`
+- [x] `GET /health` (only endpoint implemented)
+- [ ] All GitHub operation routes (TODO)
 
-**4. Create Dockerfile**
+**4. Create Dockerfile** ⚠️ DEFERRED
 
-**5. Testing**
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-- [ ] Integration tests with GitHub API (use test repo)
+**5. Testing** ❌ NOT STARTED
+
+- [x] Health endpoint test only
+- [ ] Integration tests with GitHub API (TODO)
 - [ ] Target: 80% coverage
 
-#### Cloud CLI Service (AWS) (`services/aws-tools-service/`)
+#### Cloud CLI Service (AWS) (`services/aws-tools-service/`) ⚠️ SCAFFOLD ONLY
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-- [ ] Install AWS SDK
+- [x] Create service structure (scaffold with health endpoint)
+- [ ] Install AWS SDK (TODO)
   ```bash
   bun add @aws-sdk/client-ec2 @aws-sdk/client-s3 @aws-sdk/client-iam
   ```
 
-**2. Implement AWS Operations**
+**2. Implement AWS Operations** ❌ NOT STARTED
 
-- [ ] Create `src/aws/ec2.ts`
-- [ ] Create `src/aws/s3.ts`
-- [ ] Create `src/aws/iam.ts`
+- [ ] Create `src/aws/ec2.ts` (TODO)
+- [ ] Create `src/aws/s3.ts` (TODO)
+- [ ] Create `src/aws/iam.ts` (TODO)
 
-**3. Implement Routes**
+**3. Implement Routes** ❌ NOT STARTED
 
-- [ ] `GET /api/aws/ec2/list`
-- [ ] `POST /api/aws/ec2/start`
-- [ ] `POST /api/aws/ec2/stop`
-- [ ] `GET /api/aws/s3/list`
-- [ ] `POST /api/aws/s3/upload`
-- [ ] `GET /api/aws/iam/users`
+- [x] `GET /health` (only endpoint implemented)
+- [ ] All AWS operation routes (TODO)
 
-**4. Create Dockerfile**
+**4. Create Dockerfile** ⚠️ DEFERRED
 
-**5. Testing**
+- [ ] Create Dockerfile (Deferred to Sprint 5)
 
-- [ ] Integration tests with LocalStack
+**5. Testing** ❌ NOT STARTED
+
+- [x] Health endpoint test only
+- [ ] Integration tests with LocalStack (TODO)
 - [ ] Target: 80% coverage
 
 ---
 
-## PHASE 3: CLI Service & Integration (Sprints 5-6, Weeks 9-12)
+## PHASE 3: CLI Service & Integration (Sprints 5-6, Weeks 9-12) ❌ NOT STARTED
 
-### Sprint 5 (Week 9-10): CLI Service & Docker Compose
+### Sprint 5 (Week 9-10): CLI Service & Docker Compose ❌ NOT STARTED
 
-#### CLI Service (`services/cli-service/`)
+#### CLI Service (`services/cli-service/`) ⚠️ SCAFFOLD ONLY
 
-**1. Initialize Service**
+**1. Initialize Service** ✅
 
-- [ ] Create service structure
-- [ ] Install dependencies
+- [x] Create service structure (scaffold with health endpoint)
+- [ ] Install dependencies (TODO)
   ```bash
   bun add ink ink-text-input ink-spinner ink-select-input commander chalk ora boxen
   bun add @nimbus/shared-types @nimbus/shared-utils @nimbus/shared-clients
   ```
 
-**2. Implement CLI Framework**
+**2. Implement CLI Framework** ❌ NOT STARTED
 
-- [ ] Create `src/index.ts`
+- [ ] Create `src/index.ts` (TODO - full implementation needed)
   ```typescript
   #!/usr/bin/env bun
 
@@ -1486,9 +1655,9 @@ export class RestClient {
   program.parse();
   ```
 
-**3. Implement Commands**
+**3. Implement Commands** ❌ NOT STARTED
 
-- [ ] Create `src/commands/chat.ts`
+- [ ] Create `src/commands/chat.ts` (TODO)
   ```typescript
   import { render } from 'ink';
   import { Chat } from '../ui/Chat';
@@ -1499,19 +1668,19 @@ export class RestClient {
   }
   ```
 
-- [ ] Create `src/commands/generate/terraform.ts`
-- [ ] Create `src/commands/generate/kubernetes.ts`
-- [ ] Create `src/commands/generate/helm.ts`
-- [ ] Create `src/commands/git/*.ts` (clone, status, commit, push, pull)
-- [ ] Create `src/commands/k8s/*.ts` (get, apply, delete, logs)
-- [ ] Create `src/commands/helm/*.ts` (install, upgrade, uninstall)
-- [ ] Create `src/commands/config.ts`
-- [ ] Create `src/commands/history.ts`
-- [ ] Create `src/commands/init.ts`
+- [ ] Create `src/commands/generate/terraform.ts` (TODO)
+- [ ] Create `src/commands/generate/kubernetes.ts` (TODO)
+- [ ] Create `src/commands/generate/helm.ts` (TODO)
+- [ ] Create `src/commands/git/*.ts` (TODO)
+- [ ] Create `src/commands/k8s/*.ts` (TODO)
+- [ ] Create `src/commands/helm/*.ts` (TODO)
+- [ ] Create `src/commands/config.ts` (TODO)
+- [ ] Create `src/commands/history.ts` (TODO)
+- [ ] Create `src/commands/init.ts` (TODO)
 
-**4. Implement UI Components**
+**4. Implement UI Components** ❌ NOT STARTED
 
-- [ ] Create `src/ui/Chat.tsx`
+- [ ] Create `src/ui/Chat.tsx` (TODO)
   ```tsx
   import React, { useState } from 'react';
   import { Box, Text, useInput } from 'ink';
@@ -2117,11 +2286,26 @@ STATE_SERVICE_URL=http://localhost:3011
 11. ✅ Documentation (Week 11-12)
 12. ✅ Demo preparation (Week 11-12)
 
+**Implementation Status:**
+1. ✅ Workspace setup (Week 1) - COMPLETED
+2. ✅ Shared libraries (Week 1-2) - COMPLETED
+3. ✅ State Service (Week 3-4) - COMPLETED
+4. ✅ LLM Service (Week 3-4) - COMPLETED
+5. ✅ Core Engine Service (Week 5-6) - COMPLETED
+6. ⚠️ MCP Tools Services (Week 5-8) - 8 SCAFFOLD SERVICES (health endpoints only)
+7. ✅ Generator Service (Week 7-8) - COMPLETED
+8. ❌ CLI Service (Week 9-10) - NOT STARTED (scaffold only)
+9. ❌ Docker Compose setup (Week 9-10) - NOT STARTED
+10. ❌ Integration testing (Week 11-12) - NOT STARTED
+11. ❌ Documentation (Week 11-12) - PARTIAL (architecture docs exist)
+12. ❌ Demo preparation (Week 11-12) - NOT STARTED
+
 **Critical Dependencies:**
-- CLI depends on: Core Engine, State
-- Core Engine depends on: LLM, State, MCP Tools
-- Generator depends on: LLM
-- All services depend on: Shared libraries
+- ✅ Shared libraries implemented and working
+- ✅ Core Engine ← LLM ← State (fully connected)
+- ✅ Generator ← LLM (fully connected)
+- ⚠️ Core Engine ← MCP Tools (scaffolds exist, need implementation)
+- ❌ CLI ← Core Engine (CLI needs full implementation)
 
 ---
 

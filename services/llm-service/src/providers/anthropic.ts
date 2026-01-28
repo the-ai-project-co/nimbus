@@ -74,13 +74,14 @@ export class AnthropicProvider extends BaseProvider {
     const systemPrompt = this.extractSystemPrompt(request.messages);
     const messages = this.convertMessages(this.filterSystemMessages(request.messages));
 
+    const toolChoice = this.convertToolChoice(request.toolChoice);
     const response = await this.client.messages.create({
       model: request.model || this.defaultModel,
       max_tokens: request.maxTokens || 4096,
       messages,
       system: systemPrompt,
       tools: this.convertTools(request.tools),
-      tool_choice: this.convertToolChoice(request.toolChoice),
+      ...(toolChoice && { tool_choice: toolChoice }),
       temperature: request.temperature,
     });
 
@@ -136,12 +137,24 @@ export class AnthropicProvider extends BaseProvider {
                   },
                 ]
               : []),
-            ...m.toolCalls.map((tc) => ({
-              type: 'tool_use' as const,
-              id: tc.id,
-              name: tc.function.name,
-              input: JSON.parse(tc.function.arguments),
-            })),
+            ...m.toolCalls.map((tc) => {
+              try {
+                return {
+                  type: 'tool_use' as const,
+                  id: tc.id,
+                  name: tc.function.name,
+                  input: JSON.parse(tc.function.arguments),
+                };
+              } catch (error) {
+                console.error(`Failed to parse tool call arguments for ${tc.function.name}:`, error);
+                return {
+                  type: 'tool_use' as const,
+                  id: tc.id,
+                  name: tc.function.name,
+                  input: {},
+                };
+              }
+            }),
           ],
         };
       }
@@ -173,12 +186,14 @@ export class AnthropicProvider extends BaseProvider {
    */
   private convertToolChoice(
     toolChoice?: ToolCompletionRequest['toolChoice']
-  ): Anthropic.MessageCreateParams['tool_choice'] {
+  ): Anthropic.MessageCreateParams['tool_choice'] | undefined {
     if (!toolChoice || toolChoice === 'auto') {
       return { type: 'auto' };
     }
     if (toolChoice === 'none') {
-      return { type: 'auto' }; // Anthropic doesn't have 'none', use auto
+      // When 'none' is specified, don't send tool_choice parameter
+      // This prevents Anthropic from using tools
+      return undefined;
     }
     if (typeof toolChoice === 'object' && toolChoice.type === 'function') {
       return {

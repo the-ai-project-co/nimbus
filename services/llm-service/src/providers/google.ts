@@ -22,7 +22,11 @@ export class GoogleProvider extends BaseProvider {
 
   constructor(apiKey?: string) {
     super();
-    this.client = new GoogleGenerativeAI(apiKey || process.env.GOOGLE_API_KEY || '');
+    const key = apiKey || process.env.GOOGLE_API_KEY;
+    if (!key) {
+      throw new Error('Google API key is required. Set GOOGLE_API_KEY environment variable or pass it to the constructor.');
+    }
+    this.client = new GoogleGenerativeAI(key);
   }
 
   async complete(request: CompletionRequest): Promise<LLMResponse> {
@@ -176,12 +180,24 @@ export class GoogleProvider extends BaseProvider {
                   },
                 ]
               : []),
-            ...m.toolCalls.map((tc) => ({
-              functionCall: {
-                name: tc.function.name,
-                args: JSON.parse(tc.function.arguments),
-              },
-            })),
+            ...m.toolCalls.map((tc) => {
+              try {
+                return {
+                  functionCall: {
+                    name: tc.function.name,
+                    args: JSON.parse(tc.function.arguments),
+                  },
+                };
+              } catch (error) {
+                console.error(`Failed to parse tool call arguments for ${tc.function.name}:`, error);
+                return {
+                  functionCall: {
+                    name: tc.function.name,
+                    args: {},
+                  },
+                };
+              }
+            }),
           ],
         };
       }

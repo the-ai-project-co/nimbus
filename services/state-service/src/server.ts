@@ -14,13 +14,24 @@ export async function startServer(port: number) {
       const url = new URL(req.url);
       const path = url.pathname;
 
-      // Health check endpoint
+      // Health check endpoint (not prefixed)
       if (path === '/health') {
         return Response.json(healthHandler());
       }
 
-      // API routes prefix
-      const apiPath = path.startsWith('/api/state/') ? path.replace('/api/state', '') : path;
+      // Enforce /api/state prefix for all API routes
+      if (!path.startsWith('/api/state/')) {
+        return Response.json(
+          {
+            success: false,
+            error: 'All API routes must be prefixed with /api/state/',
+          },
+          { status: 404 }
+        );
+      }
+
+      // Extract the route path after /api/state
+      const apiPath = path.replace('/api/state', '');
 
       // Config routes
       if (apiPath.startsWith('/config')) {
@@ -53,7 +64,13 @@ export async function startServer(port: number) {
       }
 
       // 404
-      return new Response('Not Found', { status: 404 });
+      return Response.json(
+        {
+          success: false,
+          error: 'Not Found',
+        },
+        { status: 404 }
+      );
     },
   });
 

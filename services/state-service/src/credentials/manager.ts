@@ -224,23 +224,22 @@ export class CredentialsManager {
    */
   async validateAWSCredentials(credentials: AWSCredentials): Promise<boolean> {
     try {
-      // Set environment variables temporarily for validation
-      const originalEnv = { ...process.env };
+      // Build environment variables for this command only
+      const env: Record<string, string> = {
+        ...process.env,
+        AWS_ACCESS_KEY_ID: credentials.accessKeyId,
+        AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
+      } as Record<string, string>;
 
-      process.env.AWS_ACCESS_KEY_ID = credentials.accessKeyId;
-      process.env.AWS_SECRET_ACCESS_KEY = credentials.secretAccessKey;
       if (credentials.sessionToken) {
-        process.env.AWS_SESSION_TOKEN = credentials.sessionToken;
+        env.AWS_SESSION_TOKEN = credentials.sessionToken;
       }
       if (credentials.region) {
-        process.env.AWS_DEFAULT_REGION = credentials.region;
+        env.AWS_DEFAULT_REGION = credentials.region;
       }
 
-      // Try to execute a simple AWS CLI command
-      await execAsync('aws sts get-caller-identity 2>/dev/null');
-
-      // Restore original environment
-      process.env = originalEnv;
+      // Try to execute a simple AWS CLI command with credential env vars
+      await execAsync('aws sts get-caller-identity 2>/dev/null', { env });
 
       logger.info('AWS credentials validated successfully');
       return true;
@@ -286,7 +285,32 @@ export class CredentialsManager {
    */
   async validateAzureCredentials(credentials: AzureCredentials): Promise<boolean> {
     try {
-      await execAsync('az account show 2>/dev/null');
+      // Validate that the provided credentials have required fields
+      if (!credentials.subscriptionId || !credentials.tenantId) {
+        logger.error('Azure credentials missing required fields (subscriptionId, tenantId)');
+        return false;
+      }
+
+      // Build environment with provided credentials
+      const env = {
+        ...process.env,
+      };
+
+      if (credentials.clientId && credentials.clientSecret) {
+        env.AZURE_CLIENT_ID = credentials.clientId;
+        env.AZURE_CLIENT_SECRET = credentials.clientSecret;
+        env.AZURE_TENANT_ID = credentials.tenantId;
+      }
+
+      // Verify the subscription exists and is accessible
+      const { stdout } = await execAsync(`az account show --subscription "${credentials.subscriptionId}" --output json 2>/dev/null`, { env });
+      const accountData = JSON.parse(stdout);
+
+      if (accountData.id !== credentials.subscriptionId) {
+        logger.error('Azure subscription ID mismatch');
+        return false;
+      }
+
       logger.info('Azure credentials validated successfully');
       return true;
     } catch (error) {

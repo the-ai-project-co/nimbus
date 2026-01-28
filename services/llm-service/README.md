@@ -238,7 +238,8 @@ FALLBACK_PROVIDERS=anthropic,openai,google
   - **Cheap**: `simple_queries`, `summarization`, `classification`
   - **Expensive**: `code_generation`, `complex_reasoning`, `planning`
 
-**Fallback Support**
+### Fallback Support
+
 - Automatically retries failed requests with alternative providers
 - Provider order: Primary → Fallback providers
 - Example: Anthropic fails → OpenAI → Google
@@ -246,6 +247,7 @@ FALLBACK_PROVIDERS=anthropic,openai,google
 ## Development
 
 ### Install Dependencies
+
 ```bash
 bun install
 ```
@@ -267,7 +269,7 @@ bun run type-check
 
 ## Architecture
 
-```
+```text
 ┌────────────────────────────────────────┐
 │          LLM Service                    │
 ├────────────────────────────────────────┤

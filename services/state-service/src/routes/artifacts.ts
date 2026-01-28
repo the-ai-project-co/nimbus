@@ -73,8 +73,12 @@ export async function artifactsRouter(req: Request, path: string): Promise<Respo
       const url = new URL(req.url);
       const type = url.searchParams.get('type') || undefined;
       const conversationId = url.searchParams.get('conversationId') || undefined;
-      const limit = parseInt(url.searchParams.get('limit') || '50');
-      const offset = parseInt(url.searchParams.get('offset') || '0');
+
+      // Parse and validate pagination params
+      const limitParam = url.searchParams.get('limit');
+      const offsetParam = url.searchParams.get('offset');
+      const limit = Math.max(1, Math.min(1000, parseInt(limitParam || '50', 10) || 50));
+      const offset = Math.max(0, parseInt(offsetParam || '0', 10) || 0);
 
       const artifacts = adapter.listArtifacts(type, conversationId, limit, offset);
 

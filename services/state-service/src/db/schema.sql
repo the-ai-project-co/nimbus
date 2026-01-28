@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 -- Artifacts (generated files/code)
 CREATE TABLE IF NOT EXISTS artifacts (
     id TEXT PRIMARY KEY,
-    conversation_id TEXT REFERENCES conversations(id),
+    conversation_id TEXT REFERENCES conversations(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     type TEXT NOT NULL,           -- 'terraform', 'kubernetes', 'code', 'config'
     content TEXT NOT NULL,

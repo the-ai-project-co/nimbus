@@ -3,25 +3,64 @@ import { ConfigurationManager } from '../config/manager';
 
 // Singleton instance
 let configManager: ConfigurationManager | null = null;
+let loadPromise: Promise<ConfigurationManager> | null = null;
 
 async function getConfigManager(): Promise<ConfigurationManager> {
-  if (!configManager) {
+  // Return cached instance if available
+  if (configManager) {
+    return configManager;
+  }
+
+  // If loading is in progress, wait for it
+  if (loadPromise) {
+    return loadPromise;
+  }
+
+  // Start loading and cache the promise to prevent race condition
+  loadPromise = (async () => {
     configManager = new ConfigurationManager();
     await configManager.load();
+    loadPromise = null; // Clear promise after completion
+    return configManager;
+  })();
+
+  return loadPromise;
+}
+
+/**
+ * Sanitize config data by removing sensitive fields
+ */
+function sanitizeConfig(config: any): any {
+  const sanitized = JSON.parse(JSON.stringify(config));
+
+  // Remove API keys and credentials from LLM providers
+  if (sanitized.llm?.providers) {
+    for (const provider of Object.values(sanitized.llm.providers) as any[]) {
+      if (provider?.apiKey) {
+        provider.apiKey = '***REDACTED***';
+      }
+    }
   }
-  return configManager;
+
+  // Remove any other sensitive fields
+  if (sanitized.storage?.databaseUrl) {
+    sanitized.storage.databaseUrl = '***REDACTED***';
+  }
+
+  return sanitized;
 }
 
 export async function configRouter(req: Request, path: string): Promise<Response> {
   try {
     const manager = await getConfigManager();
 
-    // GET /config - Get all configuration
+    // GET /config - Get all configuration (sanitized to prevent credential leaks)
     if (req.method === 'GET' && path === '/config') {
       const config = manager.getAll();
+      const sanitized = sanitizeConfig(config);
       return Response.json({
         success: true,
-        data: config,
+        data: sanitized,
       });
     }
 

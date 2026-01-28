@@ -1,4 +1,16 @@
 import { z } from 'zod';
+import { homedir } from 'os';
+import { resolve } from 'path';
+
+/**
+ * Expand tilde (~) in paths to user home directory
+ */
+function expandTildePath(path: string): string {
+  if (path.startsWith('~/')) {
+    return resolve(homedir(), path.slice(2));
+  }
+  return path;
+}
 
 // LLM Provider Configuration
 export const LLMProviderConfigSchema = z.object({
@@ -132,13 +144,13 @@ export const DEFAULT_CONFIG: NimbusConfig = {
   terraform: {
     version: 'latest',
     backend: 'local',
-    workingDirectory: '~/.nimbus/terraform',
+    workingDirectory: expandTildePath('~/.nimbus/terraform'),
     autoApprove: false,
     planTimeout: 300,
     applyTimeout: 600,
   },
   kubernetes: {
-    kubeconfigPath: '~/.kube/config',
+    kubeconfigPath: expandTildePath('~/.kube/config'),
     defaultNamespace: 'default',
     helmVersion: 'latest',
   },

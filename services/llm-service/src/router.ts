@@ -94,9 +94,8 @@ export class LLMRouter {
     this.providers.set('ollama', new OllamaProvider());
     logger.info('Initialized Ollama provider');
 
-    if (this.providers.size === 0) {
-      logger.warn('No LLM providers initialized. Please set API keys in environment.');
-    }
+    // Note: Ollama provider is always initialized, so size check is removed
+    // as it would never trigger. Add explicit checks for cloud providers if needed.
   }
 
   /**

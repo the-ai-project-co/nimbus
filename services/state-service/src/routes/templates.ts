@@ -36,7 +36,12 @@ export async function templatesRouter(req: Request, path: string): Promise<Respo
 
     // GET /templates/:id - Get template by ID
     if (req.method === 'GET' && path.startsWith('/templates/') && !path.includes('?')) {
-      const id = path.replace('/templates/', '');
+      // Extract ID from path, stripping query parameters if present
+      let id = path.replace('/templates/', '');
+      const queryIndex = id.indexOf('?');
+      if (queryIndex !== -1) {
+        id = id.substring(0, queryIndex);
+      }
 
       if (!id || id.includes('/')) {
         return Response.json(
@@ -84,7 +89,12 @@ export async function templatesRouter(req: Request, path: string): Promise<Respo
 
     // DELETE /templates/:id - Delete template
     if (req.method === 'DELETE' && path.startsWith('/templates/')) {
-      const id = path.replace('/templates/', '');
+      // Extract ID from path, stripping query parameters if present
+      let id = path.replace('/templates/', '');
+      const queryIndex = id.indexOf('?');
+      if (queryIndex !== -1) {
+        id = id.substring(0, queryIndex);
+      }
 
       if (!id || id.includes('/')) {
         return Response.json(
