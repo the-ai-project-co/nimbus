@@ -278,19 +278,17 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Analyze multiple components
-  app.post('/api/best-practices/analyze-all', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/best-practices/analyze-all', ({ body }) => {
+    const typedBody = body as {
       configs: Array<{ component: string; config: Record<string, unknown> }>;
       options?: {
         categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance'>;
         severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       };
     };
-  }) => {
+
     try {
-      const report = bestPracticesEngine.analyzeAll(body.configs, body.options);
+      const report = bestPracticesEngine.analyzeAll(typedBody.configs, typedBody.options);
 
       return {
         success: true,
@@ -306,10 +304,8 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Apply autofixes
-  app.post('/api/best-practices/autofix', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/best-practices/autofix', ({ body }) => {
+    const typedBody = body as {
       component: string;
       config: Record<string, unknown>;
       options?: {
@@ -318,9 +314,9 @@ export function setupRoutes(app: Elysia) {
         ruleIds?: string[];
       };
     };
-  }) => {
+
     try {
-      const result = bestPracticesEngine.autofix(body.component, body.config, body.options);
+      const result = bestPracticesEngine.autofix(typedBody.component, typedBody.config, typedBody.options);
 
       return {
         success: true,
@@ -338,9 +334,10 @@ export function setupRoutes(app: Elysia) {
   // Get rules by category
   app.get(
     '/api/best-practices/rules/:category',
-    ({ params }: { params: { category: 'security' | 'tagging' | 'cost' | 'reliability' | 'performance' } }) => {
+    ({ params }) => {
+      const typedParams = params as { category: 'security' | 'tagging' | 'cost' | 'reliability' | 'performance' };
       try {
-        const rules = bestPracticesEngine.getRulesByCategory(params.category);
+        const rules = bestPracticesEngine.getRulesByCategory(typedParams.category);
         return {
           success: true,
           data: rules,
@@ -373,16 +370,14 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Get report as markdown
-  app.post('/api/best-practices/report/markdown', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/best-practices/report/markdown', ({ body }) => {
+    const typedBody = body as {
       component: string;
       config: Record<string, unknown>;
     };
-  }) => {
+
     try {
-      const report = bestPracticesEngine.analyze(body.component, body.config);
+      const report = bestPracticesEngine.analyze(typedBody.component, typedBody.config);
       const markdown = bestPracticesEngine.formatReportAsMarkdown(report);
 
       return {
@@ -404,20 +399,18 @@ export function setupRoutes(app: Elysia) {
   // ===== Conversational Routes =====
 
   // Process conversational message
-  app.post('/api/conversational/message', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/conversational/message', ({ body }) => {
+    const typedBody = body as {
       sessionId: string;
       message: string;
       userId?: string;
     };
-  }) => {
+
     try {
       const response = conversationalEngine.processMessage(
-        body.sessionId,
-        body.message,
-        body.userId
+        typedBody.sessionId,
+        typedBody.message,
+        typedBody.userId
       );
 
       return {
@@ -510,18 +503,16 @@ export function setupRoutes(app: Elysia) {
   // ===== Generation Routes =====
 
   // Generate infrastructure from questionnaire
-  app.post('/api/generate/from-questionnaire', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/generate/from-questionnaire', ({ body }) => {
+    const typedBody = body as {
       sessionId: string;
       applyBestPractices?: boolean;
       autofix?: boolean;
     };
-  }) => {
+
     try {
       // Get questionnaire session
-      const session = questionnaireEngine.getSession(body.sessionId);
+      const session = questionnaireEngine.getSession(typedBody.sessionId);
       if (!session) {
         return {
           success: false,
@@ -537,7 +528,7 @@ export function setupRoutes(app: Elysia) {
       }
 
       // Validate all answers
-      const validationErrors = questionnaireEngine.validateAllAnswers(body.sessionId);
+      const validationErrors = questionnaireEngine.validateAllAnswers(typedBody.sessionId);
       if (Object.keys(validationErrors).length > 0) {
         return {
           success: false,
@@ -550,7 +541,7 @@ export function setupRoutes(app: Elysia) {
       let config = session.answers;
       let bestPracticesReport = null;
 
-      if (body.applyBestPractices) {
+      if (typedBody.applyBestPractices) {
         // Analyze best practices
         const components = session.answers.selected_components as string[] || [];
         const analysisConfigs = components.map((component) => ({
@@ -561,7 +552,7 @@ export function setupRoutes(app: Elysia) {
         bestPracticesReport = bestPracticesEngine.analyzeAll(analysisConfigs);
 
         // Apply autofixes if requested
-        if (body.autofix && bestPracticesReport.summary.autofixable_violations > 0) {
+        if (typedBody.autofix && bestPracticesReport.summary.autofixable_violations > 0) {
           for (const component of components) {
             const autofixResult = bestPracticesEngine.autofix(component, config as any);
             config = autofixResult.fixed_config;
@@ -601,18 +592,16 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Generate infrastructure from conversational session
-  app.post('/api/generate/from-conversation', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/generate/from-conversation', ({ body }) => {
+    const typedBody = body as {
       sessionId: string;
       applyBestPractices?: boolean;
       autofix?: boolean;
     };
-  }) => {
+
     try {
       // Get conversational session
-      const session = conversationalEngine.getSession(body.sessionId);
+      const session = conversationalEngine.getSession(typedBody.sessionId);
       if (!session) {
         return {
           success: false,
