@@ -121,9 +121,4 @@ credentials/
 .directory
 .Trash-*
 
-docs/
-releases/
 progress/
-
-CLAUDE.md
-.claude/

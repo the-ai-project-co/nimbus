@@ -169,7 +169,7 @@ export function setupRoutes(app: Elysia) {
 
   // Generate plan for a task
   app.post('/api/plans/generate', async ({ body }: { body: {
-    type: 'generate' | 'deploy';
+    type: 'generate' | 'deploy' | 'verify' | 'rollback' | 'analyze';
     context: {
       provider: 'aws' | 'gcp' | 'azure';
       environment: string;
