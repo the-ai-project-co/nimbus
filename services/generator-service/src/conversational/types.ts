@@ -70,7 +70,7 @@ export interface ConversationalResponse {
 }
 
 export interface SuggestedAction {
-  type: 'start_questionnaire' | 'generate' | 'modify' | 'view_best_practices';
+  type: 'start_questionnaire' | 'generate' | 'modify' | 'view_best_practices' | 'help';
   label: string;
   description: string;
   payload?: Record<string, unknown>;

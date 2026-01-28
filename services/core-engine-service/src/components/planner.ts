@@ -1,5 +1,5 @@
 import { logger } from '@nimbus/shared-utils';
-import type { AgentTask, AgentPlan, PlanStep, Risk } from '../types/agent';
+import type { AgentTask, AgentPlan, PlanStep, Risk, PlanDependency } from '../types/agent';
 
 export class Planner {
   /**
@@ -181,13 +181,13 @@ export class Planner {
   /**
    * Analyze dependencies between steps
    */
-  private analyzeDependencies(steps: PlanStep[]) {
+  private analyzeDependencies(steps: PlanStep[]): PlanDependency[] {
     return steps
       .filter((step) => step.depends_on && step.depends_on.length > 0)
       .map((step) => ({
         step_id: step.id,
         depends_on: step.depends_on!,
-        type: step.depends_on!.length === 1 ? 'sequential' : 'parallel' as const,
+        type: (step.depends_on!.length === 1 ? 'sequential' : 'parallel') as 'sequential' | 'parallel',
       }));
   }
 

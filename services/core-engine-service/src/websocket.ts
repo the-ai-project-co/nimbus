@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { ws } from '@elysiajs/websocket';
+import websocket from '@elysiajs/websocket';
 import { logger } from '@nimbus/shared-utils';
 
 interface WebSocketData {
@@ -12,8 +12,8 @@ interface WebSocketData {
  */
 export function setupWebSocket(app: Elysia) {
   app.use(
-    ws({
-      message(ws, message) {
+    websocket({
+      message(ws: any, message: any) {
         const data = ws.data as WebSocketData;
 
         try {
@@ -72,7 +72,7 @@ export function setupWebSocket(app: Elysia) {
         }
       },
 
-      open(ws) {
+      open(ws: any) {
         const data = ws.data as WebSocketData;
         data.subscribed_tasks = new Set();
 
@@ -87,14 +87,14 @@ export function setupWebSocket(app: Elysia) {
         logger.info('WebSocket client connected');
       },
 
-      close(ws) {
+      close(ws: any) {
         const data = ws.data as WebSocketData;
         data.subscribed_tasks.clear();
 
         logger.info('WebSocket client disconnected');
       },
 
-      error(ws, error) {
+      error(ws: any, error: any) {
         logger.error('WebSocket error', error);
       },
     })

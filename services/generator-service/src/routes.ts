@@ -29,9 +29,10 @@ export function setupRoutes(app: Elysia) {
   // ===== Questionnaire Routes =====
 
   // Start a new questionnaire session
-  app.post('/api/questionnaire/start', ({ body }: { body: { type: 'terraform' | 'kubernetes' } }) => {
+  app.post('/api/questionnaire/start', ({ body }) => {
+    const typedBody = body as { type: 'terraform' | 'kubernetes' };
     try {
-      const response = questionnaireEngine.startSession(body.type);
+      const response = questionnaireEngine.startSession(typedBody.type);
       return {
         success: true,
         data: response,
@@ -46,17 +47,15 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Submit an answer
-  app.post('/api/questionnaire/answer', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/questionnaire/answer', ({ body }) => {
+    const typedBody = body as {
       sessionId: string;
       questionId: string;
       value: unknown;
     };
-  }) => {
+
     try {
-      const response = questionnaireEngine.submitAnswer(body);
+      const response = questionnaireEngine.submitAnswer(typedBody);
       return {
         success: true,
         data: response,
@@ -124,9 +123,10 @@ export function setupRoutes(app: Elysia) {
   });
 
   // List templates by type
-  app.get('/api/templates/type/:type', ({ params }: { params: { type: 'terraform' | 'kubernetes' } }) => {
+  app.get('/api/templates/type/:type', ({ params }) => {
+    const typedParams = params as { type: 'terraform' | 'kubernetes' };
     try {
-      const templates = templateLoader.listByType(params.type);
+      const templates = templateLoader.listByType(typedParams.type);
       return {
         success: true,
         data: templates,
@@ -143,9 +143,10 @@ export function setupRoutes(app: Elysia) {
   // List templates by provider
   app.get(
     '/api/templates/provider/:provider',
-    ({ params }: { params: { provider: 'aws' | 'gcp' | 'azure' | 'generic' } }) => {
+    ({ params }) => {
+      const typedParams = params as { provider: 'aws' | 'gcp' | 'azure' | 'generic' };
       try {
-        const templates = templateLoader.listByProvider(params.provider);
+        const templates = templateLoader.listByProvider(typedParams.provider);
         return {
           success: true,
           data: templates,
@@ -184,23 +185,21 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Render a template
-  app.post('/api/templates/render', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/templates/render', ({ body }) => {
+    const typedBody = body as {
       templateId: string;
       variables: Record<string, unknown>;
       options?: { strict?: boolean };
     };
-  }) => {
+
     try {
-      const template = templateLoader.loadTemplate(body.templateId);
-      const rendered = templateRenderer.render(template, body.variables, body.options);
+      const template = templateLoader.loadTemplate(typedBody.templateId);
+      const rendered = templateRenderer.render(template, typedBody.variables, typedBody.options);
 
       return {
         success: true,
         data: {
-          template_id: body.templateId,
+          template_id: typedBody.templateId,
           rendered_content: rendered,
         },
       };
@@ -214,9 +213,10 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Validate template syntax
-  app.post('/api/templates/validate', ({ body }: { body: { template: string } }) => {
+  app.post('/api/templates/validate', ({ body }) => {
+    const typedBody = body as { template: string };
     try {
-      const result = templateRenderer.validateTemplate(body.template);
+      const result = templateRenderer.validateTemplate(typedBody.template);
       return {
         success: true,
         data: result,
@@ -231,9 +231,10 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Extract variables from template
-  app.post('/api/templates/extract-variables', ({ body }: { body: { template: string } }) => {
+  app.post('/api/templates/extract-variables', ({ body }) => {
+    const typedBody = body as { template: string };
     try {
-      const variables = templateRenderer.extractVariables(body.template);
+      const variables = templateRenderer.extractVariables(typedBody.template);
       return {
         success: true,
         data: { variables },
@@ -250,10 +251,8 @@ export function setupRoutes(app: Elysia) {
   // ===== Best Practices Routes =====
 
   // Analyze best practices for a component
-  app.post('/api/best-practices/analyze', ({
-    body,
-  }: {
-    body: {
+  app.post('/api/best-practices/analyze', ({ body }) => {
+    const typedBody = body as {
       component: string;
       config: Record<string, unknown>;
       options?: {
@@ -261,9 +260,9 @@ export function setupRoutes(app: Elysia) {
         severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       };
     };
-  }) => {
+
     try {
-      const report = bestPracticesEngine.analyze(body.component, body.config, body.options);
+      const report = bestPracticesEngine.analyze(typedBody.component, typedBody.config, typedBody.options);
 
       return {
         success: true,

@@ -19,21 +19,21 @@ export function setupRoutes(app: Elysia) {
   // ===== Task Routes =====
 
   // Create a new task
-  app.post('/api/tasks', async ({ body }: { body: {
-    type: 'generate' | 'deploy' | 'verify' | 'rollback' | 'analyze';
-    user_id: string;
-    priority?: 'low' | 'medium' | 'high' | 'critical';
-    context: {
-      provider: 'aws' | 'gcp' | 'azure';
-      environment: string;
-      region?: string;
-      components: string[];
-      requirements?: Record<string, unknown>;
-    };
-    metadata?: Record<string, unknown>;
-  }}) => {
+  app.post('/api/tasks', async ({ body }) => {
     try {
-      const task = await orchestrator.createTask(body);
+      const task = await orchestrator.createTask(body as {
+        type: 'generate' | 'deploy' | 'verify' | 'rollback' | 'analyze';
+        user_id: string;
+        priority?: 'low' | 'medium' | 'high' | 'critical';
+        context: {
+          provider: 'aws' | 'gcp' | 'azure';
+          environment: string;
+          region?: string;
+          components: string[];
+          requirements?: Record<string, unknown>;
+        };
+        metadata?: Record<string, unknown>;
+      });
       return {
         success: true,
         data: task,
@@ -168,22 +168,24 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Generate plan for a task
-  app.post('/api/plans/generate', async ({ body }: { body: {
-    type: 'generate' | 'deploy' | 'verify' | 'rollback' | 'analyze';
-    context: {
-      provider: 'aws' | 'gcp' | 'azure';
-      environment: string;
-      region?: string;
-      components: string[];
-      requirements?: Record<string, unknown>;
+  app.post('/api/plans/generate', async ({ body }) => {
+    const typedBody = body as {
+      type: 'generate' | 'deploy' | 'verify' | 'rollback' | 'analyze';
+      context: {
+        provider: 'aws' | 'gcp' | 'azure';
+        environment: string;
+        region?: string;
+        components: string[];
+        requirements?: Record<string, unknown>;
+      };
     };
-  }}) => {
+
     try {
       // Create temporary task
       const task = await orchestrator.createTask({
-        type: body.type,
+        type: typedBody.type,
         user_id: 'system',
-        context: body.context,
+        context: typedBody.context,
       });
 
       // Generate plan
@@ -260,14 +262,16 @@ export function setupRoutes(app: Elysia) {
   // ===== Safety Check Routes =====
 
   // Run safety checks
-  app.post('/api/safety/check', async ({ body }: { body: {
-    task_id: string;
-    plan_id: string;
-    type: 'pre_execution' | 'during_execution' | 'post_execution';
-  }}) => {
+  app.post('/api/safety/check', async ({ body }) => {
+    const typedBody = body as {
+      task_id: string;
+      plan_id: string;
+      type: 'pre_execution' | 'during_execution' | 'post_execution';
+    };
+
     try {
-      const task = orchestrator.getTask(body.task_id);
-      const plan = orchestrator.getPlan(body.plan_id);
+      const task = orchestrator.getTask(typedBody.task_id);
+      const plan = orchestrator.getPlan(typedBody.plan_id);
 
       if (!task || !plan) {
         return {
@@ -279,7 +283,7 @@ export function setupRoutes(app: Elysia) {
       const safetyManager = orchestrator.getSafetyManager();
       let results;
 
-      switch (body.type) {
+      switch (typedBody.type) {
         case 'pre_execution':
           results = await safetyManager.runPreExecutionChecks(task, plan);
           break;

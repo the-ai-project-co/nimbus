@@ -278,9 +278,9 @@ export const costRules: BestPracticeRule[] = [
     description: 'RDS should use storage autoscaling to optimize costs',
     recommendation: 'Set max_allocated_storage to enable storage autoscaling',
     applies_to: ['rds'],
-    check: (config) => {
+    check: (config): boolean => {
       if (config.create_cluster) return true; // Aurora handles this differently
-      return (
+      return Boolean(
         config.max_allocated_storage &&
         Number(config.max_allocated_storage) > Number(config.db_allocated_storage || 0)
       );

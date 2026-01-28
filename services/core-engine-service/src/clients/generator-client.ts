@@ -22,7 +22,7 @@ export class GeneratorServiceClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: any };
       return data.data;
     } catch (error) {
       logger.error('Error starting questionnaire', error);
@@ -45,7 +45,7 @@ export class GeneratorServiceClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: any };
       return data.data;
     } catch (error) {
       logger.error('Error submitting answer', error);
@@ -71,7 +71,7 @@ export class GeneratorServiceClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: any };
       return data.data;
     } catch (error) {
       logger.error('Error generating from questionnaire', error);
@@ -97,7 +97,7 @@ export class GeneratorServiceClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: any };
       return data.data;
     } catch (error) {
       logger.error('Error analyzing best practices', error);
@@ -124,7 +124,7 @@ export class GeneratorServiceClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: any };
       return data.data;
     } catch (error) {
       logger.error('Error applying autofixes', error);
@@ -150,7 +150,7 @@ export class GeneratorServiceClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: any };
       return data.data;
     } catch (error) {
       logger.error('Error rendering template', error);
@@ -177,7 +177,7 @@ export class GeneratorServiceClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { data: any };
       return data.data;
     } catch (error) {
       logger.error('Error processing conversational message', error);
