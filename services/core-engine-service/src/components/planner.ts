@@ -1,0 +1,437 @@
+import { logger } from '@nimbus/shared-utils';
+import type { AgentTask, AgentPlan, PlanStep, Risk } from '../types/agent';
+
+export class Planner {
+  /**
+   * Generate an execution plan for a task
+   */
+  async generatePlan(task: AgentTask): Promise<AgentPlan> {
+    logger.info(`Generating plan for task: ${task.id}`);
+
+    const steps = await this.generateSteps(task);
+    const dependencies = this.analyzeDependencies(steps);
+    const risks = await this.assessRisks(task, steps);
+    const riskLevel = this.calculateOverallRiskLevel(risks);
+
+    const plan: AgentPlan = {
+      id: this.generatePlanId(),
+      task_id: task.id,
+      status: 'draft',
+      created_at: new Date(),
+      updated_at: new Date(),
+      steps,
+      dependencies,
+      risks,
+      risk_level: riskLevel,
+      requires_approval: riskLevel === 'high' || riskLevel === 'critical',
+    };
+
+    // Estimate duration and cost
+    plan.estimated_duration = this.estimateDuration(steps);
+    plan.estimated_cost = await this.estimateCost(task, steps);
+
+    logger.info(`Generated plan ${plan.id} with ${steps.length} steps, risk level: ${riskLevel}`);
+
+    return plan;
+  }
+
+  /**
+   * Generate execution steps for a task
+   */
+  private async generateSteps(task: AgentTask): Promise<PlanStep[]> {
+    const steps: PlanStep[] = [];
+    let order = 1;
+
+    // Step 1: Validate requirements
+    steps.push({
+      id: `step_${order++}`,
+      order: steps.length + 1,
+      type: 'validate',
+      description: 'Validate infrastructure requirements and constraints',
+      action: 'validate_requirements',
+      parameters: {
+        provider: task.context.provider,
+        components: task.context.components,
+        requirements: task.context.requirements,
+      },
+      status: 'pending',
+    });
+
+    // Step 2-N: Generate infrastructure components
+    for (const component of task.context.components) {
+      steps.push({
+        id: `step_${order++}`,
+        order: steps.length + 1,
+        type: 'generate',
+        description: `Generate ${component.toUpperCase()} configuration`,
+        component,
+        action: 'generate_component',
+        parameters: {
+          component,
+          provider: task.context.provider,
+          environment: task.context.environment,
+          requirements: task.context.requirements,
+        },
+        status: 'pending',
+        depends_on: ['step_1'], // Depends on validation
+      });
+    }
+
+    // Step: Validate generated code
+    steps.push({
+      id: `step_${order++}`,
+      order: steps.length + 1,
+      type: 'validate',
+      description: 'Validate generated infrastructure code',
+      action: 'validate_generated_code',
+      parameters: {
+        components: task.context.components,
+      },
+      status: 'pending',
+      depends_on: steps.slice(1, -1).map((s) => s.id), // Depends on all generation steps
+    });
+
+    // Step: Apply best practices
+    steps.push({
+      id: `step_${order++}`,
+      order: steps.length + 1,
+      type: 'validate',
+      description: 'Apply security and best practices',
+      action: 'apply_best_practices',
+      parameters: {
+        components: task.context.components,
+        autofix: true,
+      },
+      status: 'pending',
+      depends_on: [steps[steps.length - 1].id],
+    });
+
+    // If deployment is requested
+    if (task.type === 'deploy') {
+      // Step: Plan deployment
+      steps.push({
+        id: `step_${order++}`,
+        order: steps.length + 1,
+        type: 'deploy',
+        description: 'Plan infrastructure deployment (terraform plan)',
+        action: 'plan_deployment',
+        parameters: {
+          provider: task.context.provider,
+          environment: task.context.environment,
+        },
+        status: 'pending',
+        depends_on: [steps[steps.length - 1].id],
+      });
+
+      // Step: Apply deployment
+      steps.push({
+        id: `step_${order++}`,
+        order: steps.length + 1,
+        type: 'deploy',
+        description: 'Apply infrastructure deployment (terraform apply)',
+        action: 'apply_deployment',
+        parameters: {
+          provider: task.context.provider,
+          environment: task.context.environment,
+          auto_approve: false,
+        },
+        status: 'pending',
+        depends_on: [steps[steps.length - 1].id],
+        rollback_action: 'destroy_deployment',
+        rollback_parameters: {
+          provider: task.context.provider,
+          environment: task.context.environment,
+        },
+      });
+
+      // Step: Verify deployment
+      steps.push({
+        id: `step_${order++}`,
+        order: steps.length + 1,
+        type: 'verify',
+        description: 'Verify deployed infrastructure',
+        action: 'verify_deployment',
+        parameters: {
+          components: task.context.components,
+          environment: task.context.environment,
+        },
+        status: 'pending',
+        depends_on: [steps[steps.length - 1].id],
+      });
+    }
+
+    // Final step: Generate documentation
+    steps.push({
+      id: `step_${order++}`,
+      order: steps.length + 1,
+      type: 'generate',
+      description: 'Generate infrastructure documentation',
+      action: 'generate_documentation',
+      parameters: {
+        components: task.context.components,
+        include_diagrams: true,
+      },
+      status: 'pending',
+      depends_on: [steps[steps.length - 1].id],
+    });
+
+    return steps;
+  }
+
+  /**
+   * Analyze dependencies between steps
+   */
+  private analyzeDependencies(steps: PlanStep[]) {
+    return steps
+      .filter((step) => step.depends_on && step.depends_on.length > 0)
+      .map((step) => ({
+        step_id: step.id,
+        depends_on: step.depends_on!,
+        type: step.depends_on!.length === 1 ? 'sequential' : 'parallel' as const,
+      }));
+  }
+
+  /**
+   * Assess risks for the plan
+   */
+  private async assessRisks(task: AgentTask, steps: PlanStep[]): Promise<Risk[]> {
+    const risks: Risk[] = [];
+
+    // Security risks
+    if (task.context.environment === 'production') {
+      risks.push({
+        id: 'risk_prod_deploy',
+        severity: 'high',
+        category: 'availability',
+        description: 'Deploying to production environment',
+        mitigation: 'Requires approval, automated testing, and gradual rollout',
+        probability: 0.3,
+        impact: 0.8,
+      });
+    }
+
+    // Cost risks
+    const hasExpensiveComponents = task.context.components.some((c) =>
+      ['eks', 'rds'].includes(c)
+    );
+    if (hasExpensiveComponents) {
+      risks.push({
+        id: 'risk_high_cost',
+        severity: 'medium',
+        category: 'cost',
+        description: 'Infrastructure includes high-cost components',
+        mitigation: 'Review instance types and enable autoscaling',
+        probability: 0.6,
+        impact: 0.5,
+      });
+    }
+
+    // Compliance risks
+    if (task.context.components.includes('s3')) {
+      risks.push({
+        id: 'risk_data_security',
+        severity: 'high',
+        category: 'security',
+        description: 'Storage component requires encryption and access controls',
+        mitigation: 'Enable encryption at rest and in transit, implement least privilege access',
+        probability: 0.4,
+        impact: 0.9,
+      });
+    }
+
+    // Deployment risks
+    const hasDeploymentSteps = steps.some((s) => s.type === 'deploy');
+    if (hasDeploymentSteps && !task.context.requirements?.backup_enabled) {
+      risks.push({
+        id: 'risk_no_backup',
+        severity: 'high',
+        category: 'availability',
+        description: 'No backup strategy defined',
+        mitigation: 'Enable automated backups and test restoration procedures',
+        probability: 0.5,
+        impact: 0.7,
+      });
+    }
+
+    return risks;
+  }
+
+  /**
+   * Calculate overall risk level
+   */
+  private calculateOverallRiskLevel(risks: Risk[]): 'low' | 'medium' | 'high' | 'critical' {
+    if (risks.length === 0) return 'low';
+
+    const hasCritical = risks.some((r) => r.severity === 'critical');
+    if (hasCritical) return 'critical';
+
+    const highRisks = risks.filter((r) => r.severity === 'high');
+    if (highRisks.length >= 2) return 'high';
+    if (highRisks.length === 1) return 'high';
+
+    const mediumRisks = risks.filter((r) => r.severity === 'medium');
+    if (mediumRisks.length >= 3) return 'high';
+    if (mediumRisks.length >= 1) return 'medium';
+
+    return 'low';
+  }
+
+  /**
+   * Estimate duration in seconds
+   */
+  private estimateDuration(steps: PlanStep[]): number {
+    const durations: Record<string, number> = {
+      validate: 30,
+      generate: 60,
+      deploy: 600, // 10 minutes for deployment
+      verify: 120,
+    };
+
+    return steps.reduce((total, step) => {
+      return total + (durations[step.type] || 60);
+    }, 0);
+  }
+
+  /**
+   * Estimate cost in USD
+   */
+  private async estimateCost(task: AgentTask, steps: PlanStep[]): Promise<number> {
+    let monthlyCost = 0;
+
+    const componentCosts: Record<string, number> = {
+      vpc: 0, // VPC itself is free, NAT gateway costs ~$32/month
+      eks: 73, // $0.10/hour * 730 hours
+      rds: 50, // t3.micro ~$15/month + storage
+      s3: 5, // Minimal storage estimate
+    };
+
+    for (const component of task.context.components) {
+      monthlyCost += componentCosts[component] || 0;
+    }
+
+    // Add NAT gateway cost if VPC is included
+    if (task.context.components.includes('vpc')) {
+      monthlyCost += 32;
+    }
+
+    return Math.round(monthlyCost);
+  }
+
+  /**
+   * Optimize plan for parallel execution
+   */
+  optimizePlan(plan: AgentPlan): AgentPlan {
+    // Identify steps that can run in parallel
+    const optimized = { ...plan };
+
+    // Group independent generation steps
+    const generationSteps = plan.steps.filter((s) => s.type === 'generate' && s.component);
+
+    // Mark independent steps as parallelizable
+    for (let i = 0; i < generationSteps.length; i++) {
+      const step = generationSteps[i];
+      // If steps don't have interdependencies, they can run in parallel
+      if (!this.hasInterdependency(step, generationSteps, i)) {
+        step.parameters.parallel_group = 'generation';
+      }
+    }
+
+    return optimized;
+  }
+
+  /**
+   * Check if step has interdependency with others
+   */
+  private hasInterdependency(step: PlanStep, steps: PlanStep[], index: number): boolean {
+    // Check if this step's output is needed by another step in the group
+    // Simplified: assume VPC must be created before EKS/RDS
+    if (step.component === 'vpc') return false;
+    if (step.component === 'eks' || step.component === 'rds') {
+      return steps.some((s) => s.component === 'vpc');
+    }
+    return false;
+  }
+
+  /**
+   * Validate plan is executable
+   */
+  validatePlan(plan: AgentPlan): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    // Check for circular dependencies
+    if (this.hasCircularDependencies(plan)) {
+      errors.push('Plan contains circular dependencies');
+    }
+
+    // Check all dependencies exist
+    const stepIds = new Set(plan.steps.map((s) => s.id));
+    for (const step of plan.steps) {
+      if (step.depends_on) {
+        for (const depId of step.depends_on) {
+          if (!stepIds.has(depId)) {
+            errors.push(`Step ${step.id} depends on non-existent step ${depId}`);
+          }
+        }
+      }
+    }
+
+    // Check step order matches dependencies
+    for (const step of plan.steps) {
+      if (step.depends_on) {
+        for (const depId of step.depends_on) {
+          const depStep = plan.steps.find((s) => s.id === depId);
+          if (depStep && depStep.order >= step.order) {
+            errors.push(`Step ${step.id} has invalid order relative to dependency ${depId}`);
+          }
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+
+  /**
+   * Check for circular dependencies
+   */
+  private hasCircularDependencies(plan: AgentPlan): boolean {
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+
+    const hasCycle = (stepId: string): boolean => {
+      visited.add(stepId);
+      recursionStack.add(stepId);
+
+      const step = plan.steps.find((s) => s.id === stepId);
+      if (step?.depends_on) {
+        for (const depId of step.depends_on) {
+          if (!visited.has(depId)) {
+            if (hasCycle(depId)) return true;
+          } else if (recursionStack.has(depId)) {
+            return true;
+          }
+        }
+      }
+
+      recursionStack.delete(stepId);
+      return false;
+    };
+
+    for (const step of plan.steps) {
+      if (!visited.has(step.id)) {
+        if (hasCycle(step.id)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Generate plan ID
+   */
+  private generatePlanId(): string {
+    return `plan_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+}

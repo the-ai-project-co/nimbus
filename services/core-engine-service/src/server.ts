@@ -1,31 +1,42 @@
+import { Elysia } from 'elysia';
+import { cors } from '@elysiajs/cors';
 import { logger } from '@nimbus/shared-utils';
-import { healthHandler } from './routes/health';
+import { setupRoutes } from './routes';
+import { setupWebSocket } from './websocket';
 
 export async function startServer(port: number, wsPort: number) {
-  const server = Bun.serve({
-    port,
-    async fetch(req) {
-      const url = new URL(req.url);
-      const path = url.pathname;
+  // HTTP Server
+  const httpApp = new Elysia();
 
-      // Health check endpoint
-      if (path === '/health') {
-        return Response.json(healthHandler());
-      }
+  // Add CORS middleware
+  httpApp.use(cors());
 
-      // TODO: Add your routes here
+  // Setup all routes
+  setupRoutes(httpApp);
 
-      // 404
-      return new Response('Not Found', { status: 404 });
-    },
-  });
+  // Start HTTP server
+  httpApp.listen(port);
 
   logger.info(`Core Engine Service HTTP server listening on port ${port}`);
+  logger.info('Available routes:');
+  logger.info('  - POST /api/tasks');
+  logger.info('  - POST /api/tasks/:taskId/execute');
+  logger.info('  - GET  /api/tasks/:taskId');
+  logger.info('  - POST /api/plans/generate');
+  logger.info('  - POST /api/safety/check');
+  logger.info('  - GET  /api/statistics');
 
-  
-  // TODO: WebSocket server setup
-  logger.info(`Core Engine Service WebSocket server will listen on port ${wsPort}`);
-  
+  // WebSocket Server
+  const wsApp = new Elysia();
 
-  return server;
+  // Setup WebSocket
+  setupWebSocket(wsApp);
+
+  // Start WebSocket server
+  wsApp.listen(wsPort);
+
+  logger.info(`Core Engine Service WebSocket server listening on port ${wsPort}`);
+  logger.info('WebSocket endpoint: ws://localhost:' + wsPort);
+
+  return { httpApp, wsApp };
 }
