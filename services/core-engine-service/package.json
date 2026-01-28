@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
-    "@elysiajs/websocket": "^0.2.8",
     "@nimbus/shared-clients": "workspace:*",
     "@nimbus/shared-types": "workspace:*",
     "@nimbus/shared-utils": "workspace:*",

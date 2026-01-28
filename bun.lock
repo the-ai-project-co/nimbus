@@ -3,6 +3,11 @@
   "workspaces": {
     "": {
       "name": "nimbus",
+      "dependencies": {
+        "@elysiajs/cors": "^1.4.1",
+        "@elysiajs/websocket": "^0.2.8",
+        "elysia": "^1.4.22",
+      },
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.3.3",
@@ -42,7 +47,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@elysiajs/cors": "^1.4.1",
-        "@elysiajs/websocket": "^0.2.8",
         "@nimbus/shared-clients": "workspace:*",
         "@nimbus/shared-types": "workspace:*",
         "@nimbus/shared-utils": "workspace:*",

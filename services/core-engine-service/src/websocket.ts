@@ -1,5 +1,4 @@
 import { Elysia } from 'elysia';
-import websocket from '@elysiajs/websocket';
 import { logger } from '@nimbus/shared-utils';
 
 interface WebSocketData {
@@ -9,12 +8,16 @@ interface WebSocketData {
 
 /**
  * Setup WebSocket server for real-time updates
+ * Uses Elysia's built-in WebSocket support (available since v1.2+)
  */
 export function setupWebSocket(app: Elysia) {
-  app.use(
-    websocket({
-      message(ws: any, message: any) {
-        const data = ws.data as WebSocketData;
+  app.ws('/ws', {
+    message(ws, message) {
+        // Initialize data if needed
+        const data = ws.data as any;
+        if (!data.subscribed_tasks) {
+          data.subscribed_tasks = new Set();
+        }
 
         try {
           const msg = typeof message === 'string' ? JSON.parse(message) : message;
@@ -72,8 +75,9 @@ export function setupWebSocket(app: Elysia) {
         }
       },
 
-      open(ws: any) {
-        const data = ws.data as WebSocketData;
+      open(ws) {
+        // Initialize WebSocket data
+        const data = ws.data as any;
         data.subscribed_tasks = new Set();
 
         ws.send(
@@ -87,18 +91,16 @@ export function setupWebSocket(app: Elysia) {
         logger.info('WebSocket client connected');
       },
 
-      close(ws: any) {
-        const data = ws.data as WebSocketData;
-        data.subscribed_tasks.clear();
+      close(ws) {
+        // Clean up subscriptions
+        const data = ws.data as any;
+        if (data.subscribed_tasks) {
+          data.subscribed_tasks.clear();
+        }
 
         logger.info('WebSocket client disconnected');
       },
-
-      error(ws: any, error: any) {
-        logger.error('WebSocket error', error);
-      },
-    })
-  );
+    });
 
   return app;
 }
