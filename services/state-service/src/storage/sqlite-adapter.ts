@@ -169,6 +169,155 @@ export class SQLiteAdapter {
     logger.debug(`Deleted template ${id}`);
   }
 
+  // Conversations
+  saveConversation(id: string, title: string, messages: any[], model?: string, metadata?: any): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO conversations (id, title, messages, model, created_at, updated_at, metadata)
+      VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM conversations WHERE id = ?), CURRENT_TIMESTAMP), CURRENT_TIMESTAMP, ?)
+    `);
+
+    stmt.run(
+      id,
+      title,
+      JSON.stringify(messages),
+      model || null,
+      id,
+      metadata ? JSON.stringify(metadata) : null
+    );
+
+    logger.debug(`Saved conversation ${id}`);
+  }
+
+  getConversation(id: string): any | null {
+    const stmt = this.db.prepare('SELECT * FROM conversations WHERE id = ?');
+    const row: any = stmt.get(id);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      messages: JSON.parse(row.messages),
+      model: row.model,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    };
+  }
+
+  listConversations(limit: number = 50, offset: number = 0): any[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM conversations
+      ORDER BY updated_at DESC
+      LIMIT ? OFFSET ?
+    `);
+
+    const rows: any[] = stmt.all(limit, offset) as any[];
+    return rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      messages: JSON.parse(row.messages),
+      model: row.model,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    }));
+  }
+
+  deleteConversation(id: string): void {
+    const stmt = this.db.prepare('DELETE FROM conversations WHERE id = ?');
+    stmt.run(id);
+    logger.debug(`Deleted conversation ${id}`);
+  }
+
+  // Artifacts
+  saveArtifact(id: string, conversationId: string | null, name: string, type: string, content: string, language?: string, metadata?: any): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO artifacts (id, conversation_id, name, type, content, language, created_at, updated_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM artifacts WHERE id = ?), CURRENT_TIMESTAMP), CURRENT_TIMESTAMP, ?)
+    `);
+
+    stmt.run(
+      id,
+      conversationId || null,
+      name,
+      type,
+      content,
+      language || null,
+      id,
+      metadata ? JSON.stringify(metadata) : null
+    );
+
+    logger.debug(`Saved artifact ${id}`);
+  }
+
+  getArtifact(id: string): any | null {
+    const stmt = this.db.prepare('SELECT * FROM artifacts WHERE id = ?');
+    const row: any = stmt.get(id);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      conversationId: row.conversation_id,
+      name: row.name,
+      type: row.type,
+      content: row.content,
+      language: row.language,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    };
+  }
+
+  listArtifacts(type?: string, conversationId?: string, limit: number = 50, offset: number = 0): any[] {
+    let query = 'SELECT * FROM artifacts';
+    const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (type) {
+      conditions.push('type = ?');
+      params.push(type);
+    }
+
+    if (conversationId) {
+      conditions.push('conversation_id = ?');
+      params.push(conversationId);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const stmt = this.db.prepare(query);
+    const rows: any[] = stmt.all(...params) as any[];
+
+    return rows.map(row => ({
+      id: row.id,
+      conversationId: row.conversation_id,
+      name: row.name,
+      type: row.type,
+      content: row.content,
+      language: row.language,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    }));
+  }
+
+  deleteArtifact(id: string): void {
+    const stmt = this.db.prepare('DELETE FROM artifacts WHERE id = ?');
+    stmt.run(id);
+    logger.debug(`Deleted artifact ${id}`);
+  }
+
   // Helper methods
   private rowToOperation(row: any): Operation {
     return {

@@ -44,9 +44,36 @@ CREATE TABLE IF NOT EXISTS config (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Conversations (chat history)
+CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    messages TEXT NOT NULL,       -- JSON array of messages
+    model TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    metadata TEXT                 -- JSON blob for additional data
+);
+
+-- Artifacts (generated files/code)
+CREATE TABLE IF NOT EXISTS artifacts (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT REFERENCES conversations(id),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,           -- 'terraform', 'kubernetes', 'code', 'config'
+    content TEXT NOT NULL,
+    language TEXT,                -- Programming language or format
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    metadata TEXT                 -- JSON blob for additional data
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_operations_timestamp ON operations(timestamp);
 CREATE INDEX IF NOT EXISTS idx_operations_type ON operations(type);
 CREATE INDEX IF NOT EXISTS idx_operations_status ON operations(status);
 CREATE INDEX IF NOT EXISTS idx_checkpoints_operation ON checkpoints(operation_id);
 CREATE INDEX IF NOT EXISTS idx_templates_type ON templates(type);
+CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at);
+CREATE INDEX IF NOT EXISTS idx_artifacts_conversation ON artifacts(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_type ON artifacts(type);
