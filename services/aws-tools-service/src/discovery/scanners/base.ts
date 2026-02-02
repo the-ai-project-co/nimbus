@@ -96,13 +96,17 @@ export abstract class BaseScanner implements ServiceScanner {
 
   /**
    * Convert AWS tags to a simple key-value record
+   * Handles both EC2-style (Key/Value) and ECS-style (key/value) tags
    */
-  protected tagsToRecord(tags?: Array<{ Key?: string; Value?: string }>): Record<string, string> {
+  protected tagsToRecord(tags?: Array<{ Key?: string; Value?: string } | { key?: string; value?: string }>): Record<string, string> {
     if (!tags) return {};
 
     return tags.reduce((acc, tag) => {
-      if (tag.Key) {
-        acc[tag.Key] = tag.Value || '';
+      // Handle EC2-style tags (Key/Value)
+      const key = (tag as { Key?: string }).Key || (tag as { key?: string }).key;
+      const value = (tag as { Value?: string }).Value || (tag as { value?: string }).value;
+      if (key) {
+        acc[key] = value || '';
       }
       return acc;
     }, {} as Record<string, string>);

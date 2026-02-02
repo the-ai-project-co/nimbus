@@ -7,6 +7,7 @@
 import type {
   TerraformValue,
   TerraformBlock,
+  TerraformConfigBlock,
   TerraformReference,
   TerraformExpression,
   TerraformResource,
@@ -111,17 +112,35 @@ export class HCLFormatter {
   /**
    * Format the terraform {} block
    */
-  formatTerraformBlock(block: TerraformBlock): string {
+  formatTerraformBlock(block: TerraformConfigBlock): string {
     const lines: string[] = ['terraform {'];
 
-    if (block.attributes) {
-      for (const [key, value] of Object.entries(block.attributes)) {
-        if (this.isBlock(value)) {
-          lines.push(...this.formatNestedBlock(key, value as TerraformBlock, 1));
-        } else {
-          lines.push(`${this.config.indent}${key} = ${this.formatValue(value)}`);
-        }
+    // Format required_version
+    if (block.required_version) {
+      lines.push(`${this.config.indent}required_version = ${this.formatValue(block.required_version)}`);
+    }
+
+    // Format required_providers
+    if (block.required_providers) {
+      lines.push('');
+      lines.push(`${this.config.indent}required_providers {`);
+      for (const [provider, config] of Object.entries(block.required_providers)) {
+        lines.push(`${this.config.indent}${this.config.indent}${provider} = {`);
+        lines.push(`${this.config.indent}${this.config.indent}${this.config.indent}source  = ${this.formatValue(config.source)}`);
+        lines.push(`${this.config.indent}${this.config.indent}${this.config.indent}version = ${this.formatValue(config.version)}`);
+        lines.push(`${this.config.indent}${this.config.indent}}`);
       }
+      lines.push(`${this.config.indent}}`);
+    }
+
+    // Format backend if present
+    if (block.backend) {
+      lines.push('');
+      lines.push(`${this.config.indent}backend "${block.backend.type}" {`);
+      for (const [key, value] of Object.entries(block.backend.config)) {
+        lines.push(`${this.config.indent}${this.config.indent}${key} = ${this.formatValue(value as TerraformValue)}`);
+      }
+      lines.push(`${this.config.indent}}`);
     }
 
     lines.push('}');

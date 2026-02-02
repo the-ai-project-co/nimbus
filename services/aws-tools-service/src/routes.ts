@@ -1076,17 +1076,27 @@ async function handleGenerateTerraformDirect(ctx: RouteContext): Promise<Respons
     };
 
     // Convert input resources to DiscoveredResource format
-    const discoveredResources = body.resources.map(r => ({
-      id: r.id,
-      type: r.type,
-      arn: r.arn || `arn:aws:unknown:${r.region}:000000000000:${r.type.toLowerCase()}/${r.id}`,
-      region: r.region,
-      name: r.name || r.id,
-      tags: r.tags || {},
-      properties: r.properties,
-      relationships: [],
-      discoveredAt: new Date().toISOString(),
-    }));
+    const discoveredResources = body.resources.map(r => {
+      // Determine awsType and service from the terraform type
+      const terraformType = r.type;
+      // Convert terraform type (aws_instance) to AWS type (AWS::EC2::Instance) for reference
+      const servicePart = terraformType.replace(/^aws_/, '').split('_')[0] || 'unknown';
+      const service = servicePart.toUpperCase();
+      const awsType = `AWS::${service}::Resource`; // Simplified AWS type
+
+      return {
+        id: r.id,
+        type: terraformType,
+        awsType,
+        service,
+        arn: r.arn || `arn:aws:unknown:${r.region}:000000000000:${terraformType.replace(/^aws_/, '')}/${r.id}`,
+        region: r.region,
+        name: r.name || r.id,
+        tags: r.tags || {},
+        properties: r.properties,
+        relationships: [],
+      };
+    });
 
     // Generate Terraform configuration
     const generator = createTerraformGenerator(config);

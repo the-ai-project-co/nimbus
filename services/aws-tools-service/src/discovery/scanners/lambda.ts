@@ -390,7 +390,6 @@ export class LambdaScanner extends BaseScanner {
         compatibleArchitectures: latestVersion?.CompatibleArchitectures,
         licenseInfo: latestVersion?.LicenseInfo,
         layerVersionArn: latestVersion?.LayerVersionArn,
-        codeSize: latestVersion?.CodeSize,
       },
       relationships: [],
       createdAt: latestVersion?.CreatedDate ? new Date(latestVersion.CreatedDate) : undefined,

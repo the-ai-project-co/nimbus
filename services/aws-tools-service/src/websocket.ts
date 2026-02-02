@@ -266,9 +266,9 @@ async function handleStartDiscovery(ws: AwsWebSocket, data: any): Promise<void> 
             sessionId,
             summary: {
               totalResources: session.inventory.resources.length,
-              byType: session.inventory.byType,
-              byRegion: session.inventory.byRegion,
-              byService: session.inventory.byService,
+              byType: session.inventory.summary.resourcesByType,
+              byRegion: session.inventory.summary.resourcesByRegion,
+              byService: session.inventory.summary.resourcesByService,
             },
           });
         }
@@ -438,7 +438,7 @@ export function createWebSocketServer(port: number) {
       }
 
       // Upgrade to WebSocket
-      if (server.upgrade(req)) {
+      if (server.upgrade(req, { data: { subscriptions: new Set() } })) {
         return; // Connection upgraded
       }
 

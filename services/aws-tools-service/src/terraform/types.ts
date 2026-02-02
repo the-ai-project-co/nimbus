@@ -74,7 +74,8 @@ export type TerraformValue =
   | TerraformValue[]
   | TerraformBlock
   | TerraformReference
-  | TerraformExpression;
+  | TerraformExpression
+  | { [key: string]: TerraformValue };
 
 /**
  * Terraform block (nested configuration)
@@ -83,6 +84,21 @@ export interface TerraformBlock {
   _type: 'block';
   _blockType?: string;
   attributes: Record<string, TerraformValue>;
+}
+
+/**
+ * Terraform configuration block for the terraform {} section
+ */
+export interface TerraformConfigBlock {
+  required_version?: string;
+  required_providers?: Record<string, {
+    source: string;
+    version: string;
+  }>;
+  backend?: {
+    type: string;
+    config: Record<string, unknown>;
+  };
 }
 
 /**
@@ -186,8 +202,8 @@ export interface TerraformLocals {
  * Complete Terraform configuration for a file
  */
 export interface TerraformFileContent {
-  fileName: string;
-  terraform?: TerraformBlock;
+  fileName?: string;
+  terraform?: TerraformConfigBlock;
   providers?: TerraformProvider[];
   variables?: TerraformVariable[];
   locals?: TerraformLocals;
@@ -247,18 +263,12 @@ export interface ResourceMapper {
  * Context for resource mapping
  */
 export interface MappingContext {
-  /** All discovered resources (for relationship resolution) */
-  inventory: InfrastructureInventory;
-  /** Map of ARN to Terraform resource name */
-  arnToResourceName: Map<string, string>;
-  /** Variables that have been created */
-  variables: Map<string, TerraformVariable>;
   /** Configuration options */
   config: TerraformGeneratorConfig;
   /** Add a variable */
   addVariable(variable: TerraformVariable): string;
   /** Get reference to another resource */
-  getResourceReference(arn: string): TerraformReference | null;
+  getResourceReference(arn: string): TerraformReference | undefined;
   /** Mark a value as sensitive (creates a variable) */
   markSensitive(name: string, value: unknown, description?: string): TerraformReference;
 }
