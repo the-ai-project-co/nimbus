@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/terraform-tools-service/src/server';
 
-describe('Helm Tools Service', () => {
+describe('Terraform Tools Service', () => {
   let server: any;
-  const PORT = 3008;
+  const PORT = 3206; // Unique port for health tests
 
   beforeAll(async () => {
     server = await startServer(PORT);
@@ -19,6 +19,6 @@ describe('Helm Tools Service', () => {
 
     expect(response.status).toBe(200);
     expect(data.status).toBe('healthy');
-    expect(data.service).toBe('helm-tools-service');
+    expect(data.service).toBe('terraform-tools-service');
   });
 });

@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/helm-tools-service/src/server';
 
-describe('File System Tools Service', () => {
+describe('Helm Tools Service', () => {
   let server: any;
-  const PORT = 3005;
+  const PORT = 3208; // Unique port for health tests
 
   beforeAll(async () => {
     server = await startServer(PORT);
@@ -19,6 +19,6 @@ describe('File System Tools Service', () => {
 
     expect(response.status).toBe(200);
     expect(data.status).toBe('healthy');
-    expect(data.service).toBe('fs-tools-service');
+    expect(data.service).toBe('helm-tools-service');
   });
 });

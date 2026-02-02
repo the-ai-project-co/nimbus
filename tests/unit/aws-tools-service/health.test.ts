@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/aws-tools-service/src/server';
 
-describe('Git Tools Service', () => {
+describe('AWS Tools Service', () => {
   let server: any;
-  const PORT = 3004;
+  const PORT = 3209; // Unique port for health tests
 
   beforeAll(async () => {
     server = await startServer(PORT);
@@ -19,6 +19,6 @@ describe('Git Tools Service', () => {
 
     expect(response.status).toBe(200);
     expect(data.status).toBe('healthy');
-    expect(data.service).toBe('git-tools-service');
+    expect(data.service).toBe('aws-tools-service');
   });
 });

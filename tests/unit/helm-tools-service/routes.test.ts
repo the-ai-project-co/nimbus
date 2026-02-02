@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/helm-tools-service/src/server';
 
 describe('Helm Tools Service Routes', () => {
   let server: any;

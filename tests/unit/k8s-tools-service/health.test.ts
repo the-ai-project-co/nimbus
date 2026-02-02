@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/k8s-tools-service/src/server';
 
 describe('Kubernetes Tools Service', () => {
   let server: any;
-  const PORT = 3007;
+  const PORT = 3207; // Unique port for health tests
 
   beforeAll(async () => {
     server = await startServer(PORT);

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/git-tools-service/src/server';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -103,7 +103,7 @@ describe('Git Tools Service Routes', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(data.data.commit).toBeDefined();
+    expect(data.data.hash).toBeDefined();
   });
 
   test('POST /api/git/commit returns error without message', async () => {
@@ -131,8 +131,8 @@ describe('Git Tools Service Routes', () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(data.data.all).toBeDefined();
-    expect(Array.isArray(data.data.all)).toBe(true);
+    expect(data.data.branches).toBeDefined();
+    expect(Array.isArray(data.data.branches)).toBe(true);
   });
 
   test('POST /api/git/branch creates a new branch', async () => {

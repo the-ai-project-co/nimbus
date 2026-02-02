@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/fs-tools-service/src/server';
 
-describe('AWS Tools Service', () => {
+describe('File System Tools Service', () => {
   let server: any;
-  const PORT = 3009;
+  const PORT = 3205; // Unique port for health tests
 
   beforeAll(async () => {
     server = await startServer(PORT);
@@ -19,6 +19,6 @@ describe('AWS Tools Service', () => {
 
     expect(response.status).toBe(200);
     expect(data.status).toBe('healthy');
-    expect(data.service).toBe('aws-tools-service');
+    expect(data.service).toBe('fs-tools-service');
   });
 });

@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { startServer } from '../src/server';
+import { startServer } from '../../../services/git-tools-service/src/server';
 
-describe('Terraform Tools Service', () => {
+describe('Git Tools Service', () => {
   let server: any;
-  const PORT = 3006;
+  const PORT = 3204; // Unique port for health tests
 
   beforeAll(async () => {
     server = await startServer(PORT);
@@ -19,6 +19,6 @@ describe('Terraform Tools Service', () => {
 
     expect(response.status).toBe(200);
     expect(data.status).toBe('healthy');
-    expect(data.service).toBe('terraform-tools-service');
+    expect(data.service).toBe('git-tools-service');
   });
 });
