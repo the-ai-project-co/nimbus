@@ -1,267 +1,532 @@
 # Contributing to Nimbus
 
-Thank you for your interest in contributing to Nimbus! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Nimbus! We welcome contributions from developers of all skill levels and backgrounds. This guide will help you get started.
 
-## 🚀 Getting Started
+## Ways to Contribute
+
+### For Everyone
+- **Star this repository** - Show your support and help others discover the project
+- **Report bugs** - Help us identify and fix issues
+- **Suggest features** - Share your ideas for improvements
+- **Improve documentation** - Help others understand the project better
+- **Spread the word** - Share the project on social media, blogs, or with colleagues
+
+### For Developers
+- **Fix bugs** - Contribute code fixes
+- **Add features** - Implement new functionality
+- **Add cloud provider support** - Help expand AWS coverage or add GCP/Azure
+- **Write tests** - Improve code quality and reliability
+- **Improve tooling** - Enhance the development experience
+
+### For Technical Writers
+- **Write guides** - Create tutorials and how-to guides
+- **API documentation** - Document functions and interfaces
+- **Create examples** - Build sample configurations and use cases
+
+## Getting Started
 
 ### Prerequisites
 
-- Bun v1.0+
+- [Bun](https://bun.sh/) v1.0+
 - Git
-- Node.js v18+ (for some tooling)
+- Node.js v20+ (for some tooling)
+- AWS credentials (for testing AWS features)
 
-### Setup Development Environment
-
-1. Fork and clone the repository
-2. Run the setup script:
+### 1. Fork and Clone
 
 ```bash
-./scripts/dev-setup.sh
+# Fork the repository on GitHub, then clone your fork
+git clone https://github.com/YOUR_USERNAME/nimbus.git
+cd nimbus
+
+# Add upstream remote
+git remote add upstream https://github.com/the-ai-project-co/nimbus.git
 ```
 
-3. Create a new branch for your changes:
+### 2. Set up Development Environment
 
 ```bash
-git checkout -b feature/your-feature-name
-```
+# Install dependencies
+bun install
 
-## 📁 Project Structure
+# Build all packages
+bun run build
 
-```
-nimbus/
-├── services/              # Microservices
-│   ├── cli-service/       # CLI interface
-│   ├── core-engine-service/  # Agent orchestration
-│   ├── llm-service/       # LLM abstraction
-│   └── ...               # Other services
-├── shared/               # Shared libraries
-│   ├── types/           # TypeScript types
-│   ├── utils/           # Utilities
-│   └── clients/         # HTTP/WebSocket clients
-├── scripts/             # Development scripts
-├── tests/               # Integration tests
-└── docs/                # Documentation
-```
-
-## 🔧 Development Workflow
-
-### 1. Make Changes
-
-- Follow the existing code style
-- Write tests for new features
-- Update documentation as needed
-
-### 2. Test Your Changes
-
-```bash
-# Run tests
+# Run tests to verify setup
 bun test
 
-# Type check
-bun run type-check
-
-# Start services and verify
+# Start development servers
 bun dev
+
+# Check health of all services
 ./scripts/check-health.sh
 ```
 
-### 3. Commit Guidelines
-
-We follow conventional commits:
+### 3. Create a Feature Branch
 
 ```bash
-feat: add new feature
-fix: bug fix
-docs: documentation changes
-test: add or update tests
-refactor: code refactoring
-chore: maintenance tasks
+# Sync with upstream
+git fetch upstream
+git checkout main
+git merge upstream/main
+
+# Create a new branch
+git checkout -b feature/your-feature-name
+
+# Or for bug fixes
+git checkout -b fix/bug-description
 ```
 
-Examples:
+## Project Structure
+
+```
+nimbus/
+├── services/                    # Microservices
+│   ├── aws-tools-service/       # AWS infrastructure discovery & operations
+│   ├── cli-service/             # CLI interface and commands
+│   ├── core-engine-service/     # Agent orchestration engine
+│   ├── fs-tools-service/        # File system operations
+│   ├── git-tools-service/       # Git operations
+│   ├── helm-tools-service/      # Helm chart operations
+│   ├── k8s-tools-service/       # Kubernetes operations
+│   ├── llm-service/             # LLM provider abstraction
+│   └── terraform-tools-service/ # Terraform operations
+├── shared/                      # Shared libraries
+│   ├── types/                   # TypeScript type definitions
+│   ├── utils/                   # Common utilities and logger
+│   └── clients/                 # HTTP/WebSocket clients
+├── tests/                       # Test suites
+│   ├── unit/                    # Unit tests by service
+│   ├── integration/             # Integration tests
+│   └── e2e/                     # End-to-end tests
+├── scripts/                     # Development and build scripts
+└── docs/                        # Documentation
+```
+
+## Development Workflow
+
+### Development Commands
+
 ```bash
-git commit -m "feat: add Terraform validation to generator service"
-git commit -m "fix: resolve WebSocket connection issue in LLM service"
-git commit -m "docs: update CLI usage examples"
+# Install dependencies
+bun install
+
+# Build all packages
+bun run build
+
+# Run all tests
+bun test
+
+# Run tests for specific service
+bun test --filter aws-tools
+
+# Run tests with coverage
+bun test --coverage
+
+# Type checking
+bun run typecheck
+
+# Linting
+bun run lint
+
+# Format code
+bun run format
+
+# Start all services in development mode
+bun dev
+
+# Start specific service
+cd services/aws-tools-service && bun dev
 ```
 
-### 4. Submit a Pull Request
+### Working with Services
 
-1. Push your branch to your fork
-2. Create a pull request to the `develop` branch
-3. Fill out the PR template
-4. Wait for review
+Each service follows a consistent structure:
 
-## 📝 Code Style
+```
+services/example-service/
+├── src/
+│   ├── index.ts          # Main entry point
+│   ├── server.ts         # Elysia server setup
+│   ├── routes.ts         # API route definitions
+│   └── [feature]/        # Feature-specific modules
+├── tests/
+│   └── *.test.ts         # Unit tests
+├── package.json
+└── tsconfig.json
+```
+
+## Code Style Guidelines
 
 ### TypeScript
 
-- Use TypeScript for all code
-- Enable strict mode
-- Export types from shared/types
-- Use async/await over promises
+- Use TypeScript for all new code
+- Enable strict mode in tsconfig
+- Use meaningful variable and function names
+- Add JSDoc comments for public APIs
+- Prefer `const` over `let`, avoid `var`
+- Use async/await instead of raw Promises
 
 ### Naming Conventions
 
-- **Files**: kebab-case (`terraform-generator.ts`)
-- **Classes**: PascalCase (`TerraformGenerator`)
-- **Functions**: camelCase (`generateTerraform`)
-- **Constants**: UPPER_SNAKE_CASE (`DEFAULT_PORT`)
-- **Interfaces**: PascalCase with `I` prefix optional (`Config` or `IConfig`)
+| Type | Convention | Example |
+|------|------------|---------|
+| Files | kebab-case | `terraform-generator.ts` |
+| Classes | PascalCase | `TerraformGenerator` |
+| Functions | camelCase | `generateTerraform` |
+| Constants | UPPER_SNAKE_CASE | `DEFAULT_PORT` |
+| Interfaces | PascalCase | `DiscoveryConfig` |
+| Types | PascalCase | `ResourceType` |
 
-### Project Conventions
-
-- Use `logger` from shared/utils for logging
-- Use shared error classes for errors
-- Follow REST client patterns for service communication
-- Add health endpoints to all services
-- Write tests alongside features
-
-## 🧪 Testing
-
-### Unit Tests
-
-Place tests in `tests/` directory within each package:
+### Example Code Style
 
 ```typescript
-// services/state-service/tests/storage.test.ts
-import { describe, test, expect } from 'bun:test';
-import { SQLiteAdapter } from '../src/storage/sqlite-adapter';
+/**
+ * Discovers AWS infrastructure resources in specified regions
+ * @param config - Discovery configuration options
+ * @returns Promise resolving to discovered resources
+ */
+export async function discoverInfrastructure(
+  config: DiscoveryConfig
+): Promise<DiscoveryResult> {
+  const scanner = new InfrastructureScanner(config);
 
-describe('SQLiteAdapter', () => {
-  test('saves and retrieves operations', async () => {
-    // test implementation
-  });
-});
+  try {
+    const resources = await scanner.scan();
+    return {
+      success: true,
+      resources,
+      summary: generateSummary(resources),
+    };
+  } catch (error) {
+    logger.error('Discovery failed', error);
+    throw new DiscoveryError(`Failed to discover infrastructure: ${error.message}`);
+  }
+}
 ```
 
-### Integration Tests
+### Commit Messages
 
-Place in `tests/integration/`:
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```typescript
-// tests/integration/llm-core-engine.test.ts
-import { describe, test, expect } from 'bun:test';
-
-describe('LLM + Core Engine Integration', () => {
-  test('chat flow works end-to-end', async () => {
-    // test implementation
-  });
-});
 ```
+type(scope): description
+
+feat(aws): add support for EKS node group discovery
+fix(cli): resolve authentication error with SSO profiles
+docs(readme): update installation instructions
+test(terraform): add unit tests for HCL formatter
+chore(deps): update dependencies to latest versions
+refactor(scanner): improve error handling in base scanner
+```
+
+**Types:**
+- `feat`: New features
+- `fix`: Bug fixes
+- `docs`: Documentation changes
+- `test`: Test additions or modifications
+- `chore`: Maintenance tasks
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+
+**Scopes (examples):**
+- `aws`, `cli`, `terraform`, `k8s`, `helm`, `git`, `fs`
+- `discovery`, `scanner`, `generator`, `formatter`
+- `deps`, `ci`, `build`
+
+## Testing
 
 ### Running Tests
 
 ```bash
-# All tests
+# Run all tests
 bun test
 
-# Specific service
-cd services/state-service
-bun test
+# Run tests in watch mode
+bun test --watch
 
-# With coverage
+# Run tests with coverage
 bun test --coverage
 
-# Watch mode
-bun test --watch
+# Run specific test file
+bun test tests/unit/aws-tools-service/discovery/scanner.test.ts
+
+# Run tests matching pattern
+bun test --filter "TerraformGenerator"
 ```
 
-## 📚 Documentation
+### Writing Tests
 
-- Update README.md for user-facing changes
-- Update team specs in `releases/mvp/` for architectural changes
-- Add JSDoc comments for public APIs
-- Update API documentation in `docs/api/`
+- Write tests for all new features
+- Maintain or improve test coverage
+- Use descriptive test names
+- Mock external dependencies (AWS API calls, etc.)
+- Place unit tests in `tests/unit/[service-name]/`
+- Place integration tests in `tests/integration/`
 
-## 🏗️ Adding a New Service
+#### Example Test
 
-1. Use the generator:
+```typescript
+import { describe, test, expect, beforeEach, mock } from 'bun:test';
+import { EC2Scanner } from '../src/discovery/scanners/ec2';
+
+describe('EC2Scanner', () => {
+  let scanner: EC2Scanner;
+
+  beforeEach(() => {
+    scanner = new EC2Scanner();
+  });
+
+  describe('scan', () => {
+    test('should return discovered EC2 instances with properties', async () => {
+      const mockInstances = [
+        {
+          InstanceId: 'i-1234567890abcdef0',
+          InstanceType: 't3.micro',
+          State: { Name: 'running' },
+        },
+      ];
+
+      // Mock AWS SDK calls
+      mock.module('@aws-sdk/client-ec2', () => ({
+        EC2Client: class {
+          send = () => Promise.resolve({ Reservations: [{ Instances: mockInstances }] });
+        },
+        DescribeInstancesCommand: class {},
+      }));
+
+      const result = await scanner.scan(mockContext);
+
+      expect(result.resources).toHaveLength(1);
+      expect(result.resources[0].properties.instanceType).toBe('t3.micro');
+    });
+  });
+});
+```
+
+## Adding New Features
+
+### Adding a New AWS Scanner
+
+1. Create the scanner file:
+
+```typescript
+// services/aws-tools-service/src/discovery/scanners/newservice.ts
+import { BaseScanner, type ScannerContext, type ScanResult } from './base';
+import type { DiscoveredResource } from '../types';
+
+export class NewServiceScanner extends BaseScanner {
+  readonly serviceName = 'NewService';
+  readonly isGlobal = false;
+
+  async scan(context: ScannerContext): Promise<ScanResult> {
+    // Implementation
+  }
+
+  getResourceTypes(): string[] {
+    return ['AWS::NewService::Resource'];
+  }
+}
+```
+
+2. Register in the scanner index:
+
+```typescript
+// services/aws-tools-service/src/discovery/scanners/index.ts
+import { NewServiceScanner } from './newservice';
+
+export function createScannerRegistry(): ScannerRegistry {
+  return new ScannerRegistry([
+    // ... existing scanners
+    new NewServiceScanner(),
+  ]);
+}
+```
+
+3. Add Terraform mapper:
+
+```typescript
+// services/aws-tools-service/src/terraform/mappers/newservice.ts
+```
+
+4. Add tests:
+
+```typescript
+// tests/unit/aws-tools-service/discovery/scanners/newservice.test.ts
+```
+
+### Adding a New Service
+
+1. Create the service directory structure:
 
 ```bash
-bun scripts/create-service.ts
+mkdir -p services/new-service/src
+mkdir -p services/new-service/tests
 ```
 
-2. Implement the service following the template
-3. Add routes and handlers
-4. Write tests
-5. Update documentation
+2. Create package.json:
 
-## 🐛 Reporting Bugs
+```json
+{
+  "name": "@nimbus/new-service",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@nimbus/shared-utils": "workspace:*",
+    "elysia": "^1.2.0"
+  }
+}
+```
 
-1. Check existing issues first
-2. Create a new issue with:
-   - Clear description
-   - Steps to reproduce
-   - Expected vs actual behavior
-   - Environment details (OS, Bun version, etc.)
-   - Logs if applicable
+3. Implement the service following existing patterns
+4. Add health endpoint at `/health`
+5. Write tests
+6. Update root package.json workspaces
 
-## ✨ Feature Requests
+## Pull Request Process
 
-1. Check if it aligns with the MVP scope
-2. Open an issue with:
-   - Use case description
-   - Proposed solution
-   - Alternatives considered
-   - Impact assessment
+### Before Submitting
 
-## 📋 Pull Request Process
+1. **Sync with upstream**
+   ```bash
+   git fetch upstream
+   git rebase upstream/main
+   ```
 
-1. Update tests
-2. Update documentation
-3. Ensure CI passes
-4. Request review from maintainers
-5. Address feedback
-6. Squash commits if requested
+2. **Run all checks**
+   ```bash
+   bun run lint
+   bun run typecheck
+   bun test
+   ```
 
-## 🔍 Code Review Guidelines
+3. **Update documentation** if adding features
 
-### For Authors
+4. **Write/update tests** for your changes
 
-- Keep PRs focused and small
-- Provide context in description
-- Respond to feedback promptly
-- Test thoroughly before submitting
+### Submitting Your PR
 
-### For Reviewers
+1. Push to your fork:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
 
-- Be respectful and constructive
-- Focus on code quality and architecture
-- Check tests and documentation
-- Approve when ready, request changes when needed
+2. Create a Pull Request on GitHub
 
-## 🎯 Areas for Contribution
+3. Fill out the PR template completely
 
-### High Priority
+4. Link related issues using `Fixes #123` or `Closes #123`
 
-- [ ] LLM provider implementations
-- [ ] Terraform generator templates
-- [ ] CLI commands and UI components
-- [ ] Test coverage improvements
+### PR Review Process
 
-### Medium Priority
+1. **Automated checks** run (tests, linting, type checking, CodeQL)
+2. **CodeRabbit review** provides automated feedback
+3. **Maintainer review** with constructive feedback
+4. **Address feedback** and push updates
+5. **Approval and merge** once everything looks good
 
-- [ ] Documentation improvements
-- [ ] Additional MCP tools
-- [ ] Performance optimizations
-- [ ] Error handling improvements
+## Good First Issues
 
-### Good First Issues
+Looking for a place to start? Look for issues labeled:
+- `good first issue` - Perfect for newcomers
+- `help wanted` - We'd love community help
+- `documentation` - Great for non-code contributions
 
-Look for issues labeled `good-first-issue` for beginner-friendly tasks.
+### Suggested First Contributions
 
-## 📞 Getting Help
+- Fix typos in documentation
+- Add examples to README
+- Write tests for existing functions
+- Improve error messages
+- Add JSDoc comments to public APIs
+- Add support for new AWS resource types
 
-- GitHub Issues: Bug reports and feature requests
-- GitHub Discussions: Questions and general discussion
-- Documentation: Check docs/ first
+## Issue Guidelines
 
-## 🏆 Recognition
+### Reporting Bugs
 
-Contributors will be acknowledged in:
-- README.md contributors section
-- Release notes
-- Project documentation
+Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml) and include:
+- **Environment**: OS, Bun version, Node.js version
+- **Affected service**: Which service is impacted
+- **Steps to reproduce**: Detailed steps
+- **Expected vs actual behavior**
+- **Logs**: Relevant error messages or output
 
-Thank you for contributing to Nimbus! 🚀
+### Suggesting Features
+
+Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml) and include:
+- **Problem**: What problem does this solve?
+- **Solution**: Describe your proposed solution
+- **Alternatives**: Other approaches you've considered
+- **Use cases**: How would this be used?
+
+## Community Guidelines
+
+### Code of Conduct
+
+- Be respectful and inclusive
+- Welcome newcomers and help them learn
+- Focus on constructive feedback
+- Assume good intentions
+
+### Communication
+
+- **GitHub Issues**: Bug reports, feature requests
+- **GitHub Discussions**: Questions, ideas, showcase
+- **Pull Requests**: Code contributions
+
+## Learning Resources
+
+### Nimbus Stack
+
+- [Bun Documentation](https://bun.sh/docs)
+- [Elysia Documentation](https://elysiajs.com/)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+
+### AWS & Infrastructure
+
+- [AWS SDK for JavaScript v3](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/)
+- [Terraform Documentation](https://developer.hashicorp.com/terraform/docs)
+- [AWS CloudFormation Resource Types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html)
+
+### Testing
+
+- [Bun Test Runner](https://bun.sh/docs/cli/test)
+
+## Recognition
+
+### Contributors
+
+All contributors are recognized in:
+- GitHub contributors page
+- Release notes for significant contributions
+- README mentions for major features
+
+### Becoming a Maintainer
+
+Regular contributors who demonstrate:
+- Technical expertise
+- Good communication skills
+- Community helpfulness
+- Consistent high-quality contributions
+
+May be invited to join the maintainer team!
+
+## Getting Help
+
+Stuck? Need help? Reach out:
+
+- **GitHub Discussions**: [Ask questions](https://github.com/the-ai-project-co/nimbus/discussions)
+- **GitHub Issues**: [Report issues](https://github.com/the-ai-project-co/nimbus/issues)
+- **Documentation**: Check the README and docs/ first
+
+---
+
+**Thank you for contributing to Nimbus!**
+
+Every contribution, no matter how small, helps make Nimbus better for everyone. We're excited to see what you'll build!
