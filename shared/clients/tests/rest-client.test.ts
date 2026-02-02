@@ -1,9 +1,12 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { RestClient } from '../src/rest-client';
 
+// Generate unique port for testing
+const testPort = 15000 + Math.floor(Math.random() * 10000);
+
 // Mock server for testing
 const mockServer = Bun.serve({
-  port: 4000,
+  port: testPort,
   fetch(req) {
     const url = new URL(req.url);
 
@@ -20,7 +23,7 @@ const mockServer = Bun.serve({
 });
 
 describe('RestClient', () => {
-  const client = new RestClient('http://localhost:4000');
+  const client = new RestClient(`http://localhost:${testPort}`);
 
   afterAll(() => {
     mockServer.stop();
