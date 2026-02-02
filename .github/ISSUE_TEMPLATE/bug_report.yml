@@ -1,0 +1,116 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out this form completely to help us reproduce and fix the issue.
+
+  - type: checkboxes
+    id: existing-issues
+    attributes:
+      label: Existing Issues
+      description: Please search existing issues before creating a new one
+      options:
+        - label: I have searched existing issues
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug
+      placeholder: What went wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Run command `nimbus discover --provider aws`
+        2. Configure with `...`
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? Include error messages if applicable
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Affected Service
+      description: Which service is affected?
+      options:
+        - aws-tools-service
+        - cli-service
+        - core-engine-service
+        - fs-tools-service
+        - git-tools-service
+        - helm-tools-service
+        - k8s-tools-service
+        - llm-service
+        - terraform-tools-service
+        - Multiple services
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Information about your environment
+      placeholder: |
+        - OS: macOS 14.0
+        - Bun: 1.0.0
+        - Node.js: 20.x (if applicable)
+        - Nimbus version: 0.1.0
+        - Cloud Provider: AWS
+        - Region: us-east-1
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and Error Output
+      description: Any relevant logs or error output
+      render: shell
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem (screenshots, related issues, etc.)
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Low - Minor inconvenience
+        - Medium - Affects functionality
+        - High - Blocks usage
+        - Critical - Security or data loss
+    validations:
+      required: true

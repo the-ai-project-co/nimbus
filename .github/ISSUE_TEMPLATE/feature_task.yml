@@ -1,0 +1,66 @@
+name: Feature Task
+description: Create a task for implementing a feature
+title: "[Task]: "
+labels: ["task", "feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to create implementation tasks for approved features. Please link to the original feature request.
+
+  - type: textarea
+    id: issue_reference
+    attributes:
+      label: Issue Reference
+      description: Link to the related feature request issue
+      placeholder: "Closes #123"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: A clear and concise description of what needs to be implemented
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Target Service
+      description: Which service will this task affect?
+      options:
+        - aws-tools-service
+        - cli-service
+        - core-engine-service
+        - fs-tools-service
+        - git-tools-service
+        - helm-tools-service
+        - k8s-tools-service
+        - llm-service
+        - terraform-tools-service
+        - shared/clients
+        - shared/utils
+        - Multiple services
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What conditions must be met for this task to be considered complete?
+      placeholder: |
+        - [ ] Feature implemented
+        - [ ] Unit tests added
+        - [ ] Integration tests added
+        - [ ] Documentation updated
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes
+      description: Any technical considerations, dependencies, or implementation details

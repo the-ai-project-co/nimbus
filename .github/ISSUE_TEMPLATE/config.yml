@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/the-ai-project-co/nimbus#readme
+    about: Check the documentation before opening an issue
+  - name: Discussions
+    url: https://github.com/the-ai-project-co/nimbus/discussions
+    about: Ask questions and discuss ideas
