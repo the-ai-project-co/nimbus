@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { EC2Operations } from './aws/ec2';
 import { S3Operations } from './aws/s3';
 import { IAMOperations } from './aws/iam';
@@ -1102,8 +1103,8 @@ async function handleGenerateTerraformDirect(ctx: RouteContext): Promise<Respons
     const generator = createTerraformGenerator(config);
     const generatedFiles = generator.generate(discoveredResources);
 
-    // Generate a unique session ID
-    const terraformSessionId = `tf-direct-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a unique session ID using cryptographically secure random
+    const terraformSessionId = `tf-direct-${randomUUID()}`;
     terraformCache.set(terraformSessionId, {
       files: generatedFiles,
       createdAt: new Date(),

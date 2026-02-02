@@ -479,10 +479,19 @@ export class TerraformGenerator {
     ];
 
     for (const imp of imports) {
-      // Escape special characters in the ID
-      const escapedId = imp.id.replace(/"/g, '\\"');
-      lines.push(`echo "Importing ${imp.to}..."`);
-      lines.push(`terraform import "${imp.to}" "${escapedId}" || echo "Warning: Failed to import ${imp.to}"`);
+      // Escape special shell characters in the ID (backslash, double quote, dollar sign, backtick)
+      const escapedId = imp.id
+        .replace(/\\/g, '\\\\')  // Escape backslashes first
+        .replace(/"/g, '\\"')    // Escape double quotes
+        .replace(/\$/g, '\\$')   // Escape dollar signs
+        .replace(/`/g, '\\`');   // Escape backticks
+      const escapedTo = imp.to
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\$/g, '\\$')
+        .replace(/`/g, '\\`');
+      lines.push(`echo "Importing ${escapedTo}..."`);
+      lines.push(`terraform import "${escapedTo}" "${escapedId}" || echo "Warning: Failed to import ${escapedTo}"`);
       lines.push('');
     }
 
