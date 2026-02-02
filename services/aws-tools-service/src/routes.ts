@@ -2,6 +2,44 @@ import { EC2Operations } from './aws/ec2';
 import { S3Operations } from './aws/s3';
 import { IAMOperations } from './aws/iam';
 import { logger } from '@nimbus/shared-utils';
+import {
+  CredentialManager,
+  RegionManager,
+  InfrastructureScanner,
+  type DiscoveryConfig,
+} from './discovery';
+import {
+  TerraformGenerator,
+  createTerraformGenerator,
+  getSupportedAwsTypes,
+  type GeneratedFiles,
+  type TerraformGeneratorConfig,
+} from './terraform';
+
+// Discovery singleton instances
+const credentialManager = new CredentialManager();
+const regionManager = new RegionManager();
+const infrastructureScanner = new InfrastructureScanner({
+  credentialManager,
+  regionManager,
+});
+
+// Terraform generation cache - stores generated files by session ID
+const terraformCache = new Map<string, {
+  files: GeneratedFiles;
+  createdAt: Date;
+  sessionId: string;
+}>();
+
+// Clean up old cache entries every 30 minutes
+setInterval(() => {
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  for (const [key, value] of terraformCache.entries()) {
+    if (value.createdAt < thirtyMinutesAgo) {
+      terraformCache.delete(key);
+    }
+  }
+}, 30 * 60 * 1000);
 
 interface RouteContext {
   req: Request;
@@ -742,6 +780,396 @@ async function handleListGroups(ctx: RouteContext): Promise<Response> {
   }
 }
 
+// ==================== Terraform Generation Handlers ====================
+
+/**
+ * GET /api/aws/terraform/supported-types - Get supported AWS resource types
+ */
+async function handleGetSupportedTypes(ctx: RouteContext): Promise<Response> {
+  try {
+    const supportedTypes = getSupportedAwsTypes();
+
+    return success({
+      types: supportedTypes,
+      total: supportedTypes.length,
+    });
+  } catch (err: any) {
+    logger.error('Get supported types failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/terraform/generate - Generate Terraform from discovery session
+ */
+async function handleGenerateTerraform(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      sessionId: string;
+      options?: {
+        outputDir?: string;
+        generateImportBlocks?: boolean;
+        generateImportScript?: boolean;
+        organizeByService?: boolean;
+        terraformVersion?: string;
+        awsProviderVersion?: string;
+      };
+    }>(ctx.req);
+
+    if (!body.sessionId) {
+      return error('Missing required field: sessionId', 400);
+    }
+
+    // Get the discovery session
+    const session = infrastructureScanner.getSession(body.sessionId);
+    if (!session) {
+      return error('Discovery session not found', 404);
+    }
+
+    if (session.progress.status !== 'completed') {
+      return error(`Discovery is not complete. Current status: ${session.progress.status}`, 400);
+    }
+
+    if (!session.inventory || session.inventory.resources.length === 0) {
+      return error('No resources found in discovery session', 400);
+    }
+
+    // Create Terraform generator config
+    const config: TerraformGeneratorConfig = {
+      outputDir: body.options?.outputDir || '/tmp/terraform',
+      generateImportBlocks: body.options?.generateImportBlocks ?? true,
+      generateImportScript: body.options?.generateImportScript ?? true,
+      organizeByService: body.options?.organizeByService ?? true,
+      terraformVersion: body.options?.terraformVersion || '1.5.0',
+      awsProviderVersion: body.options?.awsProviderVersion || '~> 5.0',
+      defaultRegion: session.inventory.resources[0]?.region || 'us-east-1',
+    };
+
+    // Generate Terraform configuration
+    const generator = createTerraformGenerator(config);
+    const generatedFiles = generator.generate(session.inventory.resources);
+
+    // Cache the generated files
+    const terraformSessionId = `tf-${body.sessionId}`;
+    terraformCache.set(terraformSessionId, {
+      files: generatedFiles,
+      createdAt: new Date(),
+      sessionId: body.sessionId,
+    });
+
+    // Convert Map to object for JSON response
+    const filesObject: Record<string, string> = {};
+    for (const [filename, content] of generatedFiles.files) {
+      filesObject[filename] = content;
+    }
+
+    return success({
+      terraformSessionId,
+      summary: generatedFiles.summary,
+      files: Object.keys(filesObject),
+      unmappedResources: generatedFiles.unmappedResources.map(r => ({
+        id: r.id,
+        type: r.type,
+        name: r.name,
+      })),
+      variables: generatedFiles.variables.map(v => ({
+        name: v.name,
+        type: v.type,
+        sensitive: v.sensitive,
+        description: v.description,
+      })),
+      outputs: generatedFiles.outputs.map(o => ({
+        name: o.name,
+        description: o.description,
+      })),
+      importsCount: generatedFiles.imports.length,
+    });
+  } catch (err: any) {
+    logger.error('Generate Terraform failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/terraform/:terraformSessionId/files - List generated files
+ */
+async function handleListTerraformFiles(ctx: RouteContext): Promise<Response> {
+  try {
+    const terraformSessionId = ctx.path.split('/')[4];
+    if (!terraformSessionId) {
+      return error('Missing terraform session ID', 400);
+    }
+
+    const cached = terraformCache.get(terraformSessionId);
+    if (!cached) {
+      return error('Terraform session not found', 404);
+    }
+
+    const filesList = Array.from(cached.files.files.keys()).map(filename => ({
+      name: filename,
+      size: cached.files.files.get(filename)?.length || 0,
+    }));
+
+    return success({
+      terraformSessionId,
+      files: filesList,
+      total: filesList.length,
+    });
+  } catch (err: any) {
+    logger.error('List Terraform files failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/terraform/:terraformSessionId/file/:filename - Get specific file content
+ */
+async function handleGetTerraformFile(ctx: RouteContext): Promise<Response> {
+  try {
+    const pathParts = ctx.path.split('/');
+    const terraformSessionId = pathParts[4];
+    const filename = pathParts.slice(6).join('/'); // Handle nested paths
+
+    if (!terraformSessionId) {
+      return error('Missing terraform session ID', 400);
+    }
+
+    if (!filename) {
+      return error('Missing filename', 400);
+    }
+
+    const cached = terraformCache.get(terraformSessionId);
+    if (!cached) {
+      return error('Terraform session not found', 404);
+    }
+
+    const content = cached.files.files.get(filename);
+    if (content === undefined) {
+      return error('File not found', 404);
+    }
+
+    return success({
+      filename,
+      content,
+      size: content.length,
+    });
+  } catch (err: any) {
+    logger.error('Get Terraform file failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/terraform/:terraformSessionId/download - Download all files as JSON bundle
+ */
+async function handleDownloadTerraformFiles(ctx: RouteContext): Promise<Response> {
+  try {
+    const terraformSessionId = ctx.path.split('/')[4];
+    if (!terraformSessionId) {
+      return error('Missing terraform session ID', 400);
+    }
+
+    const cached = terraformCache.get(terraformSessionId);
+    if (!cached) {
+      return error('Terraform session not found', 404);
+    }
+
+    // Convert Map to object
+    const filesObject: Record<string, string> = {};
+    for (const [filename, content] of cached.files.files) {
+      filesObject[filename] = content;
+    }
+
+    return success({
+      terraformSessionId,
+      discoverySessionId: cached.sessionId,
+      files: filesObject,
+      summary: cached.files.summary,
+      importScript: cached.files.importScript,
+      variables: cached.files.variables,
+      outputs: cached.files.outputs,
+    });
+  } catch (err: any) {
+    logger.error('Download Terraform files failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/terraform/:terraformSessionId/import-script - Get import script
+ */
+async function handleGetImportScript(ctx: RouteContext): Promise<Response> {
+  try {
+    const terraformSessionId = ctx.path.split('/')[4];
+    if (!terraformSessionId) {
+      return error('Missing terraform session ID', 400);
+    }
+
+    const cached = terraformCache.get(terraformSessionId);
+    if (!cached) {
+      return error('Terraform session not found', 404);
+    }
+
+    return success({
+      script: cached.files.importScript,
+      importsCount: cached.files.imports.length,
+    });
+  } catch (err: any) {
+    logger.error('Get import script failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/terraform/generate-direct - Generate Terraform from provided resources
+ */
+async function handleGenerateTerraformDirect(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      resources: Array<{
+        id: string;
+        type: string;
+        arn?: string;
+        region: string;
+        name?: string;
+        tags?: Record<string, string>;
+        properties: Record<string, unknown>;
+      }>;
+      options?: {
+        outputDir?: string;
+        generateImportBlocks?: boolean;
+        generateImportScript?: boolean;
+        organizeByService?: boolean;
+        terraformVersion?: string;
+        awsProviderVersion?: string;
+        defaultRegion?: string;
+      };
+    }>(ctx.req);
+
+    if (!body.resources || body.resources.length === 0) {
+      return error('Missing required field: resources', 400);
+    }
+
+    // Validate resources have required fields
+    for (let i = 0; i < body.resources.length; i++) {
+      const r = body.resources[i];
+      if (!r.id) {
+        return error(`Resource at index ${i} is missing required field: id`, 400);
+      }
+      if (!r.type) {
+        return error(`Resource at index ${i} is missing required field: type`, 400);
+      }
+      if (!r.region) {
+        return error(`Resource at index ${i} is missing required field: region`, 400);
+      }
+    }
+
+    // Create Terraform generator config
+    const config: TerraformGeneratorConfig = {
+      outputDir: body.options?.outputDir || '/tmp/terraform',
+      generateImportBlocks: body.options?.generateImportBlocks ?? true,
+      generateImportScript: body.options?.generateImportScript ?? true,
+      organizeByService: body.options?.organizeByService ?? true,
+      terraformVersion: body.options?.terraformVersion || '1.5.0',
+      awsProviderVersion: body.options?.awsProviderVersion || '~> 5.0',
+      defaultRegion: body.options?.defaultRegion || body.resources[0]?.region || 'us-east-1',
+    };
+
+    // Convert input resources to DiscoveredResource format
+    const discoveredResources = body.resources.map(r => ({
+      id: r.id,
+      type: r.type,
+      arn: r.arn || `arn:aws:unknown:${r.region}:000000000000:${r.type.toLowerCase()}/${r.id}`,
+      region: r.region,
+      name: r.name || r.id,
+      tags: r.tags || {},
+      properties: r.properties,
+      relationships: [],
+      discoveredAt: new Date().toISOString(),
+    }));
+
+    // Generate Terraform configuration
+    const generator = createTerraformGenerator(config);
+    const generatedFiles = generator.generate(discoveredResources);
+
+    // Generate a unique session ID
+    const terraformSessionId = `tf-direct-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    terraformCache.set(terraformSessionId, {
+      files: generatedFiles,
+      createdAt: new Date(),
+      sessionId: 'direct',
+    });
+
+    // Convert Map to object for JSON response
+    const filesObject: Record<string, string> = {};
+    for (const [filename, content] of generatedFiles.files) {
+      filesObject[filename] = content;
+    }
+
+    return success({
+      terraformSessionId,
+      summary: generatedFiles.summary,
+      files: filesObject,
+      unmappedResources: generatedFiles.unmappedResources.map(r => ({
+        id: r.id,
+        type: r.type,
+        name: r.name,
+      })),
+      variables: generatedFiles.variables,
+      outputs: generatedFiles.outputs,
+      imports: generatedFiles.imports,
+      importScript: generatedFiles.importScript,
+    });
+  } catch (err: any) {
+    logger.error('Generate Terraform direct failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * Handle all Terraform-related routes
+ */
+async function handleTerraformRoutes(ctx: RouteContext): Promise<Response> {
+  const { path, method } = ctx;
+
+  // GET /api/aws/terraform/supported-types
+  if (path === '/api/aws/terraform/supported-types' && method === 'GET') {
+    return handleGetSupportedTypes(ctx);
+  }
+
+  // POST /api/aws/terraform/generate
+  if (path === '/api/aws/terraform/generate' && method === 'POST') {
+    return handleGenerateTerraform(ctx);
+  }
+
+  // POST /api/aws/terraform/generate-direct
+  if (path === '/api/aws/terraform/generate-direct' && method === 'POST') {
+    return handleGenerateTerraformDirect(ctx);
+  }
+
+  // GET /api/aws/terraform/:sessionId/files
+  if (path.match(/^\/api\/aws\/terraform\/[\w-]+\/files$/) && method === 'GET') {
+    return handleListTerraformFiles(ctx);
+  }
+
+  // GET /api/aws/terraform/:sessionId/file/:filename
+  if (path.match(/^\/api\/aws\/terraform\/[\w-]+\/file\/.+$/) && method === 'GET') {
+    return handleGetTerraformFile(ctx);
+  }
+
+  // GET /api/aws/terraform/:sessionId/download
+  if (path.match(/^\/api\/aws\/terraform\/[\w-]+\/download$/) && method === 'GET') {
+    return handleDownloadTerraformFiles(ctx);
+  }
+
+  // GET /api/aws/terraform/:sessionId/import-script
+  if (path.match(/^\/api\/aws\/terraform\/[\w-]+\/import-script$/) && method === 'GET') {
+    return handleGetImportScript(ctx);
+  }
+
+  return new Response('Not Found', { status: 404 });
+}
+
 /**
  * Main router function
  */
@@ -862,5 +1290,273 @@ export async function router(req: Request): Promise<Response> {
     }
   }
 
+  // Discovery routes
+  if (path.startsWith('/api/aws/discover') || path.startsWith('/api/aws/profiles') || path.startsWith('/api/aws/regions')) {
+    return handleDiscoveryRoutes(ctx);
+  }
+
+  // Terraform routes
+  if (path.startsWith('/api/aws/terraform')) {
+    return handleTerraformRoutes(ctx);
+  }
+
   return new Response('Not Found', { status: 404 });
+}
+
+// ==================== Discovery Handlers ====================
+
+/**
+ * Handle all discovery-related routes
+ */
+async function handleDiscoveryRoutes(ctx: RouteContext): Promise<Response> {
+  const { path, method } = ctx;
+
+  // Profile routes
+  if (path === '/api/aws/profiles' && method === 'GET') {
+    return handleListProfiles(ctx);
+  }
+
+  if (path === '/api/aws/profiles/validate' && method === 'POST') {
+    return handleValidateProfile(ctx);
+  }
+
+  // Region routes
+  if (path === '/api/aws/regions' && method === 'GET') {
+    return handleListDiscoveryRegions(ctx);
+  }
+
+  if (path === '/api/aws/regions/validate' && method === 'POST') {
+    return handleValidateRegions(ctx);
+  }
+
+  // Discovery routes
+  if (path === '/api/aws/discover' && method === 'POST') {
+    return handleStartDiscovery(ctx);
+  }
+
+  if (path.match(/^\/api\/aws\/discover\/[\w-]+$/) && method === 'GET') {
+    return handleGetDiscoveryStatus(ctx);
+  }
+
+  if (path.match(/^\/api\/aws\/discover\/[\w-]+\/cancel$/) && method === 'POST') {
+    return handleCancelDiscovery(ctx);
+  }
+
+  return new Response('Not Found', { status: 404 });
+}
+
+/**
+ * GET /api/aws/profiles - List available AWS profiles
+ */
+async function handleListProfiles(ctx: RouteContext): Promise<Response> {
+  try {
+    const profiles = await credentialManager.listProfiles();
+
+    return success({
+      profiles: profiles.map(p => ({
+        name: p.name,
+        source: p.source,
+        region: p.region,
+        isSSO: p.source === 'sso',
+      })),
+    });
+  } catch (err: any) {
+    logger.error('List profiles failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/profiles/validate - Validate credentials for a profile
+ */
+async function handleValidateProfile(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ profile?: string }>(ctx.req);
+    const result = await credentialManager.validateCredentials(body.profile);
+
+    if (!result.valid) {
+      return success({
+        valid: false,
+        error: result.error,
+      });
+    }
+
+    return success({
+      valid: true,
+      accountId: result.account?.accountId,
+      accountAlias: result.account?.alias,
+      arn: result.account?.arn,
+    });
+  } catch (err: any) {
+    logger.error('Validate profile failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/regions - List available AWS regions
+ */
+async function handleListDiscoveryRegions(ctx: RouteContext): Promise<Response> {
+  try {
+    const profile = ctx.url.searchParams.get('profile') || undefined;
+    const enabledOnly = ctx.url.searchParams.get('enabledOnly') !== 'false';
+    const grouped = ctx.url.searchParams.get('grouped') === 'true';
+
+    const regions = enabledOnly
+      ? await regionManager.listEnabledRegions(profile)
+      : await regionManager.listRegions(profile);
+
+    if (grouped) {
+      const groupedRegions = regionManager.groupRegionsByArea(regions);
+      return success({
+        regions: groupedRegions,
+        total: regions.length,
+      });
+    }
+
+    return success({
+      regions: regions.map(r => ({
+        name: r.regionName,
+        displayName: regionManager.getRegionDisplayName(r.regionName),
+        endpoint: r.endpoint,
+        optInStatus: r.optInStatus,
+      })),
+      total: regions.length,
+    });
+  } catch (err: any) {
+    logger.error('List regions failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/regions/validate - Validate a list of regions
+ */
+async function handleValidateRegions(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ regions: string[]; profile?: string }>(ctx.req);
+
+    if (!body.regions || body.regions.length === 0) {
+      return error('Missing required field: regions', 400);
+    }
+
+    const result = await regionManager.validateRegions(body.regions, body.profile);
+
+    return success({
+      valid: result.valid,
+      invalid: result.invalid,
+    });
+  } catch (err: any) {
+    logger.error('Validate regions failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/discover - Start infrastructure discovery
+ */
+async function handleStartDiscovery(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      profile?: string;
+      regions: string[] | 'all';
+      excludeRegions?: string[];
+      services?: string[];
+      excludeServices?: string[];
+    }>(ctx.req);
+
+    if (!body.regions) {
+      return error('Missing required field: regions', 400);
+    }
+
+    const config: DiscoveryConfig = {
+      profile: body.profile,
+      regions: {
+        regions: body.regions,
+        excludeRegions: body.excludeRegions,
+      },
+      services: body.services,
+      excludeServices: body.excludeServices,
+    };
+
+    const sessionId = await infrastructureScanner.startDiscovery(config);
+
+    return success({
+      sessionId,
+      status: 'in_progress',
+      message: 'Discovery started',
+    });
+  } catch (err: any) {
+    logger.error('Start discovery failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/discover/:sessionId - Get discovery status
+ */
+async function handleGetDiscoveryStatus(ctx: RouteContext): Promise<Response> {
+  try {
+    const sessionId = ctx.path.split('/').pop();
+    if (!sessionId) {
+      return error('Missing session ID', 400);
+    }
+
+    const session = infrastructureScanner.getSession(sessionId);
+    if (!session) {
+      return error('Session not found', 404);
+    }
+
+    const response: any = {
+      sessionId: session.id,
+      status: session.progress.status,
+      progress: {
+        regionsScanned: session.progress.regionsScanned,
+        totalRegions: session.progress.totalRegions,
+        servicesScanned: session.progress.servicesScanned,
+        totalServices: session.progress.totalServices,
+        resourcesFound: session.progress.resourcesFound,
+        currentRegion: session.progress.currentRegion,
+        currentService: session.progress.currentService,
+      },
+      errors: session.progress.errors,
+      startedAt: session.progress.startedAt,
+      updatedAt: session.progress.updatedAt,
+    };
+
+    // Include inventory if completed
+    if (session.progress.status === 'completed' && session.inventory) {
+      response.inventory = session.inventory;
+    }
+
+    return success(response);
+  } catch (err: any) {
+    logger.error('Get discovery status failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/discover/:sessionId/cancel - Cancel discovery
+ */
+async function handleCancelDiscovery(ctx: RouteContext): Promise<Response> {
+  try {
+    const pathParts = ctx.path.split('/');
+    const sessionId = pathParts[pathParts.length - 2];
+
+    if (!sessionId) {
+      return error('Missing session ID', 400);
+    }
+
+    const cancelled = infrastructureScanner.cancelDiscovery(sessionId);
+
+    if (!cancelled) {
+      return error('Could not cancel discovery (session not found or already completed)', 400);
+    }
+
+    return success({ message: 'Discovery cancelled' });
+  } catch (err: any) {
+    logger.error('Cancel discovery failed', err);
+    return error(err.message);
+  }
 }
