@@ -381,10 +381,13 @@ export class HCLFormatter {
     }
 
     // Format block attributes
+    let blockIndex = 0;
     for (const [key, value] of blockAttrs) {
-      if (simpleAttrs.length > 0 || blockAttrs.indexOf([key, value]) > 0) {
+      // Add blank line before blocks (after simple attrs or between blocks)
+      if (simpleAttrs.length > 0 || blockIndex > 0) {
         lines.push('');
       }
+      blockIndex++;
 
       if (Array.isArray(value)) {
         for (const item of value) {
