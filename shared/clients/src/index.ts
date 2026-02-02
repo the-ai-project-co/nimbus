@@ -8,3 +8,6 @@ export type { WebSocketClientOptions } from './ws-client';
 
 // Service Discovery
 export { ServiceURLs, WebSocketURLs } from './service-discovery';
+
+// Tools Client (MCP Tools Integration)
+export { ToolsClient } from './tools-client';
