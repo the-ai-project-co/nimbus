@@ -35,13 +35,11 @@ export async function templatesRouter(req: Request, path: string): Promise<Respo
     }
 
     // GET /templates/:id - Get template by ID
-    if (req.method === 'GET' && path.startsWith('/templates/') && !path.includes('?')) {
-      // Extract ID from path, stripping query parameters if present
-      let id = path.replace('/templates/', '');
-      const queryIndex = id.indexOf('?');
-      if (queryIndex !== -1) {
-        id = id.substring(0, queryIndex);
-      }
+    if (req.method === 'GET' && path.startsWith('/templates/') && path !== '/templates/') {
+      // Extract ID from path using URL to properly handle query parameters
+      const url = new URL(req.url);
+      const pathOnly = url.pathname.replace('/api/state', ''); // Remove prefix
+      let id = pathOnly.replace('/templates/', '');
 
       if (!id || id.includes('/')) {
         return Response.json(

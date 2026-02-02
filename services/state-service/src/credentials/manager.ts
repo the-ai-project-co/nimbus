@@ -282,6 +282,11 @@ export class CredentialsManager {
 
   /**
    * Validate Azure credentials
+   *
+   * NOTE: This method validates credentials using the Azure SDK to authenticate
+   * directly with Azure services. If service principal credentials are provided,
+   * it attempts to authenticate using them. Otherwise, it validates the subscription
+   * ID is accessible with current authentication.
    */
   async validateAzureCredentials(credentials: AzureCredentials): Promise<boolean> {
     try {
@@ -291,28 +296,41 @@ export class CredentialsManager {
         return false;
       }
 
-      // Build environment with provided credentials
-      const env = {
-        ...process.env,
-      };
-
+      // If service principal credentials are provided, authenticate with them
       if (credentials.clientId && credentials.clientSecret) {
-        env.AZURE_CLIENT_ID = credentials.clientId;
-        env.AZURE_CLIENT_SECRET = credentials.clientSecret;
-        env.AZURE_TENANT_ID = credentials.tenantId;
+        try {
+          // Attempt to login using service principal credentials
+          const loginCmd = `az login --service-principal -u "${credentials.clientId}" -p "${credentials.clientSecret}" --tenant "${credentials.tenantId}" --output json 2>/dev/null`;
+          await execAsync(loginCmd);
+
+          // Verify the subscription is accessible
+          const { stdout } = await execAsync(`az account show --subscription "${credentials.subscriptionId}" --output json 2>/dev/null`);
+          const accountData = JSON.parse(stdout);
+
+          if (accountData.id !== credentials.subscriptionId) {
+            logger.error('Azure subscription ID mismatch');
+            return false;
+          }
+
+          logger.info('Azure credentials validated successfully using service principal');
+          return true;
+        } catch (error) {
+          logger.error('Azure service principal authentication failed', error);
+          return false;
+        }
+      } else {
+        // Fall back to validating subscription access with current authentication
+        const { stdout } = await execAsync(`az account show --subscription "${credentials.subscriptionId}" --output json 2>/dev/null`);
+        const accountData = JSON.parse(stdout);
+
+        if (accountData.id !== credentials.subscriptionId) {
+          logger.error('Azure subscription ID mismatch');
+          return false;
+        }
+
+        logger.info('Azure subscription validated successfully');
+        return true;
       }
-
-      // Verify the subscription exists and is accessible
-      const { stdout } = await execAsync(`az account show --subscription "${credentials.subscriptionId}" --output json 2>/dev/null`, { env });
-      const accountData = JSON.parse(stdout);
-
-      if (accountData.id !== credentials.subscriptionId) {
-        logger.error('Azure subscription ID mismatch');
-        return false;
-      }
-
-      logger.info('Azure credentials validated successfully');
-      return true;
     } catch (error) {
       logger.error('Azure credentials validation failed', error);
       return false;

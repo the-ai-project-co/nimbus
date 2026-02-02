@@ -69,6 +69,12 @@ export class OpenAIProvider extends BaseProvider {
       stream: true,
     });
 
+    // Accumulator for tool calls across chunks
+    const toolCallAccumulator = new Map<
+      number,
+      { id: string; name: string; arguments: string }
+    >();
+
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta;
       const finishReason = chunk.choices[0]?.finish_reason;
@@ -81,16 +87,33 @@ export class OpenAIProvider extends BaseProvider {
       }
 
       if (delta?.tool_calls) {
-        // Tool calls in streaming mode
-        // Note: Tool call data may be incomplete/partial in streaming mode.
-        // Consumers must accumulate tool_calls across chunks before processing,
-        // as arguments may arrive across multiple deltas.
-        const toolCalls = delta.tool_calls.map((tc) => ({
-          id: tc.id || '',
+        // Accumulate tool calls across chunks
+        for (const tc of delta.tool_calls) {
+          const index = tc.index ?? 0;
+          const existing = toolCallAccumulator.get(index);
+
+          if (existing) {
+            // Append arguments to existing tool call
+            if (tc.function?.arguments) {
+              existing.arguments += tc.function.arguments;
+            }
+          } else {
+            // Initialize new tool call entry
+            toolCallAccumulator.set(index, {
+              id: tc.id || '',
+              name: tc.function?.name || '',
+              arguments: tc.function?.arguments || '',
+            });
+          }
+        }
+
+        // Yield accumulated tool calls
+        const toolCalls = Array.from(toolCallAccumulator.values()).map((tc) => ({
+          id: tc.id,
           type: 'function' as const,
           function: {
-            name: tc.function?.name || '',
-            arguments: tc.function?.arguments || '',
+            name: tc.name,
+            arguments: tc.arguments,
           },
         }));
 

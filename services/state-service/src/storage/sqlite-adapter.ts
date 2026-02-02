@@ -240,8 +240,16 @@ export class SQLiteAdapter {
   // Artifacts
   saveArtifact(id: string, conversationId: string | null, name: string, type: string, content: string, language?: string, metadata?: any): void {
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO artifacts (id, conversation_id, name, type, content, language, created_at, updated_at, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM artifacts WHERE id = ?), CURRENT_TIMESTAMP), CURRENT_TIMESTAMP, ?)
+      INSERT INTO artifacts (id, conversation_id, name, type, content, language, created_at, updated_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        conversation_id = excluded.conversation_id,
+        name = excluded.name,
+        type = excluded.type,
+        content = excluded.content,
+        language = excluded.language,
+        updated_at = CURRENT_TIMESTAMP,
+        metadata = excluded.metadata
     `);
 
     stmt.run(
@@ -251,7 +259,6 @@ export class SQLiteAdapter {
       type,
       content,
       language || null,
-      id,
       metadata ? JSON.stringify(metadata) : null
     );
 

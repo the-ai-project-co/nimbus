@@ -273,10 +273,17 @@ export class QuestionnaireEngine {
   }
 
   /**
-   * Generate unique session ID
+   * Generate unique session ID using cryptographically secure random values
    */
   private generateSessionId(): string {
-    return `qst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    // Use crypto.randomUUID() for cryptographically secure random ID
+    // Format: qst_<timestamp>_<secure-random>
+    const randomBytes = crypto.getRandomValues(new Uint8Array(6));
+    const randomStr = Array.from(randomBytes)
+      .map(b => b.toString(36).padStart(2, '0'))
+      .join('')
+      .substring(0, 9);
+    return `qst_${Date.now()}_${randomStr}`;
   }
 
   /**

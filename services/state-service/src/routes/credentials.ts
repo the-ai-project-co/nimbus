@@ -11,10 +11,42 @@ function getCredentialsManager(): CredentialsManager {
   return credentialsManager;
 }
 
+/**
+ * Simple authentication check for credentials endpoints
+ * Validates Bearer token from Authorization header against NIMBUS_API_KEY env var
+ */
+function authenticateRequest(req: Request): boolean {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  const apiKey = process.env.NIMBUS_API_KEY;
+
+  // If no API key is configured, allow access (development mode)
+  // In production, NIMBUS_API_KEY must be set
+  if (!apiKey) {
+    logger.warn(
+      'NIMBUS_API_KEY not set - credentials endpoints are unprotected. Set NIMBUS_API_KEY in production.'
+    );
+    return true;
+  }
+
+  return token === apiKey;
+}
+
 export async function credentialsRouter(req: Request, path: string): Promise<Response> {
-  // WARNING: This endpoint exposes credential information (sanitized)
-  // In production, this should be protected with authentication middleware
-  // TODO: Add authentication check before accessing credentials
+  // Authentication check
+  if (!authenticateRequest(req)) {
+    return Response.json(
+      {
+        success: false,
+        error: 'Unauthorized. Provide valid Bearer token in Authorization header.',
+      },
+      { status: 401 }
+    );
+  }
 
   try {
     const manager = getCredentialsManager();

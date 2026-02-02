@@ -18,10 +18,16 @@ async function getConfigManager(): Promise<ConfigurationManager> {
 
   // Start loading and cache the promise to prevent race condition
   loadPromise = (async () => {
-    configManager = new ConfigurationManager();
-    await configManager.load();
-    loadPromise = null; // Clear promise after completion
-    return configManager;
+    try {
+      const manager = new ConfigurationManager();
+      await manager.load();
+      configManager = manager; // Only cache on successful load
+      loadPromise = null; // Clear promise after completion
+      return configManager;
+    } catch (error) {
+      loadPromise = null; // Clear promise on failure to allow retry
+      throw error; // Re-throw to propagate error to caller
+    }
   })();
 
   return loadPromise;
