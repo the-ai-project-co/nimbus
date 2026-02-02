@@ -114,10 +114,15 @@ export abstract class BaseScanner implements ServiceScanner {
 
   /**
    * Get the name from tags or use a fallback
+   * Handles both EC2-style (Key/Value) and ECS-style (key/value) tags
    */
-  protected getNameFromTags(tags?: Array<{ Key?: string; Value?: string }>, fallback?: string): string | undefined {
-    const nameTag = tags?.find(t => t.Key === 'Name');
-    return nameTag?.Value || fallback;
+  protected getNameFromTags(
+    tags?: Array<{ Key?: string; Value?: string } | { key?: string; value?: string }>,
+    fallback?: string
+  ): string | undefined {
+    // Use tagsToRecord which handles both tag formats
+    const tagRecord = this.tagsToRecord(tags);
+    return tagRecord['Name'] || fallback;
   }
 
   /**
