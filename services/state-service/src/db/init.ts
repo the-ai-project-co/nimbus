@@ -1,7 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 import { logger } from '@nimbus/shared-utils';
+import { SQLiteAdapter } from '../storage/sqlite-adapter';
+
+let dbInstance: Database | null = null;
+let adapterInstance: SQLiteAdapter | null = null;
+let initPromise: Promise<{ db: Database; adapter: SQLiteAdapter }> | null = null;
 
 export async function initializeDatabase(dbPath: string): Promise<Database> {
   try {
@@ -23,4 +29,27 @@ export async function initializeDatabase(dbPath: string): Promise<Database> {
     logger.error('Failed to initialize database', error);
     throw error;
   }
+}
+
+export async function initDatabase(): Promise<{ db: Database; adapter: SQLiteAdapter }> {
+  // Return cached instances if available
+  if (dbInstance && adapterInstance) {
+    return { db: dbInstance, adapter: adapterInstance };
+  }
+
+  // If initialization is in progress, wait for it
+  if (initPromise) {
+    return initPromise;
+  }
+
+  // Start initialization and cache the promise
+  initPromise = (async () => {
+    const dbPath = process.env.DATABASE_PATH || join(homedir(), '.nimbus', 'nimbus.db');
+    dbInstance = await initializeDatabase(dbPath);
+    adapterInstance = new SQLiteAdapter(dbInstance);
+    initPromise = null; // Clear promise after completion
+    return { db: dbInstance, adapter: adapterInstance };
+  })();
+
+  return initPromise;
 }

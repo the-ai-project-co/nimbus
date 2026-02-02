@@ -11,6 +11,9 @@ echo -e "${GREEN}║         Starting all Nimbus services...                  �
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
 # Array of services with their ports (in dependency order)
 services=(
   "state-service:3011"

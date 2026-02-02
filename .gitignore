@@ -120,3 +120,12 @@ credentials/
 # Linux
 .directory
 .Trash-*
+
+# Documentation
+progress/
+docs/
+releases/
+
+# CLAUDE
+.claude/
+CLAUDE.md

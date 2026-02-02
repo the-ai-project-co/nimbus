@@ -56,15 +56,15 @@ export class SQLiteAdapter {
     return rows.map(row => this.rowToOperation(row));
   }
 
-  listOperationsByType(type: string, limit: number = 50): Operation[] {
+  listOperationsByType(type: string, limit: number = 50, offset: number = 0): Operation[] {
     const stmt = this.db.prepare(`
       SELECT * FROM operations
       WHERE type = ?
       ORDER BY timestamp DESC
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `);
 
-    const rows: any[] = stmt.all(type, limit) as any[];
+    const rows: any[] = stmt.all(type, limit, offset) as any[];
     return rows.map(row => this.rowToOperation(row));
   }
 
@@ -167,6 +167,167 @@ export class SQLiteAdapter {
     const stmt = this.db.prepare('DELETE FROM templates WHERE id = ?');
     stmt.run(id);
     logger.debug(`Deleted template ${id}`);
+  }
+
+  // Conversations
+  saveConversation(id: string, title: string, messages: any[], model?: string, metadata?: any): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO conversations (id, title, messages, model, created_at, updated_at, metadata)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        messages = excluded.messages,
+        model = excluded.model,
+        updated_at = CURRENT_TIMESTAMP,
+        metadata = excluded.metadata
+    `);
+
+    stmt.run(
+      id,
+      title,
+      JSON.stringify(messages),
+      model || null,
+      metadata ? JSON.stringify(metadata) : null
+    );
+
+    logger.debug(`Saved conversation ${id}`);
+  }
+
+  getConversation(id: string): any | null {
+    const stmt = this.db.prepare('SELECT * FROM conversations WHERE id = ?');
+    const row: any = stmt.get(id);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      messages: JSON.parse(row.messages),
+      model: row.model,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    };
+  }
+
+  listConversations(limit: number = 50, offset: number = 0): any[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM conversations
+      ORDER BY updated_at DESC
+      LIMIT ? OFFSET ?
+    `);
+
+    const rows: any[] = stmt.all(limit, offset) as any[];
+    return rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      messages: JSON.parse(row.messages),
+      model: row.model,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    }));
+  }
+
+  deleteConversation(id: string): void {
+    const stmt = this.db.prepare('DELETE FROM conversations WHERE id = ?');
+    stmt.run(id);
+    logger.debug(`Deleted conversation ${id}`);
+  }
+
+  // Artifacts
+  saveArtifact(id: string, conversationId: string | null, name: string, type: string, content: string, language?: string, metadata?: any): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO artifacts (id, conversation_id, name, type, content, language, created_at, updated_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        conversation_id = excluded.conversation_id,
+        name = excluded.name,
+        type = excluded.type,
+        content = excluded.content,
+        language = excluded.language,
+        updated_at = CURRENT_TIMESTAMP,
+        metadata = excluded.metadata
+    `);
+
+    stmt.run(
+      id,
+      conversationId || null,
+      name,
+      type,
+      content,
+      language || null,
+      metadata ? JSON.stringify(metadata) : null
+    );
+
+    logger.debug(`Saved artifact ${id}`);
+  }
+
+  getArtifact(id: string): any | null {
+    const stmt = this.db.prepare('SELECT * FROM artifacts WHERE id = ?');
+    const row: any = stmt.get(id);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      conversationId: row.conversation_id,
+      name: row.name,
+      type: row.type,
+      content: row.content,
+      language: row.language,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    };
+  }
+
+  listArtifacts(type?: string, conversationId?: string, limit: number = 50, offset: number = 0): any[] {
+    let query = 'SELECT * FROM artifacts';
+    const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (type) {
+      conditions.push('type = ?');
+      params.push(type);
+    }
+
+    if (conversationId) {
+      conditions.push('conversation_id = ?');
+      params.push(conversationId);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const stmt = this.db.prepare(query);
+    const rows: any[] = stmt.all(...params) as any[];
+
+    return rows.map(row => ({
+      id: row.id,
+      conversationId: row.conversation_id,
+      name: row.name,
+      type: row.type,
+      content: row.content,
+      language: row.language,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    }));
+  }
+
+  deleteArtifact(id: string): void {
+    const stmt = this.db.prepare('DELETE FROM artifacts WHERE id = ?');
+    stmt.run(id);
+    logger.debug(`Deleted artifact ${id}`);
   }
 
   // Helper methods

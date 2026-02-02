@@ -13,7 +13,6 @@ dir = ".bun-cache"
 # Test runner configuration
 coverage = true
 coverageDir = "coverage"
-preload = []
 
 [run]
 # Runtime configuration
