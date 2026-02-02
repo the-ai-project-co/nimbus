@@ -3,12 +3,7 @@ import { EC2Operations } from './aws/ec2';
 import { S3Operations } from './aws/s3';
 import { IAMOperations } from './aws/iam';
 import { logger } from '@nimbus/shared-utils';
-import {
-  CredentialManager,
-  RegionManager,
-  InfrastructureScanner,
-  type DiscoveryConfig,
-} from './discovery';
+import { type DiscoveryConfig } from './discovery';
 import {
   TerraformGenerator,
   createTerraformGenerator,
@@ -16,14 +11,16 @@ import {
   type GeneratedFiles,
   type TerraformGeneratorConfig,
 } from './terraform';
+import {
+  getCredentialManager,
+  getRegionManager,
+  getInfrastructureScanner,
+} from './shared-instances';
 
-// Discovery singleton instances
-const credentialManager = new CredentialManager();
-const regionManager = new RegionManager();
-const infrastructureScanner = new InfrastructureScanner({
-  credentialManager,
-  regionManager,
-});
+// Use shared singleton instances to ensure state consistency between HTTP and WebSocket
+const credentialManager = getCredentialManager();
+const regionManager = getRegionManager();
+const infrastructureScanner = getInfrastructureScanner();
 
 // Terraform generation cache - stores generated files by session ID
 const terraformCache = new Map<string, {

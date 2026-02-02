@@ -7,13 +7,9 @@
 
 import { logger } from '@nimbus/shared-utils';
 import type { ServerWebSocket } from 'bun';
-import {
-  InfrastructureScanner,
-  CredentialManager,
-  RegionManager,
-  type DiscoveryConfig,
-} from './discovery';
+import { type DiscoveryConfig } from './discovery';
 import { createTerraformGenerator, type TerraformGeneratorConfig } from './terraform';
+import { getInfrastructureScanner } from './shared-instances';
 
 interface WebSocketData {
   sessionId?: string;
@@ -22,13 +18,8 @@ interface WebSocketData {
 
 type AwsWebSocket = ServerWebSocket<WebSocketData>;
 
-// Discovery singleton instances (shared with routes)
-const credentialManager = new CredentialManager();
-const regionManager = new RegionManager();
-const infrastructureScanner = new InfrastructureScanner({
-  credentialManager,
-  regionManager,
-});
+// Use shared singleton instance for consistency with HTTP routes
+const infrastructureScanner = getInfrastructureScanner();
 
 // Client tracking
 const clients = new Map<AwsWebSocket, WebSocketData>();
@@ -450,23 +441,9 @@ export function createWebSocketServer(port: number) {
   return server;
 }
 
-/**
- * Get infrastructure scanner instance (for shared use with routes)
- */
-export function getInfrastructureScanner(): InfrastructureScanner {
-  return infrastructureScanner;
-}
-
-/**
- * Get credential manager instance (for shared use with routes)
- */
-export function getCredentialManager(): CredentialManager {
-  return credentialManager;
-}
-
-/**
- * Get region manager instance (for shared use with routes)
- */
-export function getRegionManager(): RegionManager {
-  return regionManager;
-}
+// Re-export shared instance getters for backwards compatibility
+export {
+  getInfrastructureScanner,
+  getCredentialManager,
+  getRegionManager,
+} from './shared-instances';
