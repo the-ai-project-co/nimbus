@@ -115,15 +115,15 @@ class MappingContextImpl implements MappingContext {
   /**
    * Mark a value as sensitive and create a variable for it
    */
-  markSensitive(key: string, value: string, description: string): TerraformReference {
+  markSensitive(key: string, value: unknown, description?: string): TerraformReference {
     const varName = this.addVariable({
       name: `sensitive_${key}`,
       type: 'string',
-      description,
+      description: description || `Sensitive value for ${key}`,
       sensitive: true,
     });
 
-    this.sensitiveValues.set(varName, value);
+    this.sensitiveValues.set(varName, String(value));
 
     return {
       _type: 'reference',
