@@ -1,28 +1,58 @@
 import { logger } from '@nimbus/shared-utils';
-import { healthHandler } from './routes/health';
+import { router } from './routes';
+import { createWebSocketServer } from './websocket';
 
-export async function startServer(port: number) {
-  const server = Bun.serve({
-    port,
+export interface ServerOptions {
+  httpPort: number;
+  wsPort?: number;
+  enableWebSocket?: boolean;
+}
+
+export interface ServerInstances {
+  http: ReturnType<typeof Bun.serve>;
+  ws?: ReturnType<typeof Bun.serve>;
+  stop: () => void;
+}
+
+export async function startServer(portOrOptions: number | ServerOptions): Promise<ServerInstances> {
+  const options: ServerOptions = typeof portOrOptions === 'number'
+    ? { httpPort: portOrOptions, enableWebSocket: false }
+    : portOrOptions;
+
+  const { httpPort, wsPort, enableWebSocket = false } = options;
+
+  // Start HTTP server
+  const httpServer = Bun.serve({
+    port: httpPort,
     async fetch(req) {
-      const url = new URL(req.url);
-      const path = url.pathname;
-
-      // Health check endpoint
-      if (path === '/health') {
-        return Response.json(healthHandler());
+      try {
+        return await router(req);
+      } catch (error: any) {
+        logger.error('Request handler error', error);
+        return Response.json(
+          { success: false, error: error.message || 'Internal server error' },
+          { status: 500 }
+        );
       }
-
-      // TODO: Add your routes here
-
-      // 404
-      return new Response('Not Found', { status: 404 });
     },
   });
 
-  logger.info(`AWS Tools Service HTTP server listening on port ${port}`);
+  logger.info(`AWS Tools Service HTTP server listening on port ${httpPort}`);
 
-  
+  // Optionally start WebSocket server
+  let wsServer: ReturnType<typeof Bun.serve> | undefined;
+  if (enableWebSocket && wsPort) {
+    wsServer = createWebSocketServer(wsPort);
+  }
 
-  return server;
+  return {
+    http: httpServer,
+    ws: wsServer,
+    stop: () => {
+      httpServer.stop();
+      if (wsServer) {
+        wsServer.stop();
+      }
+    },
+  };
 }

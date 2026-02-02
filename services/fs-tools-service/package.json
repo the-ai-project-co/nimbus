@@ -14,9 +14,10 @@
     "build": "bun build src/index.ts --outdir=dist --target=bun"
   },
   "dependencies": {
+    "@nimbus/shared-clients": "workspace:*",
     "@nimbus/shared-types": "workspace:*",
     "@nimbus/shared-utils": "workspace:*",
-    "@nimbus/shared-clients": "workspace:*"
+    "fast-glob": "^3.3.3"
   },
   "devDependencies": {
     "@types/bun": "latest",
