@@ -42,6 +42,74 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000);
 
+/**
+ * Map Terraform resource type to AWS service and CloudFormation type
+ * Used for direct Terraform generation when resources are provided without discovery
+ */
+const TERRAFORM_TO_AWS_MAP: Record<string, { service: string; awsType: string; arnService: string }> = {
+  // EC2
+  aws_instance: { service: 'EC2', awsType: 'AWS::EC2::Instance', arnService: 'ec2' },
+  aws_ebs_volume: { service: 'EC2', awsType: 'AWS::EC2::Volume', arnService: 'ec2' },
+  aws_ami: { service: 'EC2', awsType: 'AWS::EC2::Image', arnService: 'ec2' },
+  aws_security_group: { service: 'EC2', awsType: 'AWS::EC2::SecurityGroup', arnService: 'ec2' },
+  aws_key_pair: { service: 'EC2', awsType: 'AWS::EC2::KeyPair', arnService: 'ec2' },
+  // VPC
+  aws_vpc: { service: 'VPC', awsType: 'AWS::EC2::VPC', arnService: 'ec2' },
+  aws_subnet: { service: 'VPC', awsType: 'AWS::EC2::Subnet', arnService: 'ec2' },
+  aws_route_table: { service: 'VPC', awsType: 'AWS::EC2::RouteTable', arnService: 'ec2' },
+  aws_internet_gateway: { service: 'VPC', awsType: 'AWS::EC2::InternetGateway', arnService: 'ec2' },
+  aws_nat_gateway: { service: 'VPC', awsType: 'AWS::EC2::NatGateway', arnService: 'ec2' },
+  aws_network_acl: { service: 'VPC', awsType: 'AWS::EC2::NetworkAcl', arnService: 'ec2' },
+  // S3
+  aws_s3_bucket: { service: 'S3', awsType: 'AWS::S3::Bucket', arnService: 's3' },
+  aws_s3_bucket_policy: { service: 'S3', awsType: 'AWS::S3::BucketPolicy', arnService: 's3' },
+  // RDS
+  aws_db_instance: { service: 'RDS', awsType: 'AWS::RDS::DBInstance', arnService: 'rds' },
+  aws_db_cluster: { service: 'RDS', awsType: 'AWS::RDS::DBCluster', arnService: 'rds' },
+  aws_db_subnet_group: { service: 'RDS', awsType: 'AWS::RDS::DBSubnetGroup', arnService: 'rds' },
+  aws_db_parameter_group: { service: 'RDS', awsType: 'AWS::RDS::DBParameterGroup', arnService: 'rds' },
+  // Lambda
+  aws_lambda_function: { service: 'Lambda', awsType: 'AWS::Lambda::Function', arnService: 'lambda' },
+  aws_lambda_layer_version: { service: 'Lambda', awsType: 'AWS::Lambda::LayerVersion', arnService: 'lambda' },
+  aws_lambda_event_source_mapping: { service: 'Lambda', awsType: 'AWS::Lambda::EventSourceMapping', arnService: 'lambda' },
+  // IAM
+  aws_iam_role: { service: 'IAM', awsType: 'AWS::IAM::Role', arnService: 'iam' },
+  aws_iam_policy: { service: 'IAM', awsType: 'AWS::IAM::Policy', arnService: 'iam' },
+  aws_iam_user: { service: 'IAM', awsType: 'AWS::IAM::User', arnService: 'iam' },
+  aws_iam_group: { service: 'IAM', awsType: 'AWS::IAM::Group', arnService: 'iam' },
+  aws_iam_instance_profile: { service: 'IAM', awsType: 'AWS::IAM::InstanceProfile', arnService: 'iam' },
+  // ECS
+  aws_ecs_cluster: { service: 'ECS', awsType: 'AWS::ECS::Cluster', arnService: 'ecs' },
+  aws_ecs_service: { service: 'ECS', awsType: 'AWS::ECS::Service', arnService: 'ecs' },
+  aws_ecs_task_definition: { service: 'ECS', awsType: 'AWS::ECS::TaskDefinition', arnService: 'ecs' },
+  // EKS
+  aws_eks_cluster: { service: 'EKS', awsType: 'AWS::EKS::Cluster', arnService: 'eks' },
+  aws_eks_node_group: { service: 'EKS', awsType: 'AWS::EKS::Nodegroup', arnService: 'eks' },
+  // DynamoDB
+  aws_dynamodb_table: { service: 'DynamoDB', awsType: 'AWS::DynamoDB::Table', arnService: 'dynamodb' },
+  // CloudFront
+  aws_cloudfront_distribution: { service: 'CloudFront', awsType: 'AWS::CloudFront::Distribution', arnService: 'cloudfront' },
+  aws_cloudfront_origin_access_identity: { service: 'CloudFront', awsType: 'AWS::CloudFront::CloudFrontOriginAccessIdentity', arnService: 'cloudfront' },
+};
+
+function mapTerraformTypeToAws(terraformType: string): { service: string; awsType: string; arnService: string } {
+  const mapping = TERRAFORM_TO_AWS_MAP[terraformType];
+  if (mapping) {
+    return mapping;
+  }
+
+  // Fallback: derive service from terraform type prefix
+  const typeParts = terraformType.replace(/^aws_/, '').split('_');
+  const servicePart = typeParts[0] || 'unknown';
+  const resourcePart = typeParts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('') || 'Resource';
+
+  return {
+    service: servicePart.toUpperCase(),
+    awsType: `AWS::${servicePart.charAt(0).toUpperCase() + servicePart.slice(1)}::${resourcePart}`,
+    arnService: servicePart.toLowerCase(),
+  };
+}
+
 interface RouteContext {
   req: Request;
   url: URL;
@@ -1077,20 +1145,23 @@ async function handleGenerateTerraformDirect(ctx: RouteContext): Promise<Respons
     };
 
     // Convert input resources to DiscoveredResource format
+    // Note: Resources provided without valid ARNs will have synthetic ARNs generated.
+    // Relationship resolution (getResourceReference) may not work correctly for these
+    // resources since synthetic ARNs won't match real AWS resource ARNs.
     const discoveredResources = body.resources.map(r => {
-      // Determine awsType and service from the terraform type
-      const terraformType = r.type;
-      // Convert terraform type (aws_instance) to AWS type (AWS::EC2::Instance) for reference
-      const servicePart = terraformType.replace(/^aws_/, '').split('_')[0] || 'unknown';
-      const service = servicePart.toUpperCase();
-      const awsType = `AWS::${service}::Resource`; // Simplified AWS type
+      // Map terraform type to AWS service and CloudFormation type
+      const { service, awsType, arnService } = mapTerraformTypeToAws(r.type);
+
+      // Use provided ARN or construct a properly formatted synthetic ARN
+      // Synthetic ARNs use 'synthetic' partition to indicate they're not real
+      const arn = r.arn || `arn:synthetic:${arnService}:${r.region}:000000000000:${r.id}`;
 
       return {
         id: r.id,
-        type: terraformType,
+        type: r.type,
         awsType,
         service,
-        arn: r.arn || `arn:aws:unknown:${r.region}:000000000000:${terraformType.replace(/^aws_/, '')}/${r.id}`,
+        arn,
         region: r.region,
         name: r.name || r.id,
         tags: r.tags || {},
