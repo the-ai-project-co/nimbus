@@ -370,7 +370,7 @@ export class TerraformOperations {
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.startsWith('*')) {
-        current = trimmed.replace('*', '').trim();
+        current = trimmed.replace(/\*/g, '').trim();
         workspaces.push(current);
       } else if (trimmed) {
         workspaces.push(trimmed);
