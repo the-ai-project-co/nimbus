@@ -21,6 +21,7 @@ const REDACTED = '[REDACTED]';
 
 function sanitize(value: unknown, seen = new WeakSet()): unknown {
   if (value === null || value === undefined) return value;
+  if (typeof value === 'bigint') return value.toString();
   if (typeof value !== 'object') return value;
 
   const obj = value as Record<string, unknown>;
@@ -50,10 +51,7 @@ function safeContext(context: unknown): string {
   if (context instanceof Error) {
     return context.stack ?? context.message;
   }
-  if (typeof context === 'object' && context !== null) {
-    return JSON.stringify(sanitize(context));
-  }
-  return String(context);
+  return JSON.stringify(sanitize(context));
 }
 
 /**
