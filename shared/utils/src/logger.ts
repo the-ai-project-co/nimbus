@@ -42,8 +42,14 @@ function sanitize(value: unknown, seen = new WeakSet()): unknown {
   return sanitized;
 }
 
-function sanitizeArgs(args: unknown[]): unknown[] {
-  return args.map(arg => sanitize(arg));
+function formatArg(arg: unknown): string {
+  if (arg instanceof Error) {
+    return arg.stack ?? arg.message;
+  }
+  if (typeof arg === 'object' && arg !== null) {
+    return JSON.stringify(sanitize(arg));
+  }
+  return String(arg);
 }
 
 /**
@@ -62,33 +68,34 @@ class Logger {
     return this.levels.indexOf(level) >= this.levels.indexOf(this.level);
   }
 
-  private formatMessage(level: LogLevel, message: string): string {
+  private formatMessage(level: LogLevel, message: string, args: unknown[]): string {
     const timestamp = new Date().toISOString();
     const levelStr = level.toUpperCase().padEnd(5);
-    return `[${timestamp}] [${levelStr}] ${message}`;
+    const suffix = args.length > 0 ? ' ' + args.map(formatArg).join(' ') : '';
+    return `[${timestamp}] [${levelStr}] ${message}${suffix}`;
   }
 
   debug(message: string, ...args: any[]) {
     if (this.shouldLog('debug')) {
-      console.log(this.formatMessage('debug', message), ...sanitizeArgs(args));
+      console.log(this.formatMessage('debug', message, args));
     }
   }
 
   info(message: string, ...args: any[]) {
     if (this.shouldLog('info')) {
-      console.log(this.formatMessage('info', message), ...sanitizeArgs(args));
+      console.log(this.formatMessage('info', message, args));
     }
   }
 
   warn(message: string, ...args: any[]) {
     if (this.shouldLog('warn')) {
-      console.warn(this.formatMessage('warn', message), ...sanitizeArgs(args));
+      console.warn(this.formatMessage('warn', message, args));
     }
   }
 
   error(message: string, ...args: any[]) {
     if (this.shouldLog('error')) {
-      console.error(this.formatMessage('error', message), ...sanitizeArgs(args));
+      console.error(this.formatMessage('error', message, args));
     }
   }
 
