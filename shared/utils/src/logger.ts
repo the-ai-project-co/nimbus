@@ -27,6 +27,10 @@ function sanitize(value: unknown, seen = new WeakSet()): unknown {
   if (seen.has(obj)) return '[Circular]';
   seen.add(obj);
 
+  if (obj instanceof Date) return obj.toISOString();
+  if (obj instanceof Map) return sanitize(Object.fromEntries(obj), seen);
+  if (obj instanceof Set) return sanitize([...obj], seen);
+
   if (Array.isArray(obj)) {
     return obj.map(item => sanitize(item, seen));
   }
@@ -42,14 +46,14 @@ function sanitize(value: unknown, seen = new WeakSet()): unknown {
   return sanitized;
 }
 
-function formatArg(arg: unknown): string {
-  if (arg instanceof Error) {
-    return arg.stack ?? arg.message;
+function safeContext(context: unknown): string {
+  if (context instanceof Error) {
+    return context.stack ?? context.message;
   }
-  if (typeof arg === 'object' && arg !== null) {
-    return JSON.stringify(sanitize(arg));
+  if (typeof context === 'object' && context !== null) {
+    return JSON.stringify(sanitize(context));
   }
-  return String(arg);
+  return String(context);
 }
 
 /**
@@ -68,39 +72,45 @@ class Logger {
     return this.levels.indexOf(level) >= this.levels.indexOf(this.level);
   }
 
-  private formatMessage(level: LogLevel, message: string, args: unknown[]): string {
-    const timestamp = new Date().toISOString();
-    const levelStr = level.toUpperCase().padEnd(5);
-    const suffix = args.length > 0 ? ' ' + args.map(formatArg).join(' ') : '';
-    return `[${timestamp}] [${levelStr}] ${message}${suffix}`;
-  }
-
-  debug(message: string, ...args: any[]) {
+  debug(message: string, context?: unknown) {
     if (this.shouldLog('debug')) {
-      console.log(this.formatMessage('debug', message, args));
+      const line = this.format('debug', message, context);
+      console.log(line);
     }
   }
 
-  info(message: string, ...args: any[]) {
+  info(message: string, context?: unknown) {
     if (this.shouldLog('info')) {
-      console.log(this.formatMessage('info', message, args));
+      const line = this.format('info', message, context);
+      console.log(line);
     }
   }
 
-  warn(message: string, ...args: any[]) {
+  warn(message: string, context?: unknown) {
     if (this.shouldLog('warn')) {
-      console.warn(this.formatMessage('warn', message, args));
+      const line = this.format('warn', message, context);
+      console.warn(line);
     }
   }
 
-  error(message: string, ...args: any[]) {
+  error(message: string, context?: unknown) {
     if (this.shouldLog('error')) {
-      console.error(this.formatMessage('error', message, args));
+      const line = this.format('error', message, context);
+      console.error(line);
     }
   }
 
   setLevel(level: LogLevel) {
     this.level = level;
+  }
+
+  private format(level: LogLevel, message: string, context?: unknown): string {
+    const timestamp = new Date().toISOString();
+    const levelStr = level.toUpperCase().padEnd(5);
+    if (context === undefined) {
+      return `[${timestamp}] [${levelStr}] ${message}`;
+    }
+    return `[${timestamp}] [${levelStr}] ${message} ${safeContext(context)}`;
   }
 }
 
