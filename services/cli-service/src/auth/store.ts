@@ -113,6 +113,9 @@ export class AuthStore {
 
     const content = JSON.stringify(fileToSave, null, 2);
     fs.writeFileSync(this.authPath, content, { mode: 0o600 });
+
+    // Ensure permissions are set correctly even if file already existed
+    fs.chmodSync(this.authPath, 0o600);
   }
 
   /**

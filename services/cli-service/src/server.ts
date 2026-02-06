@@ -172,7 +172,18 @@ export async function runCommand(args: string[]): Promise<void> {
   // ==========================================
   // Auth guard - check authentication for other commands
   // ==========================================
+  // Check if running in non-interactive mode
+  const isNonInteractive = args.includes('--non-interactive');
+
   if (requiresAuth()) {
+    if (isNonInteractive) {
+      console.error('');
+      console.error('Error: Authentication required but running in non-interactive mode.');
+      console.error('Please run `nimbus login` first, or set provider API keys via environment variables.');
+      console.error('');
+      process.exit(1);
+    }
+
     console.log('');
     console.log('Welcome to Nimbus! You need to set up authentication first.');
     console.log('');

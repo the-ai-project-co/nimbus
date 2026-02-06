@@ -47,7 +47,8 @@ export async function authStatusCommand(options: AuthStatusOptions = {}): Promis
       defaultProvider: status.defaultProvider,
     };
 
-    console.log(JSON.stringify(safeOutput, null, 2));
+    // Output sanitized JSON (no sensitive data included)
+    ui.print(JSON.stringify(safeOutput, null, 2));
     return;
   }
 
@@ -127,6 +128,10 @@ export async function authStatusCommand(options: AuthStatusOptions = {}): Promis
 function formatDate(isoString: string): string {
   try {
     const date = new Date(isoString);
+    // Check if date is valid (NaN check)
+    if (isNaN(date.getTime())) {
+      return isoString;
+    }
     return date.toLocaleString();
   } catch {
     return isoString;

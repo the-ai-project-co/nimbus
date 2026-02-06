@@ -2,10 +2,17 @@ import type { LogLevel } from '@nimbus/shared-types';
 
 const SENSITIVE_KEYS = new Set([
   'password',
+  'passwordhash',
+  'password_hash',
   'secret',
+  'secretkey',
+  'secret_key',
+  'clientsecret',
+  'client_secret',
   'token',
   'apikey',
   'api_key',
+  'api-key',
   'authorization',
   'credentials',
   'credential',
@@ -15,6 +22,19 @@ const SENSITIVE_KEYS = new Set([
   'refresh_token',
   'privatekey',
   'private_key',
+  'signingkey',
+  'signing_key',
+  'encryptionkey',
+  'encryption_key',
+  'bearer',
+  'auth',
+  'authtoken',
+  'auth_token',
+  'sessiontoken',
+  'session_token',
+  'jwt',
+  'jwttoken',
+  'jwt_token',
 ]);
 
 const REDACTED = '[REDACTED]';

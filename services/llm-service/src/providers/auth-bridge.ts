@@ -149,26 +149,37 @@ export function getProviderModel(providerName: LLMProviderName): string | undefi
 }
 
 /**
- * Check if a provider is configured in auth.json
+ * Check if a provider is configured (auth.json or env vars)
  *
  * @param providerName - The provider name
- * @returns true if provider has credentials in auth.json
+ * @returns true if provider has credentials in auth.json or env vars
  */
 export function isProviderConfigured(providerName: LLMProviderName): boolean {
+  // Check auth.json first
   const authFile = loadAuthFile();
   const credential = authFile?.providers?.[providerName];
 
-  if (!credential) {
-    return false;
+  if (credential) {
+    // For Ollama, just needs to exist (no API key required)
+    if (providerName === 'ollama') {
+      return true;
+    }
+    // For others, needs an API key in auth.json
+    if (credential.apiKey) {
+      return true;
+    }
   }
 
-  // For Ollama, just needs to exist (no API key required)
-  if (providerName === 'ollama') {
-    return true;
-  }
+  // Fall back to environment variables
+  const envVarMap: Record<LLMProviderName, string | undefined> = {
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    openai: process.env.OPENAI_API_KEY,
+    google: process.env.GOOGLE_API_KEY,
+    openrouter: process.env.OPENROUTER_API_KEY,
+    ollama: process.env.OLLAMA_BASE_URL,
+  };
 
-  // For others, needs an API key
-  return !!credential.apiKey;
+  return !!envVarMap[providerName];
 }
 
 /**
