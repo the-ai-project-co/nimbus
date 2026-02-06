@@ -92,32 +92,28 @@ class Logger {
   debug(message: string, context?: unknown) {
     if (this.shouldLog('debug')) {
       const line = this.format('debug', message, context);
-      // Sensitive fields are redacted by sanitize() before reaching console
-      console.log(line); // codeql[js/clear-text-logging] sanitized via safeContext->sanitize
+      console.log(line);
     }
   }
 
   info(message: string, context?: unknown) {
     if (this.shouldLog('info')) {
       const line = this.format('info', message, context);
-      // Sensitive fields are redacted by sanitize() before reaching console
-      console.log(line); // codeql[js/clear-text-logging] sanitized via safeContext->sanitize
+      console.log(line);
     }
   }
 
   warn(message: string, context?: unknown) {
     if (this.shouldLog('warn')) {
       const line = this.format('warn', message, context);
-      // Sensitive fields are redacted by sanitize() before reaching console
-      console.warn(line); // codeql[js/clear-text-logging] sanitized via safeContext->sanitize
+      console.warn(line);
     }
   }
 
   error(message: string, context?: unknown) {
     if (this.shouldLog('error')) {
       const line = this.format('error', message, context);
-      // Sensitive fields are redacted by sanitize() before reaching console
-      console.error(line); // codeql[js/clear-text-logging] sanitized via safeContext->sanitize
+      console.error(line);
     }
   }
 
