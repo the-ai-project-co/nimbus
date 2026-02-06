@@ -1,0 +1,44 @@
+/**
+ * CLI Service Clients
+ *
+ * Exports clients for communicating with backend services
+ */
+
+export { LLMClient, llmClient, type ChatMessage, type StreamingChunk, type ChatOptions } from './llm-client';
+
+export {
+  TerraformClient,
+  terraformClient,
+  type TerraformInitResult,
+  type TerraformPlanResult,
+  type TerraformApplyResult,
+  type TerraformValidateResult,
+} from './terraform-client';
+
+export {
+  K8sClient,
+  k8sClient,
+  type K8sResource,
+  type K8sGetResult,
+  type K8sApplyResult,
+  type K8sDeleteResult,
+  type K8sLogsResult,
+} from './k8s-client';
+
+export {
+  HelmClient,
+  helmClient,
+  type HelmRelease,
+  type HelmChart,
+  type HelmInstallResult,
+  type HelmUpgradeResult,
+} from './helm-client';
+
+export {
+  GitClient,
+  gitClient,
+  type GitStatus,
+  type GitCommit,
+  type GitBranch,
+  type GitRemote,
+} from './git-client';
