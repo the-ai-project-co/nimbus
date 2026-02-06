@@ -13,6 +13,7 @@ import {
   ToolCompletionRequest,
   ToolDefinition,
 } from './base';
+import { getProviderBaseUrl } from './auth-bridge';
 
 export class OllamaProvider extends BaseProvider {
   name = 'ollama';
@@ -21,7 +22,7 @@ export class OllamaProvider extends BaseProvider {
 
   constructor(baseUrl?: string) {
     super();
-    this.baseUrl = baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    this.baseUrl = baseUrl || getProviderBaseUrl('ollama') || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
   }
 
   async complete(request: CompletionRequest): Promise<LLMResponse> {

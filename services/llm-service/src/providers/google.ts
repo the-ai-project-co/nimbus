@@ -14,6 +14,7 @@ import {
   ToolCompletionRequest,
   ToolDefinition,
 } from './base';
+import { getProviderApiKey } from './auth-bridge';
 
 export class GoogleProvider extends BaseProvider {
   name = 'google';
@@ -22,7 +23,7 @@ export class GoogleProvider extends BaseProvider {
 
   constructor(apiKey?: string) {
     super();
-    const key = apiKey || process.env.GOOGLE_API_KEY;
+    const key = apiKey || getProviderApiKey('google') || process.env.GOOGLE_API_KEY;
     if (!key) {
       throw new Error('Google API key is required. Set GOOGLE_API_KEY environment variable or pass it to the constructor.');
     }

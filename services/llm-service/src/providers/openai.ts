@@ -14,6 +14,7 @@ import {
   ToolCall,
   ToolCompletionRequest,
 } from './base';
+import { getProviderApiKey } from './auth-bridge';
 
 export class OpenAIProvider extends BaseProvider {
   name = 'openai';
@@ -23,7 +24,7 @@ export class OpenAIProvider extends BaseProvider {
   constructor(apiKey?: string) {
     super();
     this.client = new OpenAI({
-      apiKey: apiKey || process.env.OPENAI_API_KEY,
+      apiKey: apiKey || getProviderApiKey('openai') || process.env.OPENAI_API_KEY,
     });
   }
 
