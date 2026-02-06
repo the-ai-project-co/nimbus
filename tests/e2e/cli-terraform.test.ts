@@ -8,8 +8,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { startServer } from '../../services/cli-service/src/server';
 import { getTestPorts, createTestClient, waitForService, createTempDir, removeTempDir } from '../utils/test-helpers';
-import * as fs from 'fs';
-import * as path from 'path';
 
 describe('CLI Infrastructure Tools E2E Tests', () => {
   let server: any;

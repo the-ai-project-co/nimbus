@@ -5,7 +5,6 @@
  */
 
 import { WebSocketClient, WebSocketURLs } from '@nimbus/shared-clients';
-import { logger } from '@nimbus/shared-utils';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';

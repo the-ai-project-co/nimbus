@@ -82,9 +82,11 @@ export interface CreateIssueParams {
  */
 export class GitHubClient {
   private client: RestClient;
+  private baseUrl: string;
 
   constructor(baseUrl?: string) {
-    this.client = new RestClient(baseUrl || ServiceURLs.GITHUB_TOOLS);
+    this.baseUrl = baseUrl || ServiceURLs.GITHUB_TOOLS;
+    this.client = new RestClient(this.baseUrl);
   }
 
   /**
@@ -103,7 +105,7 @@ export class GitHubClient {
    */
   private getAuthClient(): RestClient {
     const authHeaders = this.getAuthHeader();
-    return new RestClient(ServiceURLs.GITHUB_TOOLS, {
+    return new RestClient(this.baseUrl, {
       headers: authHeaders,
     });
   }

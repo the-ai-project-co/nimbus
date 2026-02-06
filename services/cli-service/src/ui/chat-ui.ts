@@ -118,6 +118,12 @@ export class ChatUI {
   }
 
   private async handleInput(input: string): Promise<void> {
+    // Block input while processing a response
+    if (this.isProcessing) {
+      ui.info('Please wait for the current response to finish.');
+      return;
+    }
+
     if (!input) {
       this.displayPrompt();
       return;

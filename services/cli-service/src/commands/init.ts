@@ -8,7 +8,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ui } from '../wizard/ui';
 import { select, input, confirm } from '../wizard/prompts';
-import { ConfigManager } from '../config';
 
 export interface InitOptions {
   /** Non-interactive mode */

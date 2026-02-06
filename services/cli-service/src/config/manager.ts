@@ -13,6 +13,30 @@ import { CONFIG_KEYS } from './types';
 const CONFIG_VERSION = 1;
 
 /**
+ * Forbidden keys that could lead to prototype pollution
+ */
+const FORBIDDEN_KEYS = ['__proto__', 'constructor', 'prototype'];
+
+/**
+ * Check if a key is safe from prototype pollution
+ */
+function isSafeKey(key: string): boolean {
+  return !FORBIDDEN_KEYS.includes(key);
+}
+
+/**
+ * Validate all parts of a dot-notation key path
+ */
+function validateKeyPath(key: string): void {
+  const parts = key.split('.');
+  for (const part of parts) {
+    if (!isSafeKey(part)) {
+      throw new Error(`Invalid config key: "${part}" is not allowed`);
+    }
+  }
+}
+
+/**
  * Create default configuration
  */
 function createDefaultConfig(): NimbusConfig {
@@ -135,9 +159,9 @@ function serializeToYaml(config: Record<string, any>, indent = 0): string {
       let serializedValue: string;
 
       if (typeof value === 'string') {
-        // Quote strings that need it
-        if (value.includes(':') || value.includes('#') || value.includes("'") || value.includes('"')) {
-          serializedValue = `"${value.replace(/"/g, '\\"')}"`;
+        // Quote strings that need it - escape backslashes and quotes
+        if (value.includes(':') || value.includes('#') || value.includes("'") || value.includes('"') || value.includes('\\')) {
+          serializedValue = `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
         } else {
           serializedValue = value;
         }
@@ -201,10 +225,16 @@ export class ConfigManager {
       const content = fs.readFileSync(this.configPath, 'utf-8');
       const parsed = parseSimpleYaml(content) as NimbusConfig;
 
-      // Merge with defaults to ensure all fields exist
+      // Deep merge with defaults to ensure all fields exist
+      const defaults = createDefaultConfig();
       this.config = {
-        ...createDefaultConfig(),
+        ...defaults,
         ...parsed,
+        workspace: { ...defaults.workspace, ...(parsed.workspace ?? {}) },
+        llm: { ...defaults.llm, ...(parsed.llm ?? {}) },
+        history: { ...defaults.history, ...(parsed.history ?? {}) },
+        safety: { ...defaults.safety, ...(parsed.safety ?? {}) },
+        ui: { ...defaults.ui, ...(parsed.ui ?? {}) },
         version: CONFIG_VERSION,
       };
 
@@ -271,6 +301,9 @@ export class ConfigManager {
    * Set a configuration value by dot-notation key
    */
   set(key: string, value: any): void {
+    // Guard against prototype pollution
+    validateKeyPath(key);
+
     const config = this.load();
     const parts = key.split('.');
     let obj: any = config;
@@ -279,7 +312,8 @@ export class ConfigManager {
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       if (obj[part] === undefined) {
-        obj[part] = {};
+        // Use Object.create(null) to avoid prototype chain
+        obj[part] = Object.create(null);
       }
       obj = obj[part];
     }
@@ -295,6 +329,9 @@ export class ConfigManager {
    * Delete a configuration value by dot-notation key
    */
   delete(key: string): void {
+    // Guard against prototype pollution
+    validateKeyPath(key);
+
     const config = this.load();
     const parts = key.split('.');
     let obj: any = config;
@@ -302,7 +339,7 @@ export class ConfigManager {
     // Navigate to parent object
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (obj[part] === undefined) {
+      if (!Object.prototype.hasOwnProperty.call(obj, part) || obj[part] === undefined) {
         return; // Key doesn't exist
       }
       obj = obj[part];
