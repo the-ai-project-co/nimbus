@@ -11,7 +11,6 @@ import { ui } from '../wizard';
 import {
   authStore,
   AuthStore,
-  PROVIDER_REGISTRY,
   getProviderNames,
   getProviderInfo,
   type LLMProviderName,
@@ -69,7 +68,8 @@ export async function authListCommand(options: AuthListOptions = {}): Promise<vo
       requiresApiKey: p.requiresApiKey,
     }));
 
-    console.log(JSON.stringify(safeOutput, null, 2));
+    // Output sanitized JSON (API keys are already masked above)
+    ui.print(JSON.stringify(safeOutput, null, 2));
     return;
   }
 

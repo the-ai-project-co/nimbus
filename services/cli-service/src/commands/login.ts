@@ -19,7 +19,6 @@ import {
 import {
   authStore,
   AuthStore,
-  PROVIDER_REGISTRY,
   getProviderInfo,
   getProviderNames,
   getDefaultModel,

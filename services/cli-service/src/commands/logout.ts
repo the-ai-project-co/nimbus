@@ -8,7 +8,7 @@
 
 import { logger } from '@nimbus/shared-utils';
 import { ui, confirm } from '../wizard';
-import { authStore, AuthStore } from '../auth';
+import { authStore } from '../auth';
 
 /**
  * Command options
