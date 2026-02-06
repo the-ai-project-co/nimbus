@@ -14,6 +14,7 @@ import {
   ToolCompletionRequest,
   ToolDefinition,
 } from './base';
+import { getProviderApiKey } from './auth-bridge';
 
 export class AnthropicProvider extends BaseProvider {
   name = 'anthropic';
@@ -23,7 +24,7 @@ export class AnthropicProvider extends BaseProvider {
   constructor(apiKey?: string) {
     super();
     this.client = new Anthropic({
-      apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
+      apiKey: apiKey || getProviderApiKey('anthropic') || process.env.ANTHROPIC_API_KEY,
     });
   }
 

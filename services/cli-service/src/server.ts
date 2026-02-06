@@ -7,7 +7,16 @@ import {
   type AwsDiscoverOptions,
   awsTerraformCommand,
   type AwsTerraformOptions,
+  loginCommand,
+  type LoginOptions,
+  logoutCommand,
+  type LogoutOptions,
+  authStatusCommand,
+  type AuthStatusOptions,
+  authListCommand,
+  type AuthListOptions,
 } from './commands';
+import { requiresAuth, type LLMProviderName } from './auth';
 
 export async function startServer(port: number, wsPort: number) {
   const server = Bun.serve({
@@ -83,6 +92,101 @@ export async function startServer(port: number, wsPort: number) {
 export async function runCommand(args: string[]): Promise<void> {
   const command = args[0];
   const subcommand = args[1];
+
+  // ==========================================
+  // Auth commands (always available, no guard)
+  // ==========================================
+
+  // nimbus login
+  if (command === 'login') {
+    const options: LoginOptions = {};
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--skip-github') {
+        options.skipGitHub = true;
+      } else if (arg === '--provider' && args[i + 1]) {
+        options.provider = args[++i] as LLMProviderName;
+      } else if (arg === '--api-key' && args[i + 1]) {
+        options.apiKey = args[++i];
+      } else if (arg === '--model' && args[i + 1]) {
+        options.model = args[++i];
+      } else if (arg === '--non-interactive') {
+        options.nonInteractive = true;
+      }
+    }
+
+    await loginCommand(options);
+    return;
+  }
+
+  // nimbus logout
+  if (command === 'logout') {
+    const options: LogoutOptions = {};
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--force' || arg === '-f') {
+        options.force = true;
+      }
+    }
+
+    await logoutCommand(options);
+    return;
+  }
+
+  // nimbus auth status
+  if (command === 'auth' && subcommand === 'status') {
+    const options: AuthStatusOptions = {};
+
+    for (let i = 2; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--json') {
+        options.json = true;
+      }
+    }
+
+    await authStatusCommand(options);
+    return;
+  }
+
+  // nimbus auth list
+  if (command === 'auth' && subcommand === 'list') {
+    const options: AuthListOptions = {};
+
+    for (let i = 2; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--json') {
+        options.json = true;
+      }
+    }
+
+    await authListCommand(options);
+    return;
+  }
+
+  // ==========================================
+  // Auth guard - check authentication for other commands
+  // ==========================================
+  if (requiresAuth()) {
+    console.log('');
+    console.log('Welcome to Nimbus! You need to set up authentication first.');
+    console.log('');
+
+    const success = await loginCommand({});
+    if (!success) {
+      process.exit(1);
+    }
+    console.log('');
+  }
+
+  // ==========================================
+  // Infrastructure commands (require auth)
+  // ==========================================
 
   // nimbus generate terraform
   if (command === 'generate' && subcommand === 'terraform') {
@@ -194,9 +298,17 @@ export async function runCommand(args: string[]): Promise<void> {
   console.error(`Unknown command: ${command} ${subcommand || ''}`);
   console.log('');
   console.log('Available commands:');
-  console.log('  nimbus generate terraform  - Generate Terraform from AWS infrastructure (wizard)');
-  console.log('  nimbus aws discover        - Discover AWS infrastructure resources');
-  console.log('  nimbus aws terraform       - Generate Terraform from AWS resources');
+  console.log('');
+  console.log('  Authentication:');
+  console.log('    nimbus login             - Set up authentication and LLM providers');
+  console.log('    nimbus logout            - Clear all credentials');
+  console.log('    nimbus auth status       - Show current authentication status');
+  console.log('    nimbus auth list         - List all available providers');
+  console.log('');
+  console.log('  Infrastructure:');
+  console.log('    nimbus generate terraform  - Generate Terraform from AWS infrastructure (wizard)');
+  console.log('    nimbus aws discover        - Discover AWS infrastructure resources');
+  console.log('    nimbus aws terraform       - Generate Terraform from AWS resources');
   console.log('');
   console.log('Use --help with any command for more options');
   process.exit(1);
