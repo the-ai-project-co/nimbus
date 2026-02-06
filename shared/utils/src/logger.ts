@@ -47,9 +47,28 @@ function sanitize(value: unknown, seen = new WeakSet()): unknown {
   return sanitized;
 }
 
+// Patterns to redact in error messages/stacks (connection strings, URLs with creds, etc.)
+const SENSITIVE_PATTERNS = [
+  /(?<=:\/\/[^:]+:)[^@]+(?=@)/g,       // URL password: protocol://user:PASSWORD@host
+  /(?<=password[=:])\s*\S+/gi,          // password=VALUE or password: VALUE
+  /(?<=secret[=:])\s*\S+/gi,            // secret=VALUE or secret: VALUE
+  /(?<=token[=:])\s*\S+/gi,             // token=VALUE or token: VALUE
+  /(?<=apikey[=:])\s*\S+/gi,            // apiKey=VALUE or apikey: VALUE
+  /(?<=authorization[=:])\s*\S+/gi,     // authorization=VALUE
+];
+
+function sanitizeString(str: string): string {
+  let result = str;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    result = result.replace(pattern, REDACTED);
+  }
+  return result;
+}
+
 function safeContext(context: unknown): string {
   if (context instanceof Error) {
-    return context.stack ?? context.message;
+    const errorText = context.stack ?? context.message;
+    return sanitizeString(errorText);
   }
   return JSON.stringify(sanitize(context));
 }
