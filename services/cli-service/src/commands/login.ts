@@ -161,6 +161,13 @@ async function welcomeStep(ctx: LoginWizardContext): Promise<StepResult> {
     if (!shouldContinue) {
       return { success: true, data: { cancelled: true }, skipRemaining: true };
     }
+
+    // Clear existing providers when reconfiguring
+    for (const provider of status.providers) {
+      authStore.removeProvider(provider.name);
+    }
+    ui.info('Cleared existing provider configurations');
+    ui.newLine();
   }
 
   return { success: true };

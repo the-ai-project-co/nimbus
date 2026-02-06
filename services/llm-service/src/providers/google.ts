@@ -25,7 +25,7 @@ export class GoogleProvider extends BaseProvider {
     super();
     const key = apiKey || getProviderApiKey('google') || process.env.GOOGLE_API_KEY;
     if (!key) {
-      throw new Error('Google API key is required. Set GOOGLE_API_KEY environment variable or pass it to the constructor.');
+      throw new Error('Google API key is required. Run `nimbus login` to configure, set GOOGLE_API_KEY environment variable, or pass it to the constructor.');
     }
     this.client = new GoogleGenerativeAI(key);
   }

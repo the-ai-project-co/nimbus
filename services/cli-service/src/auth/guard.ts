@@ -6,19 +6,47 @@
 import { authStore } from './store';
 
 /**
+ * Environment variable names for LLM provider API keys
+ */
+const PROVIDER_ENV_VARS = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GOOGLE_API_KEY',
+  'OPENROUTER_API_KEY',
+  'OLLAMA_BASE_URL', // Ollama doesn't need API key, just base URL
+];
+
+/**
+ * Check if any provider API key is available via environment variables
+ */
+function hasEnvVarCredentials(): boolean {
+  return PROVIDER_ENV_VARS.some((envVar) => !!process.env[envVar]);
+}
+
+/**
  * Check if authentication is required
- * Returns true if ~/.nimbus/auth.json is missing or has no providers configured
+ * Returns true if no providers configured in auth.json AND no env vars set
  */
 export function requiresAuth(): boolean {
-  return !authStore.exists();
+  // If auth.json has providers, auth is not required
+  if (authStore.exists()) {
+    return false;
+  }
+
+  // If any provider env var is set, auth is not required
+  if (hasEnvVarCredentials()) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
  * Check if authentication is configured
- * Returns true if there are any providers configured
+ * Returns true if there are any providers configured (auth.json or env vars)
  */
 export function isAuthenticated(): boolean {
-  return authStore.exists();
+  return authStore.exists() || hasEnvVarCredentials();
 }
 
 /**

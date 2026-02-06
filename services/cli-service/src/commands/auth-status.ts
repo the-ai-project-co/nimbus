@@ -128,6 +128,10 @@ export async function authStatusCommand(options: AuthStatusOptions = {}): Promis
 function formatDate(isoString: string): string {
   try {
     const date = new Date(isoString);
+    // Check if date is valid (NaN check)
+    if (isNaN(date.getTime())) {
+      return isoString;
+    }
     return date.toLocaleString();
   } catch {
     return isoString;
