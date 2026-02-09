@@ -489,7 +489,12 @@ function capitalizeFirst(str: string): string {
  * Run the plan command
  */
 export async function planCommand(options: PlanOptions = {}): Promise<void> {
-  logger.info('Running plan command', { options });
+  // Redact sensitive variables from logs
+  const { var: _vars, ...safeOptions } = options;
+  logger.info('Running plan command', {
+    ...safeOptions,
+    var: options.var ? '[REDACTED]' : undefined
+  });
 
   // Detect or use specified type
   let type = options.type;

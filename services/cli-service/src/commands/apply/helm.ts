@@ -314,7 +314,16 @@ async function applyWithLocalCLI(
     args.push('--install');
   }
 
-  ui.info(`Running: helm ${args.join(' ')}`);
+  // Redact sensitive values from --set flags before logging
+  const redactedArgs = [...args];
+  for (let i = 0; i < redactedArgs.length; i++) {
+    if ((redactedArgs[i] === '--set' || redactedArgs[i] === '--set-string' || redactedArgs[i] === '--set-file') && redactedArgs[i + 1]) {
+      const raw = redactedArgs[i + 1];
+      const eq = raw.indexOf('=');
+      redactedArgs[i + 1] = eq >= 0 ? `${raw.slice(0, eq + 1)}<REDACTED>` : '<REDACTED>';
+    }
+  }
+  ui.info(`Running: helm ${redactedArgs.join(' ')}`);
   ui.newLine();
 
   // Run helm

@@ -392,7 +392,7 @@ async function checkDiskSpace(options: DoctorOptions): Promise<CheckResult> {
   try {
     // Get disk space for home directory
     const homeDir = os.homedir();
-    let available: number;
+    let available: number | undefined;
 
     if (process.platform === 'win32') {
       // Windows - use execFileSync with args array to prevent shell injection
@@ -416,7 +416,16 @@ async function checkDiskSpace(options: DoctorOptions): Promise<CheckResult> {
       available = parseInt(parts[3], 10) * 1024; // Convert KB to bytes
     }
 
-    const availableGB = available! / (1024 * 1024 * 1024);
+    // Handle case where disk space could not be determined
+    if (available === undefined || isNaN(available)) {
+      return {
+        name: 'Disk Space',
+        passed: true,
+        message: 'Unable to determine disk space (assuming OK)',
+      };
+    }
+
+    const availableGB = available / (1024 * 1024 * 1024);
     const minRequired = 1; // 1 GB minimum
 
     if (availableGB < minRequired) {
