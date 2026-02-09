@@ -53,6 +53,30 @@ import {
   parseAuditExportOptions,
   analyzeCommand,
   parseAnalyzeOptions,
+  // Generate commands
+  generateK8sCommand,
+  type GenerateK8sOptions,
+  generateHelmCommand,
+  type GenerateHelmOptions,
+  // Utility commands
+  versionCommand,
+  type VersionOptions,
+  helpCommand,
+  type HelpOptions,
+  doctorCommand,
+  type DoctorOptions,
+  // Apply commands
+  applyCommand,
+  // AI-powered commands
+  askCommand,
+  type AskOptions,
+  explainCommand,
+  type ExplainOptions,
+  fixCommand,
+  type FixOptions,
+  // Plan command
+  planCommand,
+  parsePlanOptions,
 } from './commands';
 import { requiresAuth, type LLMProviderName } from './auth';
 
@@ -209,6 +233,57 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus version
+  if (command === 'version' || command === '-v' || command === '--version') {
+    const options: VersionOptions = {};
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--verbose' || arg === '-v') {
+        options.verbose = true;
+      } else if (arg === '--json') {
+        options.json = true;
+      }
+    }
+
+    await versionCommand(options);
+    return;
+  }
+
+  // nimbus help
+  if (command === 'help' || command === '-h' || command === '--help') {
+    const options: HelpOptions = {};
+
+    // Check for command-specific help
+    if (subcommand && !subcommand.startsWith('-')) {
+      options.command = subcommand;
+    }
+
+    await helpCommand(options);
+    return;
+  }
+
+  // nimbus doctor
+  if (command === 'doctor') {
+    const options: DoctorOptions = {};
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--fix') {
+        options.fix = true;
+      } else if (arg === '--verbose' || arg === '-v') {
+        options.verbose = true;
+      } else if (arg === '--json') {
+        options.json = true;
+      }
+    }
+
+    await doctorCommand(options);
+    return;
+  }
+
   // nimbus init
   if (command === 'init') {
     const options: InitOptions = {};
@@ -290,6 +365,94 @@ export async function runCommand(args: string[]): Promise<void> {
     }
 
     await generateTerraformCommand(options);
+    return;
+  }
+
+  // nimbus generate k8s (or nimbus generate-k8s)
+  if ((command === 'generate' && subcommand === 'k8s') || command === 'generate-k8s') {
+    const options: GenerateK8sOptions = {};
+    const startIdx = command === 'generate-k8s' ? 1 : 2;
+
+    for (let i = startIdx; i < args.length; i++) {
+      const arg = args[i];
+
+      if ((arg === '--workload-type' || arg === '--type') && args[i + 1]) {
+        options.workloadType = args[++i] as GenerateK8sOptions['workloadType'];
+      } else if ((arg === '--namespace' || arg === '-n') && args[i + 1]) {
+        options.namespace = args[++i];
+      } else if (arg === '--name' && args[i + 1]) {
+        options.name = args[++i];
+      } else if (arg === '--image' && args[i + 1]) {
+        options.image = args[++i];
+      } else if (arg === '--replicas' && args[i + 1]) {
+        options.replicas = parseInt(args[++i], 10);
+      } else if (arg === '--port' && args[i + 1]) {
+        options.port = parseInt(args[++i], 10);
+      } else if (arg === '--service-type' && args[i + 1]) {
+        options.serviceType = args[++i] as GenerateK8sOptions['serviceType'];
+      } else if ((arg === '--output' || arg === '-o') && args[i + 1]) {
+        options.output = args[++i];
+      } else if (arg === '--non-interactive') {
+        options.nonInteractive = true;
+      } else if (arg === '--include-ingress') {
+        options.includeIngress = true;
+      } else if (arg === '--include-hpa') {
+        options.includeHpa = true;
+      } else if (arg === '--include-pdb') {
+        options.includePdb = true;
+      } else if (arg === '--include-configmap') {
+        options.includeConfigMap = true;
+      } else if (arg === '--include-secret') {
+        options.includeSecret = true;
+      } else if (arg === '--cpu-request' && args[i + 1]) {
+        options.cpuRequest = args[++i];
+      } else if (arg === '--cpu-limit' && args[i + 1]) {
+        options.cpuLimit = args[++i];
+      } else if (arg === '--memory-request' && args[i + 1]) {
+        options.memoryRequest = args[++i];
+      } else if (arg === '--memory-limit' && args[i + 1]) {
+        options.memoryLimit = args[++i];
+      }
+    }
+
+    await generateK8sCommand(options);
+    return;
+  }
+
+  // nimbus generate helm (or nimbus generate-helm)
+  if ((command === 'generate' && subcommand === 'helm') || command === 'generate-helm') {
+    const options: GenerateHelmOptions = {};
+    const startIdx = command === 'generate-helm' ? 1 : 2;
+
+    for (let i = startIdx; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--chart' && args[i + 1]) {
+        options.chart = args[++i];
+      } else if ((arg === '--release' || arg === '--release-name') && args[i + 1]) {
+        options.releaseName = args[++i];
+      } else if ((arg === '--namespace' || arg === '-n') && args[i + 1]) {
+        options.namespace = args[++i];
+      } else if ((arg === '--output' || arg === '-o') && args[i + 1]) {
+        options.output = args[++i];
+      } else if (arg === '--non-interactive') {
+        options.nonInteractive = true;
+      } else if (arg === '--include-secrets') {
+        options.includeSecrets = true;
+      } else if (arg === '--no-secrets') {
+        options.includeSecrets = false;
+      } else if (arg === '--environment' && args[i + 1]) {
+        options.environment = args[++i] as GenerateHelmOptions['environment'];
+      } else if (arg === '--version' && args[i + 1]) {
+        options.version = args[++i];
+      } else if (arg === '--repo' && args[i + 1]) {
+        options.repo = args[++i];
+      } else if (arg === '--values-file' && args[i + 1]) {
+        options.valuesFile = args[++i];
+      }
+    }
+
+    await generateHelmCommand(options);
     return;
   }
 
@@ -551,6 +714,94 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus apply <type> [target] [options]
+  if (command === 'apply') {
+    await applyCommand(subcommand, args.slice(2));
+    return;
+  }
+
+  // nimbus ask "<question>" [options]
+  if (command === 'ask') {
+    const options: AskOptions = {};
+    let question = '';
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if ((arg === '--context' || arg === '-c') && args[i + 1]) {
+        options.context = args[++i];
+      } else if (arg === '--context-file' && args[i + 1]) {
+        options.contextFile = args[++i];
+      } else if (arg === '--model' && args[i + 1]) {
+        options.model = args[++i];
+      } else if (arg === '--json') {
+        options.json = true;
+      } else if (!arg.startsWith('-')) {
+        question = arg;
+      }
+    }
+
+    await askCommand(question, options);
+    return;
+  }
+
+  // nimbus explain <target> [options]
+  if (command === 'explain') {
+    const options: ExplainOptions = {};
+    let target = '';
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--type' && args[i + 1]) {
+        options.type = args[++i] as ExplainOptions['type'];
+      } else if (arg === '--file' && args[i + 1]) {
+        options.file = args[++i];
+      } else if (arg === '--verbose' || arg === '-v') {
+        options.verbose = true;
+      } else if (arg === '--json') {
+        options.json = true;
+      } else if (!arg.startsWith('-')) {
+        target = arg;
+      }
+    }
+
+    await explainCommand(target, options);
+    return;
+  }
+
+  // nimbus fix <error-or-file> [options]
+  if (command === 'fix') {
+    const options: FixOptions = {};
+    let errorOrFile = '';
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--file' && args[i + 1]) {
+        options.file = args[++i];
+      } else if (arg === '--auto-apply' || arg === '-y') {
+        options.autoApply = true;
+      } else if (arg === '--dry-run') {
+        options.dryRun = true;
+      } else if (arg === '--json') {
+        options.json = true;
+      } else if (!arg.startsWith('-')) {
+        errorOrFile = arg;
+      }
+    }
+
+    await fixCommand(errorOrFile, options);
+    return;
+  }
+
+  // nimbus plan [options]
+  if (command === 'plan') {
+    const options = parsePlanOptions(args.slice(1));
+    await planCommand(options);
+    return;
+  }
+
   // nimbus git <subcommand>
   if (command === 'git') {
     if (!subcommand) {
@@ -672,9 +923,12 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('');
   console.log('Available commands:');
   console.log('');
-  console.log('  Chat:');
+  console.log('  Chat & AI:');
   console.log('    nimbus chat              - Start interactive chat with AI');
   console.log('    nimbus chat -m "..."     - Send a single message');
+  console.log('    nimbus ask "question"    - Quick question/answer');
+  console.log('    nimbus explain <file>    - Explain code or infrastructure');
+  console.log('    nimbus fix <error>       - AI-assisted error fixing');
   console.log('');
   console.log('  Workspace:');
   console.log('    nimbus init              - Initialize workspace in current directory');
@@ -693,10 +947,14 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('');
   console.log('  Infrastructure Generation:');
   console.log('    nimbus generate terraform  - Generate Terraform from AWS infrastructure (wizard)');
+  console.log('    nimbus generate k8s        - Generate Kubernetes manifests (wizard)');
+  console.log('    nimbus generate helm       - Generate Helm values files (wizard)');
   console.log('    nimbus aws discover        - Discover AWS infrastructure resources');
   console.log('    nimbus aws terraform       - Generate Terraform from AWS resources');
   console.log('');
   console.log('  Infrastructure Tools:');
+  console.log('    nimbus plan              - Preview infrastructure changes');
+  console.log('    nimbus apply <type>      - Apply infrastructure (terraform, k8s, helm)');
   console.log('    nimbus tf <cmd>          - Terraform operations (init, plan, apply, validate, destroy, show)');
   console.log('    nimbus k8s <cmd>         - Kubernetes operations (get, apply, delete, logs, describe, scale)');
   console.log('    nimbus helm <cmd>        - Helm operations (list, install, upgrade, uninstall, rollback)');
@@ -724,6 +982,12 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('');
   console.log('  Analysis:');
   console.log('    nimbus analyze            - Analyze codebase for improvements');
+  console.log('');
+  console.log('  Utilities:');
+  console.log('    nimbus version            - Show version information');
+  console.log('    nimbus help               - Show this help message');
+  console.log('    nimbus help <command>     - Show help for a specific command');
+  console.log('    nimbus doctor             - Run diagnostic checks');
   console.log('');
   console.log('Use --help with any command for more options');
   process.exit(1);
