@@ -12,3 +12,6 @@ export * from './plan';
 
 // Config types
 export * from './config';
+
+// Enterprise types
+export * from './enterprise';

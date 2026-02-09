@@ -18,6 +18,10 @@ export const ServiceURLs = {
   AWS_TOOLS: getEnv('AWS_TOOLS_SERVICE_URL', 'http://localhost:3009'),
   GITHUB_TOOLS: getEnv('GITHUB_TOOLS_SERVICE_URL', 'http://localhost:3010'),
   STATE: getEnv('STATE_SERVICE_URL', 'http://localhost:3011'),
+  AUTH: getEnv('AUTH_SERVICE_URL', 'http://localhost:3012'),
+  TEAM: getEnv('TEAM_SERVICE_URL', 'http://localhost:3013'),
+  BILLING: getEnv('BILLING_SERVICE_URL', 'http://localhost:3014'),
+  AUDIT: getEnv('AUDIT_SERVICE_URL', 'http://localhost:3015'),
 } as const;
 
 export const WebSocketURLs = {
