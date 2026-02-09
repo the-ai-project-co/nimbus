@@ -178,3 +178,53 @@ export {
   analyzeCommand,
   parseAnalyzeOptions,
 } from './analyze';
+
+// Generate commands
+export {
+  generateK8sCommand,
+  type GenerateK8sOptions,
+  type K8sWizardContext,
+  type K8sWorkloadType,
+  type K8sServiceType,
+} from './generate-k8s';
+
+export {
+  generateHelmCommand,
+  type GenerateHelmOptions,
+  type HelmWizardContext,
+  type HelmEnvironment,
+} from './generate-helm';
+
+// Utility commands
+export { versionCommand, type VersionOptions } from './version';
+export { helpCommand, type HelpOptions } from './help';
+export { doctorCommand, type DoctorOptions } from './doctor';
+
+// Apply commands
+export {
+  applyCommand,
+  applyTerraformCommand,
+  applyK8sCommand,
+  applyHelmCommand,
+  parseApplyOptions,
+  type ApplyOptions,
+  type ApplyType,
+  type ApplyTerraformOptions,
+  type ApplyK8sOptions,
+  type ApplyHelmOptions,
+} from './apply';
+
+// AI-powered commands
+export { askCommand, type AskOptions } from './ask';
+export { explainCommand, type ExplainOptions, type ExplainType } from './explain';
+export { fixCommand, type FixOptions } from './fix';
+
+// Plan command
+export {
+  planCommand,
+  parsePlanOptions,
+  displayPlan,
+  type PlanOptions,
+  type PlanType,
+  type PlanResult,
+} from './plan';
