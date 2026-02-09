@@ -240,14 +240,16 @@ async function applyWithLocalCLI(
   chart: string,
   options: ApplyHelmOptions
 ): Promise<void> {
-  const { spawn, execSync } = await import('child_process');
+  const { spawn, execFileSync } = await import('child_process');
 
-  // Check if release exists
+  // Check if release exists (use execFileSync with args array to prevent shell injection)
   let isUpgrade = false;
   try {
-    execSync(`helm status ${releaseName}${options.namespace ? ` -n ${options.namespace}` : ''}`, {
-      stdio: 'pipe',
-    });
+    const statusArgs = ['status', releaseName];
+    if (options.namespace) {
+      statusArgs.push('-n', options.namespace);
+    }
+    execFileSync('helm', statusArgs, { stdio: 'pipe' });
     isUpgrade = true;
     ui.info('Upgrading existing release');
   } catch {

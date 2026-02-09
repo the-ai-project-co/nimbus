@@ -414,10 +414,8 @@ const COMMANDS: Record<string, CommandDoc> = {
  * Show help for a specific command
  */
 function showCommandHelp(commandName: string): void {
-  // Normalize command name (handle aliases)
-  const normalizedName = commandName
-    .replace(/^generate-/, 'generate-')
-    .replace(/^generate /, 'generate-');
+  // Normalize command name (handle aliases like "generate k8s" -> "generate-k8s")
+  const normalizedName = commandName.replace(/^generate /, 'generate-');
 
   const doc = COMMANDS[normalizedName] || COMMANDS[commandName];
 

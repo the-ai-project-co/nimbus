@@ -7,12 +7,10 @@
  */
 
 import { logger } from '@nimbus/shared-utils';
-import { RestClient } from '@nimbus/shared-clients';
 import {
   createWizard,
   ui,
   select,
-  multiSelect,
   confirm,
   input,
   pathInput,
@@ -20,10 +18,6 @@ import {
   type StepResult,
 } from '../wizard';
 import { helmClient } from '../clients';
-
-// Generator Service client
-const generatorUrl = process.env.GENERATOR_SERVICE_URL || 'http://localhost:3003';
-const generatorClient = new RestClient(generatorUrl);
 
 /**
  * Environment types

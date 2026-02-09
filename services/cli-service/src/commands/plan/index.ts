@@ -8,7 +8,7 @@
 
 import { logger } from '@nimbus/shared-utils';
 import { ui } from '../../wizard';
-import { terraformClient, k8sClient, helmClient } from '../../clients';
+import { terraformClient, k8sClient } from '../../clients';
 import { displayPlan, type PlanResult } from './display';
 
 // Re-export display utilities
@@ -165,10 +165,10 @@ async function runTerraformPlan(options: PlanOptions): Promise<PlanResult> {
  * Run local Terraform plan
  */
 async function runLocalTerraformPlan(options: PlanOptions): Promise<PlanResult> {
-  const { execSync } = await import('child_process');
+  const { execFileSync } = await import('child_process');
   const directory = options.target || '.';
 
-  // Build command
+  // Build command args (using execFileSync to prevent shell injection)
   const args = ['plan', '-no-color'];
 
   if (options.var) {
@@ -186,7 +186,7 @@ async function runLocalTerraformPlan(options: PlanOptions): Promise<PlanResult> 
   }
 
   try {
-    const output = execSync(`terraform ${args.join(' ')}`, {
+    const output = execFileSync('terraform', args, {
       cwd: directory,
       encoding: 'utf-8',
       timeout: 300000, // 5 minutes
@@ -342,11 +342,15 @@ async function runK8sPlan(options: PlanOptions): Promise<PlanResult> {
  */
 async function runHelmPlan(options: PlanOptions): Promise<PlanResult> {
   const target = options.target || '.';
-  const { execSync } = await import('child_process');
+  const { execFileSync } = await import('child_process');
 
   // Check if helm-diff plugin is available
   try {
-    execSync('helm plugin list | grep diff', { stdio: 'pipe' });
+    const pluginOutput = execFileSync('helm', ['plugin', 'list'], { encoding: 'utf-8', stdio: 'pipe' });
+    if (!pluginOutput.includes('diff')) {
+      // helm-diff not installed, use template comparison
+      return runHelmTemplatePlan(options);
+    }
   } catch {
     // helm-diff not installed, use template comparison
     return runHelmTemplatePlan(options);
@@ -385,7 +389,12 @@ async function runHelmPlan(options: PlanOptions): Promise<PlanResult> {
   }
 
   try {
-    const output = execSync(`helm diff upgrade ${releaseName} ${chartPath}${options.namespace ? ` -n ${options.namespace}` : ''}`, {
+    // Use execFileSync with args array to prevent shell injection
+    const diffArgs = ['diff', 'upgrade', releaseName, chartPath];
+    if (options.namespace) {
+      diffArgs.push('-n', options.namespace);
+    }
+    const output = execFileSync('helm', diffArgs, {
       encoding: 'utf-8',
       timeout: 60000,
     });
@@ -404,7 +413,7 @@ async function runHelmPlan(options: PlanOptions): Promise<PlanResult> {
       },
       raw: options.detailed ? output : undefined,
     };
-  } catch (error: any) {
+  } catch {
     // Release might not exist
     return runHelmTemplatePlan(options);
   }
@@ -415,10 +424,15 @@ async function runHelmPlan(options: PlanOptions): Promise<PlanResult> {
  */
 async function runHelmTemplatePlan(options: PlanOptions): Promise<PlanResult> {
   const chartPath = options.target || '.';
-  const { execSync } = await import('child_process');
+  const { execFileSync } = await import('child_process');
 
   try {
-    const output = execSync(`helm template ${chartPath}${options.namespace ? ` -n ${options.namespace}` : ''}`, {
+    // Use execFileSync with args array to prevent shell injection
+    const templateArgs = ['template', chartPath];
+    if (options.namespace) {
+      templateArgs.push('-n', options.namespace);
+    }
+    const output = execFileSync('helm', templateArgs, {
       encoding: 'utf-8',
       timeout: 60000,
     });

@@ -44,7 +44,6 @@ function detectExplainType(target: string, content?: string): ExplainType {
   ];
 
   const targetLower = target.toLowerCase();
-  const contentLower = content?.toLowerCase() || '';
 
   if (errorPatterns.some(p => p.test(target) || (content && p.test(content)))) {
     return 'error';

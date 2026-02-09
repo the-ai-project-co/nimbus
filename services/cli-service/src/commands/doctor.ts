@@ -176,16 +176,13 @@ async function checkCloudCredentials(options: DoctorOptions): Promise<CheckResul
 
   // Check AWS credentials
   const awsConfigDir = path.join(os.homedir(), '.aws');
-  let hasAws = false;
 
   try {
     await fs.access(path.join(awsConfigDir, 'credentials'));
-    hasAws = true;
     checks.push('AWS credentials');
   } catch {
     // Check environment variables
     if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-      hasAws = true;
       checks.push('AWS (env vars)');
     }
   }
@@ -329,14 +326,15 @@ async function checkToolServices(options: DoctorOptions): Promise<CheckResult> {
  * Check dependencies (CLI tools)
  */
 async function checkDependencies(options: DoctorOptions): Promise<CheckResult> {
-  const { execSync } = await import('child_process');
+  const { execFileSync } = await import('child_process');
 
+  // Use execFileSync with args arrays to prevent shell injection
   const tools = [
-    { name: 'git', command: 'git --version', required: true },
-    { name: 'terraform', command: 'terraform version', required: false },
-    { name: 'kubectl', command: 'kubectl version --client', required: false },
-    { name: 'helm', command: 'helm version --short', required: false },
-    { name: 'aws', command: 'aws --version', required: false },
+    { name: 'git', cmd: 'git', args: ['--version'], required: true },
+    { name: 'terraform', cmd: 'terraform', args: ['version'], required: false },
+    { name: 'kubectl', cmd: 'kubectl', args: ['version', '--client'], required: false },
+    { name: 'helm', cmd: 'helm', args: ['version', '--short'], required: false },
+    { name: 'aws', cmd: 'aws', args: ['--version'], required: false },
   ];
 
   const results: Array<{ name: string; version?: string; available: boolean }> = [];
@@ -344,7 +342,7 @@ async function checkDependencies(options: DoctorOptions): Promise<CheckResult> {
 
   for (const tool of tools) {
     try {
-      const output = execSync(tool.command, {
+      const output = execFileSync(tool.cmd, tool.args, {
         encoding: 'utf-8',
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -389,7 +387,7 @@ async function checkDependencies(options: DoctorOptions): Promise<CheckResult> {
  */
 async function checkDiskSpace(options: DoctorOptions): Promise<CheckResult> {
   const os = await import('os');
-  const { execSync } = await import('child_process');
+  const { execFileSync } = await import('child_process');
 
   try {
     // Get disk space for home directory
@@ -397,8 +395,8 @@ async function checkDiskSpace(options: DoctorOptions): Promise<CheckResult> {
     let available: number;
 
     if (process.platform === 'win32') {
-      // Windows
-      const output = execSync(`wmic logicaldisk get size,freespace,caption`, { encoding: 'utf-8' });
+      // Windows - use execFileSync with args array to prevent shell injection
+      const output = execFileSync('wmic', ['logicaldisk', 'get', 'size,freespace,caption'], { encoding: 'utf-8' });
       const lines = output.trim().split('\n');
       const drive = homeDir.charAt(0).toUpperCase();
       for (const line of lines) {
@@ -409,9 +407,12 @@ async function checkDiskSpace(options: DoctorOptions): Promise<CheckResult> {
         }
       }
     } else {
-      // Unix-like
-      const output = execSync(`df -k "${homeDir}" | tail -1`, { encoding: 'utf-8' });
-      const parts = output.trim().split(/\s+/);
+      // Unix-like - use execFileSync with args array to prevent shell injection
+      const output = execFileSync('df', ['-k', homeDir], { encoding: 'utf-8' });
+      // Skip header line and parse the data line
+      const lines = output.trim().split('\n');
+      const dataLine = lines[lines.length - 1];
+      const parts = dataLine.trim().split(/\s+/);
       available = parseInt(parts[3], 10) * 1024; // Convert KB to bytes
     }
 
