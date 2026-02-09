@@ -103,45 +103,51 @@ export function createOrUpdateSubscription(
   } = {}
 ): void {
   const db = getDatabase();
-  const existing = getSubscription(teamId);
 
-  if (existing) {
-    db.run(`
-      UPDATE subscriptions
-      SET plan = ?,
-          stripe_subscription_id = COALESCE(?, stripe_subscription_id),
-          stripe_customer_id = COALESCE(?, stripe_customer_id),
-          current_period_start = COALESCE(?, current_period_start),
-          current_period_end = COALESCE(?, current_period_end),
-          seats_total = COALESCE(?, seats_total),
-          status = 'active',
-          updated_at = CURRENT_TIMESTAMP
-      WHERE team_id = ?
-    `, [
-      plan,
-      options.stripeSubscriptionId || null,
-      options.stripeCustomerId || null,
-      options.periodStart?.toISOString() || null,
-      options.periodEnd?.toISOString() || null,
-      options.seatsTotal || null,
-      teamId,
-    ]);
-  } else {
-    db.run(`
-      INSERT INTO subscriptions (
-        team_id, plan, stripe_subscription_id, stripe_customer_id,
-        current_period_start, current_period_end, seats_total
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [
-      teamId,
-      plan,
-      options.stripeSubscriptionId || null,
-      options.stripeCustomerId || null,
-      options.periodStart?.toISOString() || null,
-      options.periodEnd?.toISOString() || null,
-      options.seatsTotal || 5,
-    ]);
-  }
+  // Wrap in transaction to prevent race conditions
+  const tx = db.transaction(() => {
+    const existing = db.query(`SELECT * FROM subscriptions WHERE team_id = ?`).get(teamId) as SubscriptionRecord | null;
+
+    if (existing) {
+      db.run(`
+        UPDATE subscriptions
+        SET plan = ?,
+            stripe_subscription_id = COALESCE(?, stripe_subscription_id),
+            stripe_customer_id = COALESCE(?, stripe_customer_id),
+            current_period_start = COALESCE(?, current_period_start),
+            current_period_end = COALESCE(?, current_period_end),
+            seats_total = COALESCE(?, seats_total),
+            status = 'active',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE team_id = ?
+      `, [
+        plan,
+        options.stripeSubscriptionId ?? null,
+        options.stripeCustomerId ?? null,
+        options.periodStart?.toISOString() ?? null,
+        options.periodEnd?.toISOString() ?? null,
+        options.seatsTotal ?? null,
+        teamId,
+      ]);
+    } else {
+      db.run(`
+        INSERT INTO subscriptions (
+          team_id, plan, stripe_subscription_id, stripe_customer_id,
+          current_period_start, current_period_end, seats_total
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [
+        teamId,
+        plan,
+        options.stripeSubscriptionId ?? null,
+        options.stripeCustomerId ?? null,
+        options.periodStart?.toISOString() ?? null,
+        options.periodEnd?.toISOString() ?? null,
+        options.seatsTotal ?? 5,
+      ]);
+    }
+  });
+
+  tx();
 }
 
 export function cancelSubscriptionRecord(teamId: string): void {

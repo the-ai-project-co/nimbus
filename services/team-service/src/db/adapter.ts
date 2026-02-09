@@ -109,7 +109,12 @@ export function getOrCreateUser(email: string, name?: string): UserRecord {
   if (!user) {
     const id = crypto.randomUUID();
     createUser(id, email, name);
-    user = getUserById(id)!;
+    // Handle race condition: if INSERT was ignored due to concurrent create,
+    // fall back to fetching by email
+    user = getUserById(id) ?? getUserByEmail(email);
+    if (!user) {
+      throw new Error('Failed to create or load user');
+    }
   }
   return user;
 }
@@ -127,15 +132,21 @@ export interface TeamRecord {
 
 export function createTeamRecord(id: string, name: string, ownerId: string): void {
   const db = getDatabase();
-  db.run(
-    `INSERT INTO teams (id, name, owner_id) VALUES (?, ?, ?)`,
-    [id, name, ownerId]
-  );
-  // Add owner as member with owner role
-  db.run(
-    `INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'owner')`,
-    [id, ownerId]
-  );
+
+  // Wrap in transaction to ensure team and owner member are created atomically
+  const insertTeam = db.transaction(() => {
+    db.run(
+      `INSERT INTO teams (id, name, owner_id) VALUES (?, ?, ?)`,
+      [id, name, ownerId]
+    );
+    // Add owner as member with owner role
+    db.run(
+      `INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'owner')`,
+      [id, ownerId]
+    );
+  });
+
+  insertTeam();
 }
 
 export function getTeamRecord(id: string): TeamRecord | null {

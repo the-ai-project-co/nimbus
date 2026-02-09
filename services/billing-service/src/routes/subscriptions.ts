@@ -52,16 +52,22 @@ export async function getBillingStatus(teamId: string): Promise<BillingStatus> {
   };
 }
 
+const VALID_PLANS = ['free', 'pro', 'enterprise'] as const;
+
 /**
  * Subscribe to a plan
  */
 export async function subscribe(
   request: SubscribeReq
 ): Promise<BillingStatus> {
-  const { teamId, plan, paymentMethodId, seats } = request;
+  const { teamId, plan, seats } = request;
 
   if (!teamId) {
     throw new Error('Team ID is required');
+  }
+
+  if (!VALID_PLANS.includes(plan as typeof VALID_PLANS[number])) {
+    throw new Error(`Invalid plan: ${plan}. Must be one of: ${VALID_PLANS.join(', ')}`);
   }
 
   // In a real implementation, this would:

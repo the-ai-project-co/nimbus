@@ -2,7 +2,7 @@
  * Auth Service Device Code Unit Tests
  */
 
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 // Mock crypto for consistent testing
 const mockUUID = 'test-uuid-1234-5678-90ab-cdef';

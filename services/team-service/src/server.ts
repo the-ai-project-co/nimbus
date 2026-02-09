@@ -29,6 +29,10 @@ export async function startServer(port: number) {
       const path = url.pathname;
       const method = req.method;
 
+      // Extract requester ID from headers (in production, validate auth token)
+      // This should come from a validated JWT/session token
+      const requesterId = req.headers.get('x-user-id') || undefined;
+
       // Health check endpoint
       if (path === '/health') {
         return Response.json({
@@ -100,13 +104,14 @@ export async function startServer(port: number) {
 
         if (method === 'DELETE') {
           try {
-            await deleteTeam(teamId);
+            await deleteTeam(teamId, requesterId);
             return Response.json({ success: true, data: { deleted: true } });
           } catch (error: any) {
             logger.error('Delete team error:', error);
+            const status = error.message.includes('Only') || error.message.includes('owner') ? 403 : 500;
             return Response.json(
               { success: false, error: error.message },
-              { status: 500 }
+              { status }
             );
           }
         }
@@ -120,13 +125,14 @@ export async function startServer(port: number) {
         if (method === 'POST') {
           try {
             const body = await req.json() as { email: string; role?: string };
-            const result = await inviteMember(teamId, body);
+            const result = await inviteMember(teamId, body, requesterId);
             return Response.json({ success: true, data: result });
           } catch (error: any) {
             logger.error('Invite member error:', error);
+            const status = error.message.includes('Only') || error.message.includes('Invalid role') ? 403 : 500;
             return Response.json(
               { success: false, error: error.message },
-              { status: 500 }
+              { status }
             );
           }
         }
@@ -154,26 +160,28 @@ export async function startServer(port: number) {
         if (method === 'PUT') {
           try {
             const body = await req.json() as { role: string };
-            const result = await updateMemberRole(teamId, userId, body);
+            const result = await updateMemberRole(teamId, userId, body, requesterId);
             return Response.json({ success: true, data: result });
           } catch (error: any) {
             logger.error('Update member error:', error);
+            const status = error.message.includes('Only') || error.message.includes('Invalid role') ? 403 : 500;
             return Response.json(
               { success: false, error: error.message },
-              { status: 500 }
+              { status }
             );
           }
         }
 
         if (method === 'DELETE') {
           try {
-            await removeMember(teamId, userId);
+            await removeMember(teamId, userId, requesterId);
             return Response.json({ success: true, data: { removed: true } });
           } catch (error: any) {
             logger.error('Remove member error:', error);
+            const status = error.message.includes('Only') ? 403 : 500;
             return Response.json(
               { success: false, error: error.message },
-              { status: 500 }
+              { status }
             );
           }
         }

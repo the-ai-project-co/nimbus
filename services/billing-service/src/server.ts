@@ -6,7 +6,7 @@
 import { logger } from '@nimbus/shared-utils';
 import { getBillingStatus, subscribe, cancelSubscription } from './routes/subscriptions';
 import { getUsage, recordUsage } from './routes/usage';
-import { handleStripeWebhook } from './routes/webhooks';
+import { handleStripeWebhook, WebhookSignatureError, WebhookParseError, WebhookProcessingError } from './routes/webhooks';
 import { initDatabase } from './db/adapter';
 
 export async function startServer(port: number) {
@@ -149,9 +149,26 @@ export async function startServer(port: number) {
           return Response.json({ success: true, data: result });
         } catch (error: any) {
           logger.error('Webhook error:', error);
+
+          // Return appropriate status codes based on error type
+          if (error instanceof WebhookSignatureError || error instanceof WebhookParseError) {
+            // 400 for signature/parsing errors - don't retry
+            return Response.json(
+              { success: false, error: error.message },
+              { status: 400 }
+            );
+          } else if (error instanceof WebhookProcessingError) {
+            // 500 for processing errors - Stripe will retry
+            return Response.json(
+              { success: false, error: error.message },
+              { status: 500 }
+            );
+          }
+
+          // Default to 500 for unknown errors (allows retry)
           return Response.json(
             { success: false, error: error.message },
-            { status: 400 }
+            { status: 500 }
           );
         }
       }

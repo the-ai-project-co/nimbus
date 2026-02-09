@@ -28,7 +28,15 @@ export async function recordUsage(request: RecordUsageRequest): Promise<void> {
     throw new Error('Team ID and operation type are required');
   }
 
-  createUsageRecord(teamId, operationType, tokensUsed || 0, costUsd || 0, userId);
+  // Validate numeric inputs
+  if (!Number.isFinite(tokensUsed) || tokensUsed < 0) {
+    throw new Error('tokensUsed must be a non-negative number');
+  }
+  if (!Number.isFinite(costUsd) || costUsd < 0) {
+    throw new Error('costUsd must be a non-negative number');
+  }
+
+  createUsageRecord(teamId, operationType, tokensUsed, costUsd, userId);
 }
 
 /**
