@@ -130,3 +130,51 @@ export {
   type RepoInfoOptions,
   type RepoBranchesOptions,
 } from './gh';
+
+// Enterprise: Team commands
+export {
+  teamCommand,
+  teamCreateCommand,
+  teamInviteCommand,
+  teamMembersCommand,
+  teamRemoveCommand,
+  teamSwitchCommand,
+  parseTeamCreateOptions,
+  parseTeamInviteOptions,
+  parseTeamMembersOptions,
+  parseTeamRemoveOptions,
+  parseTeamSwitchOptions,
+} from './team';
+
+// Enterprise: Billing commands
+export {
+  billingCommand,
+  billingStatusCommand,
+  billingUpgradeCommand,
+  billingInvoicesCommand,
+  billingCancelCommand,
+  parseBillingStatusOptions,
+  parseBillingUpgradeOptions,
+  parseBillingInvoicesOptions,
+} from './billing';
+
+// Enterprise: Usage command
+export {
+  usageCommand,
+  parseUsageOptions,
+} from './usage';
+
+// Enterprise: Audit commands
+export {
+  auditCommand,
+  auditListCommand,
+  auditExportCommand,
+  parseAuditListOptions,
+  parseAuditExportOptions,
+} from './audit';
+
+// Analyze command
+export {
+  analyzeCommand,
+  parseAnalyzeOptions,
+} from './analyze';

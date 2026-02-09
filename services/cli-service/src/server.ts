@@ -35,6 +35,24 @@ import {
   type HistoryOptions,
   // GitHub CLI commands
   ghCommand,
+  // Enterprise commands
+  teamCommand,
+  parseTeamCreateOptions,
+  parseTeamInviteOptions,
+  parseTeamMembersOptions,
+  parseTeamRemoveOptions,
+  parseTeamSwitchOptions,
+  billingCommand,
+  parseBillingStatusOptions,
+  parseBillingUpgradeOptions,
+  parseBillingInvoicesOptions,
+  usageCommand,
+  parseUsageOptions,
+  auditCommand,
+  parseAuditListOptions,
+  parseAuditExportOptions,
+  analyzeCommand,
+  parseAnalyzeOptions,
 } from './commands';
 import { requiresAuth, type LLMProviderName } from './auth';
 
@@ -134,6 +152,8 @@ export async function runCommand(args: string[]): Promise<void> {
         options.model = args[++i];
       } else if (arg === '--non-interactive') {
         options.nonInteractive = true;
+      } else if (arg === '--sso') {
+        options.sso = true;
       }
     }
 
@@ -613,6 +633,40 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // ==========================================
+  // Enterprise commands
+  // ==========================================
+
+  // nimbus team <subcommand>
+  if (command === 'team') {
+    await teamCommand(subcommand || '', args.slice(2));
+    return;
+  }
+
+  // nimbus billing <subcommand>
+  if (command === 'billing') {
+    await billingCommand(subcommand || '', args.slice(2));
+    return;
+  }
+
+  // nimbus usage
+  if (command === 'usage') {
+    await usageCommand(parseUsageOptions(args.slice(1)));
+    return;
+  }
+
+  // nimbus audit <subcommand>
+  if (command === 'audit') {
+    await auditCommand(subcommand || '', args.slice(2));
+    return;
+  }
+
+  // nimbus analyze
+  if (command === 'analyze') {
+    await analyzeCommand(parseAnalyzeOptions(args.slice(1)));
+    return;
+  }
+
   // Unknown command
   console.error(`Unknown command: ${command} ${subcommand || ''}`);
   console.log('');
@@ -657,6 +711,19 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus history           - View command history');
   console.log('    nimbus history show <id> - Show details for a history entry');
   console.log('    nimbus history --clear   - Clear all history');
+  console.log('');
+  console.log('  Team & Enterprise:');
+  console.log('    nimbus team create <name> - Create a team');
+  console.log('    nimbus team invite <email> - Invite a member');
+  console.log('    nimbus team members       - List team members');
+  console.log('    nimbus team switch        - Switch active team');
+  console.log('    nimbus billing status     - View billing status');
+  console.log('    nimbus billing upgrade    - Upgrade plan');
+  console.log('    nimbus usage              - View usage dashboard');
+  console.log('    nimbus audit              - View audit logs');
+  console.log('');
+  console.log('  Analysis:');
+  console.log('    nimbus analyze            - Analyze codebase for improvements');
   console.log('');
   console.log('Use --help with any command for more options');
   process.exit(1);

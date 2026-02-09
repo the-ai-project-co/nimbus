@@ -39,6 +39,7 @@ export interface LoginOptions {
   apiKey?: string;
   model?: string;
   nonInteractive?: boolean;
+  sso?: boolean;
 }
 
 /**
