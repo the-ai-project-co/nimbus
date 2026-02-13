@@ -5,10 +5,14 @@ import type {
   QuestionnaireResponse,
   AnswerSubmission,
   ValidationError,
-  Question
+  Question,
+  StepCondition,
 } from './types';
+import { evaluateCondition, substituteVariables } from './types';
 import { QuestionnaireValidator } from './validator';
 import { terraformQuestionnaire } from './terraform';
+import { kubernetesQuestionnaire } from './kubernetes';
+import { helmQuestionnaire } from './helm';
 
 export class QuestionnaireEngine {
   private sessions: Map<string, QuestionnaireSession>;
@@ -22,7 +26,7 @@ export class QuestionnaireEngine {
   /**
    * Start a new questionnaire session
    */
-  startSession(type: 'terraform' | 'kubernetes'): QuestionnaireResponse {
+  startSession(type: 'terraform' | 'kubernetes' | 'helm'): QuestionnaireResponse {
     const sessionId = this.generateSessionId();
 
     const session: QuestionnaireSession = {
@@ -134,13 +138,14 @@ export class QuestionnaireEngine {
   /**
    * Get steps for questionnaire type
    */
-  private getSteps(type: 'terraform' | 'kubernetes'): QuestionnaireStep[] {
+  private getSteps(type: 'terraform' | 'kubernetes' | 'helm'): QuestionnaireStep[] {
     switch (type) {
       case 'terraform':
         return terraformQuestionnaire;
       case 'kubernetes':
-        // TODO: Implement kubernetes questionnaire
-        return [];
+        return kubernetesQuestionnaire;
+      case 'helm':
+        return helmQuestionnaire;
       default:
         throw new Error(`Unknown questionnaire type: ${type}`);
     }
@@ -169,6 +174,17 @@ export class QuestionnaireEngine {
    * Check if a step should be shown based on condition
    */
   private shouldShowStep(step: QuestionnaireStep, answers: Record<string, unknown>): boolean {
+    // Check new declarative condition first
+    if (step.showWhen) {
+      try {
+        return evaluateCondition(step.showWhen, answers);
+      } catch (error) {
+        logger.error(`Error evaluating step showWhen for ${step.id}`, error);
+        return false;
+      }
+    }
+
+    // Fall back to legacy function-based condition
     if (!step.condition) {
       return true;
     }

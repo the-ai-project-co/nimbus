@@ -39,6 +39,11 @@ export class ContextExtractor {
         case 'region':
           requirements.region = entity.value;
           break;
+
+        case 'generation_type':
+          // Store generation_type so downstream consumers can route accordingly
+          (requirements as any).generation_type = entity.value;
+          break;
       }
     }
 
@@ -58,6 +63,11 @@ export class ContextExtractor {
           }
         }
       }
+
+      // Inherit generation_type from context if not set in current intent
+      if (!(requirements as any).generation_type && context.infrastructure_stack.generation_type) {
+        (requirements as any).generation_type = context.infrastructure_stack.generation_type;
+      }
     }
 
     logger.debug('Extracted requirements', requirements);
@@ -75,6 +85,10 @@ export class ContextExtractor {
   ): ConversationalContext {
     const requirements = this.extractRequirements(intent, context);
 
+    // Extract generation_type from intent entities
+    const genTypeEntity = this.getEntityByType(intent.entities, 'generation_type');
+    const generationType = genTypeEntity?.value as 'terraform' | 'kubernetes' | 'helm' | undefined;
+
     // Update infrastructure stack
     const updatedContext: ConversationalContext = {
       ...context,
@@ -85,6 +99,7 @@ export class ContextExtractor {
         components: requirements.components,
         environment: requirements.environment,
         region: requirements.region,
+        generation_type: generationType || context.infrastructure_stack?.generation_type,
       },
       conversation_history: [
         ...context.conversation_history,
@@ -119,7 +134,31 @@ export class ContextExtractor {
    */
   getMissingRequirements(requirements: Partial<InfrastructureRequirements>): string[] {
     const missing: string[] = [];
+    const generationType = (requirements as any).generation_type;
 
+    // K8s-specific requirements
+    if (generationType === 'kubernetes') {
+      if (!requirements.components || requirements.components.length === 0) {
+        missing.push('workload type (Deployment, StatefulSet, DaemonSet, CronJob, etc.)');
+      }
+      if (!requirements.k8s_config?.image) {
+        missing.push('container image (e.g., nginx:latest, my-app:v1)');
+      }
+      return missing;
+    }
+
+    // Helm-specific requirements
+    if (generationType === 'helm') {
+      if (!requirements.helm_config?.chartName) {
+        missing.push('chart name (e.g., my-app)');
+      }
+      if (!requirements.helm_config?.image) {
+        missing.push('container image (e.g., nginx, my-app)');
+      }
+      return missing;
+    }
+
+    // Terraform / default requirements
     if (!requirements.provider) {
       missing.push('provider (AWS, GCP, or Azure)');
     }
@@ -168,7 +207,19 @@ export class ContextExtractor {
    * Check if requirements are complete for generation
    */
   isReadyForGeneration(requirements: Partial<InfrastructureRequirements>): boolean {
-    // Must have provider and at least one component
+    const generationType = (requirements as any).generation_type;
+
+    // K8s generation: need at least a component (workload type)
+    if (generationType === 'kubernetes') {
+      return !!(requirements.components && requirements.components.length > 0);
+    }
+
+    // Helm generation: minimal requirements
+    if (generationType === 'helm') {
+      return true;
+    }
+
+    // Terraform: must have provider and at least one component
     if (!requirements.provider || !requirements.components || requirements.components.length === 0) {
       return false;
     }
@@ -221,6 +272,17 @@ export class ContextExtractor {
         versioning: requirements.s3_config?.versioning ?? true,
         encryption: requirements.s3_config?.encryption ?? true,
         ...requirements.s3_config,
+      },
+      k8s_config: {
+        workloadType: requirements.k8s_config?.workloadType || 'deployment',
+        replicas: requirements.k8s_config?.replicas || 1,
+        serviceType: requirements.k8s_config?.serviceType || 'ClusterIP',
+        containerPort: requirements.k8s_config?.containerPort || 80,
+        ...requirements.k8s_config,
+      },
+      helm_config: {
+        replicas: requirements.helm_config?.replicas || 1,
+        ...requirements.helm_config,
       },
       tags: {
         Environment: requirements.environment || 'development',
@@ -319,6 +381,10 @@ export class ContextExtractor {
 
     if (infrastructure_stack?.components && infrastructure_stack.components.length > 0) {
       summary += `Components: ${infrastructure_stack.components.join(', ')}\\n`;
+    }
+
+    if (infrastructure_stack?.generation_type) {
+      summary += `Generation Type: ${infrastructure_stack.generation_type}\\n`;
     }
 
     summary += `\\nTotal turns: ${conversation_history.length}\\n`;

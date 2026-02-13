@@ -285,10 +285,14 @@ async function checkCoreServices(options: DoctorOptions): Promise<CheckResult> {
  */
 async function checkToolServices(options: DoctorOptions): Promise<CheckResult> {
   const services = [
+    { name: 'Git Tools', url: process.env.GIT_TOOLS_URL || 'http://localhost:3004' },
+    { name: 'FS Tools', url: process.env.FS_TOOLS_URL || 'http://localhost:3005' },
     { name: 'Terraform Tools', url: process.env.TERRAFORM_TOOLS_URL || 'http://localhost:3006' },
     { name: 'K8s Tools', url: process.env.K8S_TOOLS_URL || 'http://localhost:3007' },
     { name: 'Helm Tools', url: process.env.HELM_TOOLS_URL || 'http://localhost:3008' },
     { name: 'AWS Tools', url: process.env.AWS_TOOLS_URL || 'http://localhost:3009' },
+    { name: 'GitHub Tools', url: process.env.GITHUB_TOOLS_URL || 'http://localhost:3010' },
+    { name: 'State Service', url: process.env.STATE_SERVICE_URL || 'http://localhost:3011' },
   ];
 
   const results: Array<{ name: string; status: string }> = [];

@@ -1,17 +1,123 @@
 import type { ConversationalIntent, IntentEntity, NLUPattern } from './types';
 import { logger } from '@nimbus/shared-utils';
 
+/** System prompt for LLM-based intent classification. */
+const INTENT_PROMPT =
+  "Classify the user's infrastructure intent. Return JSON with fields: " +
+  'intent (one of: generate, modify, explain, help), confidence (number 0-1), ' +
+  'entities (array of {type: string, value: string} where type is one of: provider, component, environment, region, generation_type). ' +
+  'Return ONLY the JSON object, no markdown.';
+
+/** Valid intent types returned by the LLM. */
+const VALID_INTENTS = new Set(['generate', 'modify', 'explain', 'help']);
+
 export class IntentParser {
   private patterns: NLUPattern[];
+
+  /** Base URL for the LLM service. */
+  private llmServiceUrl = process.env.LLM_SERVICE_URL || 'http://localhost:3002';
 
   constructor() {
     this.patterns = this.initializePatterns();
   }
 
   /**
-   * Parse user input to extract intent and entities
+   * Parse user input to extract intent and entities.
+   * Attempts LLM-based classification first, falls back to regex/keyword matching.
    */
-  parse(input: string): ConversationalIntent {
+  async parse(input: string): Promise<ConversationalIntent> {
+    try {
+      const llmResult = await this.parseWithLLM(input);
+      if (llmResult) {
+        logger.debug(`Using LLM-classified intent: ${llmResult.type} (confidence: ${llmResult.confidence})`);
+        return llmResult;
+      }
+    } catch (error) {
+      logger.debug(`LLM intent parsing failed, falling back to heuristics: ${(error as Error).message}`);
+    }
+
+    return this.parseHeuristic(input);
+  }
+
+  /**
+   * Classify intent using the LLM service.
+   */
+  private async parseWithLLM(input: string): Promise<ConversationalIntent | null> {
+    const response = await fetch(`${this.llmServiceUrl}/api/llm/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: INTENT_PROMPT },
+          { role: 'user', content: input },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`LLM service returned status ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('LLM response missing content');
+    }
+
+    const parsed: unknown = JSON.parse(content);
+
+    if (typeof parsed !== 'object' || parsed === null) {
+      throw new Error('LLM response is not an object');
+    }
+
+    const obj = parsed as Record<string, unknown>;
+
+    // Validate required fields
+    if (typeof obj.intent !== 'string' || typeof obj.confidence !== 'number') {
+      throw new Error('LLM response missing required fields');
+    }
+
+    // Map intent to type, defaulting to 'unknown' for unrecognized intents
+    const intentType: ConversationalIntent['type'] = VALID_INTENTS.has(obj.intent)
+      ? (obj.intent as ConversationalIntent['type'])
+      : 'unknown';
+
+    // Only use LLM result if confidence is sufficient (>= 0.9 for high-quality results)
+    const confidence = Math.min(obj.confidence, 1);
+
+    // Parse entities
+    const entities: IntentEntity[] = [];
+    if (Array.isArray(obj.entities)) {
+      for (const entity of obj.entities) {
+        if (
+          typeof entity === 'object' &&
+          entity !== null &&
+          typeof entity.type === 'string' &&
+          typeof entity.value === 'string'
+        ) {
+          entities.push({
+            type: entity.type,
+            value: entity.value,
+            confidence: 0.9,
+          });
+        }
+      }
+    }
+
+    return {
+      type: intentType,
+      confidence,
+      entities,
+    };
+  }
+
+  /**
+   * Parse user input using regex patterns and keyword matching (fallback).
+   */
+  private parseHeuristic(input: string): ConversationalIntent {
     const normalizedInput = input.toLowerCase().trim();
 
     // Try to match patterns
@@ -85,7 +191,11 @@ export class IntentParser {
    * Match intent by keywords when patterns don't match
    */
   private matchByKeywords(input: string): ConversationalIntent | null {
-    const generateKeywords = ['create', 'generate', 'build', 'setup', 'deploy', 'provision'];
+    const generateKeywords = [
+      'create', 'generate', 'build', 'setup', 'deploy', 'provision',
+      'deployment', 'pod', 'statefulset', 'daemonset', 'cronjob', 'ingress',
+      'helm', 'chart', 'manifest',
+    ];
     const modifyKeywords = ['change', 'modify', 'update', 'edit', 'adjust', 'alter'];
     const explainKeywords = ['explain', 'what', 'why', 'how', 'tell me about', 'describe'];
     const helpKeywords = ['help', 'assist', 'guide', 'support'];
@@ -153,21 +263,81 @@ export class IntentParser {
       }
     }
 
-    // Component extraction
+    // K8s workload type extraction (check before generic components to set generation_type)
+    const k8sWorkloads = ['deployment', 'pod', 'service', 'ingress', 'namespace', 'statefulset', 'daemonset', 'cronjob'];
+    let foundK8sWorkload = false;
+    for (const workload of k8sWorkloads) {
+      if (input.includes(workload)) {
+        entities.push({
+          type: 'component',
+          value: workload,
+          confidence: 0.8,
+        });
+        foundK8sWorkload = true;
+      }
+    }
+
+    if (foundK8sWorkload) {
+      entities.push({
+        type: 'generation_type',
+        value: 'kubernetes',
+        confidence: 0.85,
+      });
+    }
+
+    // Helm keyword extraction
+    const helmKeywords = ['helm chart', 'helm', 'chart', 'values.yaml'];
+    let foundHelm = false;
+    for (const keyword of helmKeywords) {
+      if (input.includes(keyword)) {
+        foundHelm = true;
+        break;
+      }
+    }
+
+    if (foundHelm) {
+      // If helm is found, override generation_type to helm
+      const existingGenType = entities.find((e) => e.type === 'generation_type');
+      if (existingGenType) {
+        existingGenType.value = 'helm';
+      } else {
+        entities.push({
+          type: 'generation_type',
+          value: 'helm',
+          confidence: 0.85,
+        });
+      }
+    }
+
+    // Component extraction (cloud infrastructure components)
     const components = ['vpc', 'eks', 'kubernetes', 'k8s', 'rds', 'database', 's3', 'storage', 'bucket'];
     for (const component of components) {
       if (input.includes(component)) {
+        // Skip if already added as a K8s workload
+        if (foundK8sWorkload && (component === 'kubernetes' || component === 'k8s')) {
+          continue;
+        }
+
         let normalizedComponent = component;
-        if (component === 'k8s') normalizedComponent = 'eks';
-        if (component === 'kubernetes') normalizedComponent = 'eks';
+
+        // When generation_type is kubernetes or helm, map k8s/kubernetes to 'kubernetes'
+        const genTypeEntity = entities.find((e) => e.type === 'generation_type');
+        const isK8sGeneration = genTypeEntity && (genTypeEntity.value === 'kubernetes' || genTypeEntity.value === 'helm');
+
+        if (component === 'k8s' || component === 'kubernetes') {
+          normalizedComponent = isK8sGeneration ? 'kubernetes' : 'eks';
+        }
         if (component === 'database') normalizedComponent = 'rds';
         if (component === 'storage' || component === 'bucket') normalizedComponent = 's3';
 
-        entities.push({
-          type: 'component',
-          value: normalizedComponent,
-          confidence: 0.8,
-        });
+        // Avoid duplicate component entries
+        if (!entities.some((e) => e.type === 'component' && e.value === normalizedComponent)) {
+          entities.push({
+            type: 'component',
+            value: normalizedComponent,
+            confidence: 0.8,
+          });
+        }
       }
     }
 
@@ -207,6 +377,32 @@ export class IntentParser {
    */
   private initializePatterns(): NLUPattern[] {
     return [
+      // Generate Helm chart patterns (check before generic K8s to avoid conflicts)
+      {
+        pattern: /(?:create|generate|build)\s+(?:a|an)?\s*helm\s+chart/i,
+        intent: 'generate',
+        entities: [
+          {
+            type: 'generation_type',
+            extractor: () => 'helm',
+          },
+        ],
+      },
+      // Generate Kubernetes resource patterns
+      {
+        pattern: /(?:create|generate|build|deploy)\s+(?:a|an)?\s*(deployment|pod|service|statefulset|daemonset|cronjob|ingress)/i,
+        intent: 'generate',
+        entities: [
+          {
+            type: 'component',
+            extractor: (match) => match[1].toLowerCase(),
+          },
+          {
+            type: 'generation_type',
+            extractor: () => 'kubernetes',
+          },
+        ],
+      },
       // Generate infrastructure patterns
       {
         pattern: /(?:create|generate|build|setup)\\s+(?:a|an)?\\s*(vpc|eks|rds|s3|kubernetes|k8s)(?:\\s+on|\\s+in)?\\s+(aws|gcp|azure)?/i,
@@ -287,7 +483,7 @@ export class IntentParser {
       },
       // Explain patterns
       {
-        pattern: /(?:what|explain|describe|tell me about)\\s+(?:is|are)?\\s*(?:a|an|the)?\\s*(vpc|eks|rds|s3|terraform|kubernetes)/i,
+        pattern: /(?:what|explain|describe|tell me about)\\s+(?:is|are)?\\s*(?:a|an|the)?\\s*(vpc|eks|rds|s3|terraform|kubernetes|helm|deployment|statefulset|ingress)/i,
         intent: 'explain',
         entities: [
           {

@@ -7,6 +7,25 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+const KEYCHAIN_SERVICE = 'nimbus-cli';
+const CREDENTIALS_DIR = path.join(os.homedir(), '.nimbus');
+
+// Lazy-loaded keytar (native module may not be available)
+let keytar: any = null;
+let keytarLoaded = false;
+async function loadKeytar(): Promise<any> {
+  if (keytarLoaded) return keytar;
+  keytarLoaded = true;
+  try {
+    // @ts-ignore - keytar is an optional native dependency
+    keytar = await import('keytar');
+    return keytar;
+  } catch {
+    keytar = null;
+    return null;
+  }
+}
+
 export interface AWSCredentials {
   provider: 'aws';
   accessKeyId?: string;
@@ -334,6 +353,106 @@ export class CredentialsManager {
     } catch (error) {
       logger.error('Azure credentials validation failed', error);
       return false;
+    }
+  }
+
+  /**
+   * Store a credential securely via OS keychain or file fallback
+   */
+  async storeCredential(provider: string, data: Record<string, unknown>): Promise<void> {
+    const serialized = JSON.stringify(data);
+
+    if (await this.isKeychainAvailable()) {
+      const kt = (await loadKeytar())!;
+      await kt.setPassword(KEYCHAIN_SERVICE, provider, serialized);
+      logger.info(`Credential stored in OS keychain for provider: ${provider}`);
+      return;
+    }
+
+    await this.storeCredentialInFile(provider, serialized);
+    logger.info(`Credential stored in file fallback for provider: ${provider}`);
+  }
+
+  /**
+   * Retrieve a credential from OS keychain or file fallback
+   */
+  async retrieveCredential(provider: string): Promise<Record<string, unknown> | null> {
+    if (await this.isKeychainAvailable()) {
+      const kt = (await loadKeytar())!;
+      const value = await kt.getPassword(KEYCHAIN_SERVICE, provider);
+      if (value) {
+        return JSON.parse(value);
+      }
+    }
+
+    const value = await this.retrieveCredentialFromFile(provider);
+    if (value) {
+      return JSON.parse(value);
+    }
+
+    return null;
+  }
+
+  /**
+   * Delete a credential from OS keychain and file fallback
+   */
+  async deleteCredential(provider: string): Promise<void> {
+    if (await this.isKeychainAvailable()) {
+      const kt = (await loadKeytar())!;
+      await kt.deletePassword(KEYCHAIN_SERVICE, provider);
+      logger.info(`Credential deleted from OS keychain for provider: ${provider}`);
+    }
+
+    await this.deleteCredentialFromFile(provider);
+  }
+
+  /**
+   * Check if OS keychain is available via keytar
+   */
+  private async isKeychainAvailable(): Promise<boolean> {
+    const kt = await loadKeytar();
+    if (!kt) return false;
+    try {
+      // Test access by attempting a read
+      await kt.getPassword(KEYCHAIN_SERVICE, '__test__');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Store credential data as base64-encoded file
+   */
+  private async storeCredentialInFile(provider: string, data: string): Promise<void> {
+    await fs.mkdir(CREDENTIALS_DIR, { recursive: true });
+    const filePath = path.join(CREDENTIALS_DIR, `credentials.${provider}.enc`);
+    const encoded = Buffer.from(data).toString('base64');
+    await fs.writeFile(filePath, encoded, { mode: 0o600 });
+  }
+
+  /**
+   * Retrieve credential data from base64-encoded file
+   */
+  private async retrieveCredentialFromFile(provider: string): Promise<string | null> {
+    const filePath = path.join(CREDENTIALS_DIR, `credentials.${provider}.enc`);
+    try {
+      const encoded = await fs.readFile(filePath, 'utf-8');
+      return Buffer.from(encoded, 'base64').toString('utf-8');
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Delete credential file
+   */
+  private async deleteCredentialFromFile(provider: string): Promise<void> {
+    const filePath = path.join(CREDENTIALS_DIR, `credentials.${provider}.enc`);
+    try {
+      await fs.unlink(filePath);
+    } catch {
+      // File may not exist, ignore
     }
   }
 

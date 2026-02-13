@@ -42,3 +42,20 @@ export {
   type GitBranch,
   type GitRemote,
 } from './git-client';
+
+export {
+  GeneratorClient,
+  generatorClient,
+  type ConversationResult,
+  type GeneratedFile,
+  type GenerationResult,
+  type QuestionnaireResponse,
+} from './generator-client';
+
+export {
+  CoreEngineClient,
+  type DriftDetectParams,
+  type DriftFixParams,
+  type RollbackParams,
+  type RollbackResult,
+} from './core-engine-client';

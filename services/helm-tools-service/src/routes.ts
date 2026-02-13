@@ -666,6 +666,227 @@ async function handleVersion(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * POST /api/helm/test - Run release tests
+ */
+async function handleTest(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      name: string;
+      namespace?: string;
+      timeout?: string;
+      filter?: string;
+      logs?: boolean;
+      kubeconfig?: string;
+      kubeContext?: string;
+    }>(ctx.req);
+
+    if (!body.name) {
+      return error('Missing required field: name', 400);
+    }
+
+    const helm = new HelmOperations({
+      kubeconfig: body.kubeconfig,
+      kubeContext: body.kubeContext,
+      namespace: body.namespace,
+    });
+
+    const result = await helm.test({
+      name: body.name,
+      namespace: body.namespace,
+      timeout: body.timeout,
+      filter: body.filter,
+      logs: body.logs,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Test failed', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Test failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/helm/package - Package a chart
+ */
+async function handlePackage(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      chartPath: string;
+      destination?: string;
+      version?: string;
+      appVersion?: string;
+      dependencyUpdate?: boolean;
+      kubeconfig?: string;
+      kubeContext?: string;
+    }>(ctx.req);
+
+    if (!body.chartPath) {
+      return error('Missing required field: chartPath', 400);
+    }
+
+    const helm = new HelmOperations({
+      kubeconfig: body.kubeconfig,
+      kubeContext: body.kubeContext,
+    });
+
+    const result = await helm.package(body.chartPath, {
+      destination: body.destination,
+      version: body.version,
+      appVersion: body.appVersion,
+      dependencyUpdate: body.dependencyUpdate,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Package failed', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Package failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/helm/lint - Lint a chart
+ */
+async function handleLint(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      chartPath: string;
+      strict?: boolean;
+      valuesFiles?: string[];
+      kubeconfig?: string;
+      kubeContext?: string;
+    }>(ctx.req);
+
+    if (!body.chartPath) {
+      return error('Missing required field: chartPath', 400);
+    }
+
+    const helm = new HelmOperations({
+      kubeconfig: body.kubeconfig,
+      kubeContext: body.kubeContext,
+    });
+
+    const result = await helm.lint(body.chartPath, body.strict, body.valuesFiles);
+
+    if (!result.success) {
+      return error(result.error || 'Lint failed', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Lint failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/helm/create - Create a new chart
+ */
+async function handleCreate(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      name: string;
+      starterChart?: string;
+      kubeconfig?: string;
+      kubeContext?: string;
+    }>(ctx.req);
+
+    if (!body.name) {
+      return error('Missing required field: name', 400);
+    }
+
+    const helm = new HelmOperations({
+      kubeconfig: body.kubeconfig,
+      kubeContext: body.kubeContext,
+    });
+
+    const result = await helm.create(body.name, body.starterChart);
+
+    if (!result.success) {
+      return error(result.error || 'Create failed', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Create failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/helm/dependency/update - Update chart dependencies
+ */
+async function handleDependencyUpdate(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      chartPath: string;
+      kubeconfig?: string;
+      kubeContext?: string;
+    }>(ctx.req);
+
+    if (!body.chartPath) {
+      return error('Missing required field: chartPath', 400);
+    }
+
+    const helm = new HelmOperations({
+      kubeconfig: body.kubeconfig,
+      kubeContext: body.kubeContext,
+    });
+
+    const result = await helm.dependencyUpdate(body.chartPath);
+
+    if (!result.success) {
+      return error(result.error || 'Dependency update failed', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Dependency update failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/helm/manifest - Get release manifest
+ */
+async function handleGetManifest(ctx: RouteContext): Promise<Response> {
+  try {
+    const name = ctx.url.searchParams.get('name');
+    const namespace = ctx.url.searchParams.get('namespace') || undefined;
+    const revision = ctx.url.searchParams.get('revision');
+    const kubeconfig = ctx.url.searchParams.get('kubeconfig') || undefined;
+    const kubeContext = ctx.url.searchParams.get('kubeContext') || undefined;
+
+    if (!name) {
+      return error('Missing required query parameter: name', 400);
+    }
+
+    const helm = new HelmOperations({ kubeconfig, kubeContext, namespace });
+    const result = await helm.getManifest(
+      name,
+      namespace,
+      revision ? parseInt(revision) : undefined
+    );
+
+    if (!result.success) {
+      return error(result.error || 'Failed to get manifest', 500);
+    }
+
+    return success({ manifest: result.output });
+  } catch (err: any) {
+    logger.error('Get manifest failed', err);
+    return error(err.message);
+  }
+}
+
+/**
  * Main router function
  */
 export async function router(req: Request): Promise<Response> {
@@ -699,6 +920,16 @@ export async function router(req: Request): Promise<Response> {
           return handleRepo(ctx);
         case '/template':
           return handleTemplate(ctx);
+        case '/test':
+          return handleTest(ctx);
+        case '/package':
+          return handlePackage(ctx);
+        case '/lint':
+          return handleLint(ctx);
+        case '/create':
+          return handleCreate(ctx);
+        case '/dependency/update':
+          return handleDependencyUpdate(ctx);
       }
     }
 
@@ -719,6 +950,8 @@ export async function router(req: Request): Promise<Response> {
           return handleShow(ctx);
         case '/version':
           return handleVersion(ctx);
+        case '/manifest':
+          return handleGetManifest(ctx);
       }
     }
   }

@@ -1,0 +1,361 @@
+# Nimbus Production Docker Compose
+# Full stack deployment for production environment
+
+version: '3.8'
+
+services:
+  # Core Services
+  core-engine:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.core-engine
+    container_name: nimbus-core-engine
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - LLM_SERVICE_URL=http://llm:3002
+      - GENERATOR_SERVICE_URL=http://generator:3003
+      - STATE_SERVICE_URL=http://state:3004
+      - TERRAFORM_SERVICE_URL=http://terraform:3005
+      - K8S_SERVICE_URL=http://k8s:3006
+      - HELM_SERVICE_URL=http://helm:3007
+    depends_on:
+      - llm
+      - generator
+      - state
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  llm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.llm
+    container_name: nimbus-llm
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  generator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.generator
+    container_name: nimbus-generator
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - LLM_SERVICE_URL=http://llm:3002
+    depends_on:
+      - llm
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  state:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.state
+    container_name: nimbus-state
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+      - DATABASE_PATH=/app/data/nimbus.db
+    volumes:
+      - nimbus-data:/app/data
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MCP Tools Services
+  terraform:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.terraform
+    container_name: nimbus-terraform
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+    volumes:
+      - terraform-cache:/root/.terraform.d
+      - ./workspaces:/app/workspaces
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  k8s:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.k8s
+    container_name: nimbus-k8s
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    environment:
+      - NODE_ENV=production
+      - PORT=3006
+      - KUBECONFIG=/app/.kube/config
+    volumes:
+      - ${HOME}/.kube:/app/.kube:ro
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  helm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.helm
+    container_name: nimbus-helm
+    restart: unless-stopped
+    ports:
+      - "3007:3007"
+    environment:
+      - NODE_ENV=production
+      - PORT=3007
+      - KUBECONFIG=/app/.kube/config
+    volumes:
+      - ${HOME}/.kube:/app/.kube:ro
+      - helm-cache:/root/.cache/helm
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  git:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.git
+    container_name: nimbus-git
+    restart: unless-stopped
+    ports:
+      - "3008:3008"
+    environment:
+      - NODE_ENV=production
+      - PORT=3008
+    volumes:
+      - ${HOME}/.ssh:/home/nimbus/.ssh:ro
+      - ./workspaces:/app/workspaces
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  github:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.github
+    container_name: nimbus-github
+    restart: unless-stopped
+    ports:
+      - "3009:3009"
+    environment:
+      - NODE_ENV=production
+      - PORT=3009
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  aws:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.aws
+    container_name: nimbus-aws
+    restart: unless-stopped
+    ports:
+      - "3010:3010"
+    environment:
+      - NODE_ENV=production
+      - PORT=3010
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    volumes:
+      - ${HOME}/.aws:/home/nimbus/.aws:ro
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  fs:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.fs
+    container_name: nimbus-fs
+    restart: unless-stopped
+    ports:
+      - "3011:3011"
+    environment:
+      - NODE_ENV=production
+      - PORT=3011
+    volumes:
+      - ./workspaces:/app/workspaces
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  audit:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.audit
+    container_name: nimbus-audit
+    restart: unless-stopped
+    ports:
+      - "3012:3012"
+    environment:
+      - NODE_ENV=production
+      - PORT=3012
+      - STATE_SERVICE_URL=http://state:3004
+    depends_on:
+      - state
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3012/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Enterprise Services
+  auth:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.auth
+    container_name: nimbus-auth
+    restart: unless-stopped
+    ports:
+      - "3013:3013"
+    environment:
+      - NODE_ENV=production
+      - PORT=3013
+      - STATE_SERVICE_URL=http://state:3004
+    depends_on:
+      - state
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3013/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  team:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.team
+    container_name: nimbus-team
+    restart: unless-stopped
+    ports:
+      - "3014:3014"
+    environment:
+      - NODE_ENV=production
+      - PORT=3014
+      - STATE_SERVICE_URL=http://state:3004
+      - AUTH_SERVICE_URL=http://auth:3013
+    depends_on:
+      - state
+      - auth
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3014/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  billing:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.billing
+    container_name: nimbus-billing
+    restart: unless-stopped
+    ports:
+      - "3015:3015"
+    environment:
+      - NODE_ENV=production
+      - PORT=3015
+      - STATE_SERVICE_URL=http://state:3004
+      - AUTH_SERVICE_URL=http://auth:3013
+    depends_on:
+      - state
+      - auth
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3015/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  nimbus-network:
+    driver: bridge
+
+volumes:
+  nimbus-data:
+    driver: local
+  terraform-cache:
+    driver: local
+  helm-cache:
+    driver: local

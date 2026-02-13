@@ -1,6 +1,9 @@
 import { logger } from '@nimbus/shared-utils';
 import { startServer } from './server';
 
+// Export generators
+export * from './generators';
+
 const PORT = parseInt(process.env.PORT || '3003');
 const WS_PORT = parseInt(process.env.WS_PORT || '3103');
 

@@ -16,6 +16,7 @@ import {
   OpenAIProvider,
   GoogleProvider,
   OllamaProvider,
+  OpenRouterProvider,
 } from './providers';
 
 export interface RouterConfig {
@@ -61,7 +62,7 @@ export class LLMRouter {
         enabled: config?.fallback?.enabled ?? process.env.ENABLE_FALLBACK === 'true',
         providers:
           config?.fallback?.providers ||
-          (process.env.FALLBACK_PROVIDERS?.split(',') ?? ['anthropic', 'openai', 'google']),
+          (process.env.FALLBACK_PROVIDERS?.split(',') ?? ['anthropic', 'openai', 'openrouter', 'google']),
       },
     };
 
@@ -90,12 +91,15 @@ export class LLMRouter {
       logger.info('Initialized Google provider');
     }
 
+    // OpenRouter
+    if (process.env.OPENROUTER_API_KEY) {
+      this.providers.set('openrouter', new OpenRouterProvider());
+      logger.info('Initialized OpenRouter provider');
+    }
+
     // Ollama (always available for local models)
     this.providers.set('ollama', new OllamaProvider());
     logger.info('Initialized Ollama provider');
-
-    // Note: Ollama provider is always initialized, so size check is removed
-    // as it would never trigger. Add explicit checks for cloud providers if needed.
   }
 
   /**
@@ -185,6 +189,18 @@ export class LLMRouter {
 
     if (this.providers.has('google')) {
       models.google = ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+    }
+
+    if (this.providers.has('openrouter')) {
+      models.openrouter = [
+        'anthropic/claude-sonnet-4-20250514',
+        'anthropic/claude-haiku-4-20250514',
+        'openai/gpt-4o',
+        'openai/gpt-4o-mini',
+        'google/gemini-2.0-flash-exp',
+        'meta-llama/llama-3.1-405b-instruct',
+        'mistralai/mixtral-8x22b-instruct',
+      ];
     }
 
     if (this.providers.has('ollama')) {
@@ -304,7 +320,13 @@ export class LLMRouter {
     if (model.startsWith('claude')) return 'anthropic';
     if (model.startsWith('gpt')) return 'openai';
     if (model.startsWith('gemini')) return 'google';
-    if (model.includes('/') || model.startsWith('llama') || model.startsWith('mistral'))
+
+    // OpenRouter models use provider/model format (e.g., anthropic/claude-sonnet-4-20250514)
+    if (model.includes('/') && this.providers.has('openrouter')) {
+      return 'openrouter';
+    }
+
+    if (model.startsWith('llama') || model.startsWith('mistral'))
       return 'ollama';
     return this.config.defaultProvider;
   }

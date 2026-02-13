@@ -284,6 +284,97 @@ export class AgentOrchestrator {
   }
 
   /**
+   * Resume a task from its last checkpoint
+   */
+  async resumeTask(taskId: string): Promise<{
+    task: AgentTask;
+    executionResults: ExecutionResult[];
+  }> {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    if (!task.execution.plan_id) {
+      throw new Error(`Task ${taskId} has no associated plan. Cannot resume.`);
+    }
+
+    const plan = this.plans.get(task.execution.plan_id);
+    if (!plan) {
+      throw new Error(`Plan ${task.execution.plan_id} not found. Cannot resume.`);
+    }
+
+    logger.info(`Resuming task ${taskId} with plan ${plan.id}`);
+
+    // Update task status
+    task.status = 'executing';
+    task.updated_at = new Date();
+
+    this.emitEvent({
+      id: this.generateEventId(),
+      task_id: task.id,
+      type: 'execution_started',
+      timestamp: new Date(),
+      data: { plan_id: plan.id, resumed: true },
+    });
+
+    // Re-execute the plan; the executor will pick up from the checkpoint
+    const executionResults = await this.executor.executePlan(plan);
+
+    // Check if execution succeeded
+    const executionFailed = executionResults.some((r) => r.status === 'failure');
+
+    if (executionFailed) {
+      task.status = 'failed';
+      task.result = {
+        success: false,
+        errors: executionResults
+          .filter((r) => r.error)
+          .map((r) => r.error!.message),
+      };
+      task.updated_at = new Date();
+
+      this.emitEvent({
+        id: this.generateEventId(),
+        task_id: task.id,
+        type: 'task_failed',
+        timestamp: new Date(),
+        data: { error: 'Resumed execution failed' },
+      });
+
+      throw new Error('Resumed execution failed');
+    }
+
+    // Mark task as completed
+    task.status = 'completed';
+    task.completed_at = new Date();
+    task.updated_at = new Date();
+    task.result = {
+      success: true,
+      outputs: executionResults.reduce((acc, r) => ({ ...acc, ...r.outputs }), {}),
+      artifacts: executionResults.flatMap((r) => r.artifacts?.map((a) => a.name) || []),
+    };
+
+    this.emitEvent({
+      id: this.generateEventId(),
+      task_id: task.id,
+      type: 'task_completed',
+      timestamp: new Date(),
+      data: {
+        duration: task.completed_at.getTime() - task.created_at.getTime(),
+        resumed: true,
+      },
+    });
+
+    logger.info(`Resumed task ${taskId} completed successfully`);
+
+    return {
+      task,
+      executionResults,
+    };
+  }
+
+  /**
    * Get task by ID
    */
   getTask(taskId: string): AgentTask | undefined {

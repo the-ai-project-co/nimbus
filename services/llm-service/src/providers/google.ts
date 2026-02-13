@@ -72,6 +72,8 @@ export class GoogleProvider extends BaseProvider {
       },
     });
 
+    let usage: StreamChunk['usage'] | undefined;
+
     for await (const chunk of result.stream) {
       const text = chunk.text();
       if (text) {
@@ -80,9 +82,18 @@ export class GoogleProvider extends BaseProvider {
           done: false,
         };
       }
+
+      // Capture usage metadata from the chunk if available
+      if (chunk.usageMetadata) {
+        usage = {
+          promptTokens: chunk.usageMetadata.promptTokenCount || 0,
+          completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
+          totalTokens: chunk.usageMetadata.totalTokenCount || 0,
+        };
+      }
     }
 
-    yield { done: true };
+    yield { done: true, usage };
   }
 
   async completeWithTools(request: ToolCompletionRequest): Promise<LLMResponse> {

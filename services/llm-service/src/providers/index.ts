@@ -8,6 +8,7 @@ export { AnthropicProvider } from './anthropic';
 export { OpenAIProvider } from './openai';
 export { GoogleProvider } from './google';
 export { OllamaProvider } from './ollama';
+export { OpenRouterProvider } from './openrouter';
 
 // Auth bridge for credential resolution
 export {

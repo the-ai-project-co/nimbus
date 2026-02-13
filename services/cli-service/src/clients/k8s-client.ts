@@ -179,6 +179,63 @@ export class K8sClient {
   }
 
   /**
+   * Execute a command in a pod
+   */
+  async exec(
+    pod: string,
+    command: string[],
+    options?: {
+      namespace?: string;
+      container?: string;
+    }
+  ): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/exec', { pod, command, ...options });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
+   * Manage rollouts
+   */
+  async rollout(
+    resource: string,
+    name: string,
+    action: string,
+    options?: {
+      namespace?: string;
+      revision?: number;
+    }
+  ): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/rollout', { action, resource, name, ...options });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
+   * Get events from a namespace
+   */
+  async events(
+    options?: {
+      namespace?: string;
+      fieldSelector?: string;
+    }
+  ): Promise<{ success: boolean; events: Array<Record<string, string>>; error?: string }> {
+    const params = new URLSearchParams();
+    if (options?.namespace) params.set('namespace', options.namespace);
+    if (options?.fieldSelector) params.set('fieldSelector', options.fieldSelector);
+
+    const response = await this.client.get<{ success: boolean; events: Array<Record<string, string>>; error?: string }>(`/api/k8s/events?${params.toString()}`);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, events: [], error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
    * Check if service is available
    */
   async isAvailable(): Promise<boolean> {

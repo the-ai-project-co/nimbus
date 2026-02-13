@@ -471,6 +471,301 @@ async function handleIsClean(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * POST /api/git/cherry-pick - Cherry-pick a commit
+ */
+async function handleCherryPick(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      path?: string;
+      commit: string;
+      noCommit?: boolean;
+      edit?: boolean;
+      signoff?: boolean;
+      strategy?: string;
+    }>(ctx.req);
+
+    if (!body.commit) {
+      return error('Missing required field: commit', 400);
+    }
+
+    const repoPath = body.path || process.cwd();
+    const git = new GitOperations(repoPath);
+    const result = await git.cherryPick(body.commit, {
+      noCommit: body.noCommit,
+      edit: body.edit,
+      signoff: body.signoff,
+      strategy: body.strategy,
+    });
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Cherry-pick failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/cherry-pick/abort - Abort cherry-pick
+ */
+async function handleCherryPickAbort(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ path?: string }>(ctx.req);
+    const repoPath = body.path || process.cwd();
+
+    const git = new GitOperations(repoPath);
+    const result = await git.cherryPickAbort();
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Cherry-pick abort failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/cherry-pick/continue - Continue cherry-pick
+ */
+async function handleCherryPickContinue(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ path?: string }>(ctx.req);
+    const repoPath = body.path || process.cwd();
+
+    const git = new GitOperations(repoPath);
+    const result = await git.cherryPickContinue();
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Cherry-pick continue failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/rebase - Rebase onto target
+ */
+async function handleRebase(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      path?: string;
+      target: string;
+      onto?: string;
+      preserveMerges?: boolean;
+      strategy?: string;
+      strategyOption?: string;
+    }>(ctx.req);
+
+    if (!body.target) {
+      return error('Missing required field: target', 400);
+    }
+
+    const repoPath = body.path || process.cwd();
+    const git = new GitOperations(repoPath);
+    const result = await git.rebase(body.target, {
+      onto: body.onto,
+      preserveMerges: body.preserveMerges,
+      strategy: body.strategy,
+      strategyOption: body.strategyOption,
+    });
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Rebase failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/rebase/abort - Abort rebase
+ */
+async function handleRebaseAbort(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ path?: string }>(ctx.req);
+    const repoPath = body.path || process.cwd();
+
+    const git = new GitOperations(repoPath);
+    const result = await git.rebaseAbort();
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Rebase abort failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/rebase/continue - Continue rebase
+ */
+async function handleRebaseContinue(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ path?: string }>(ctx.req);
+    const repoPath = body.path || process.cwd();
+
+    const git = new GitOperations(repoPath);
+    const result = await git.rebaseContinue();
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Rebase continue failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/rebase/skip - Skip commit during rebase
+ */
+async function handleRebaseSkip(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ path?: string }>(ctx.req);
+    const repoPath = body.path || process.cwd();
+
+    const git = new GitOperations(repoPath);
+    const result = await git.rebaseSkip();
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Rebase skip failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/tag - Create a tag
+ */
+async function handleCreateTag(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      path?: string;
+      name: string;
+      message?: string;
+      annotated?: boolean;
+      force?: boolean;
+      commit?: string;
+    }>(ctx.req);
+
+    if (!body.name) {
+      return error('Missing required field: name', 400);
+    }
+
+    const repoPath = body.path || process.cwd();
+    const git = new GitOperations(repoPath);
+    const result = await git.tag(body.name, {
+      message: body.message,
+      annotated: body.annotated,
+      force: body.force,
+      commit: body.commit,
+    });
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Create tag failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * DELETE /api/git/tag - Delete a tag
+ */
+async function handleDeleteTag(ctx: RouteContext): Promise<Response> {
+  try {
+    const name = ctx.url.searchParams.get('name');
+    const remote = ctx.url.searchParams.get('remote') || undefined;
+    const repoPath = ctx.url.searchParams.get('path') || process.cwd();
+
+    if (!name) {
+      return error('Missing required query parameter: name', 400);
+    }
+
+    const git = new GitOperations(repoPath);
+    const result = await git.deleteTag(name, remote);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Delete tag failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/git/tags - List tags
+ */
+async function handleListTags(ctx: RouteContext): Promise<Response> {
+  try {
+    const repoPath = ctx.url.searchParams.get('path') || process.cwd();
+    const pattern = ctx.url.searchParams.get('pattern') || undefined;
+
+    const git = new GitOperations(repoPath);
+    const tags = await git.listTags(pattern);
+
+    return success({ tags });
+  } catch (err: any) {
+    logger.error('List tags failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/git/tag/push - Push tags to remote
+ */
+async function handlePushTags(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      path?: string;
+      remote?: string;
+      tagName?: string;
+    }>(ctx.req);
+
+    const repoPath = body.path || process.cwd();
+    const git = new GitOperations(repoPath);
+    const result = await git.pushTags(body.remote, body.tagName);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Push tags failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/git/tag/show - Show tag information
+ */
+async function handleShowTag(ctx: RouteContext): Promise<Response> {
+  try {
+    const name = ctx.url.searchParams.get('name');
+    const repoPath = ctx.url.searchParams.get('path') || process.cwd();
+
+    if (!name) {
+      return error('Missing required query parameter: name', 400);
+    }
+
+    const git = new GitOperations(repoPath);
+    const result = await git.showTag(name);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Show tag failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/git/conflicts - Get conflicted files
+ */
+async function handleGetConflicts(ctx: RouteContext): Promise<Response> {
+  try {
+    const repoPath = ctx.url.searchParams.get('path') || process.cwd();
+
+    const git = new GitOperations(repoPath);
+    const conflicts = await git.getConflicts();
+    const hasConflicts = conflicts.length > 0;
+
+    return success({ hasConflicts, conflicts });
+  } catch (err: any) {
+    logger.error('Get conflicts failed', err);
+    return error(err.message);
+  }
+}
+
+/**
  * Main router function
  */
 export async function router(req: Request): Promise<Response> {
@@ -516,6 +811,24 @@ export async function router(req: Request): Promise<Response> {
           return handleReset(ctx);
         case '/init':
           return handleInit(ctx);
+        case '/cherry-pick':
+          return handleCherryPick(ctx);
+        case '/cherry-pick/abort':
+          return handleCherryPickAbort(ctx);
+        case '/cherry-pick/continue':
+          return handleCherryPickContinue(ctx);
+        case '/rebase':
+          return handleRebase(ctx);
+        case '/rebase/abort':
+          return handleRebaseAbort(ctx);
+        case '/rebase/continue':
+          return handleRebaseContinue(ctx);
+        case '/rebase/skip':
+          return handleRebaseSkip(ctx);
+        case '/tag':
+          return handleCreateTag(ctx);
+        case '/tag/push':
+          return handlePushTags(ctx);
       }
     }
 
@@ -536,6 +849,20 @@ export async function router(req: Request): Promise<Response> {
           return handleCurrentBranch(ctx);
         case '/is-clean':
           return handleIsClean(ctx);
+        case '/tags':
+          return handleListTags(ctx);
+        case '/tag/show':
+          return handleShowTag(ctx);
+        case '/conflicts':
+          return handleGetConflicts(ctx);
+      }
+    }
+
+    // DELETE routes
+    if (method === 'DELETE') {
+      switch (route) {
+        case '/tag':
+          return handleDeleteTag(ctx);
       }
     }
   }

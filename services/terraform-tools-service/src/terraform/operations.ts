@@ -524,4 +524,114 @@ export class TerraformOperations {
       return false;
     }
   }
+
+  /**
+   * Move a resource in state
+   */
+  async stateMove(source: string, destination: string): Promise<{ success: boolean; output: string }> {
+    logger.info(`Terraform state mv ${source} ${destination} in ${this.workingDir}`);
+
+    const result = await this.execute(['state', 'mv', source, destination]);
+
+    return { success: true, output: result.stdout || result.stderr };
+  }
+
+  /**
+   * Taint a resource (mark for recreation)
+   */
+  async taint(address: string): Promise<{ success: boolean; output: string }> {
+    logger.info(`Terraform taint ${address} in ${this.workingDir}`);
+
+    const result = await this.execute(['taint', address]);
+
+    return { success: true, output: result.stdout || result.stderr };
+  }
+
+  /**
+   * Untaint a resource (unmark for recreation)
+   */
+  async untaint(address: string): Promise<{ success: boolean; output: string }> {
+    logger.info(`Terraform untaint ${address} in ${this.workingDir}`);
+
+    const result = await this.execute(['untaint', address]);
+
+    return { success: true, output: result.stdout || result.stderr };
+  }
+
+  /**
+   * Pull remote state
+   */
+  async statePull(): Promise<{ success: boolean; state: string }> {
+    logger.info(`Terraform state pull in ${this.workingDir}`);
+
+    const result = await this.execute(['state', 'pull']);
+
+    return { success: true, state: result.stdout };
+  }
+
+  /**
+   * Push local state to remote
+   */
+  async statePush(stateFile?: string, force?: boolean): Promise<{ success: boolean; output: string }> {
+    logger.info(`Terraform state push in ${this.workingDir}`);
+
+    const args = ['state', 'push'];
+    if (force) {
+      args.push('-force');
+    }
+    if (stateFile) {
+      args.push(stateFile);
+    }
+
+    const result = await this.execute(args);
+
+    return { success: true, output: result.stdout || result.stderr };
+  }
+
+  /**
+   * Replace a provider in state
+   */
+  async stateReplaceProvider(
+    fromProvider: string,
+    toProvider: string
+  ): Promise<{ success: boolean; output: string }> {
+    logger.info(`Terraform state replace-provider ${fromProvider} ${toProvider} in ${this.workingDir}`);
+
+    const result = await this.execute([
+      'state',
+      'replace-provider',
+      '-auto-approve',
+      fromProvider,
+      toProvider,
+    ]);
+
+    return { success: true, output: result.stdout || result.stderr };
+  }
+
+  /**
+   * Get graph of resources
+   */
+  async graph(type?: 'plan' | 'apply'): Promise<{ success: boolean; graph: string }> {
+    logger.info(`Terraform graph in ${this.workingDir}`);
+
+    const args = ['graph'];
+    if (type) {
+      args.push('-type', type);
+    }
+
+    const result = await this.execute(args);
+
+    return { success: true, graph: result.stdout };
+  }
+
+  /**
+   * Force unlock state
+   */
+  async forceUnlock(lockId: string): Promise<{ success: boolean; output: string }> {
+    logger.info(`Terraform force-unlock ${lockId} in ${this.workingDir}`);
+
+    const result = await this.execute(['force-unlock', '-force', lockId]);
+
+    return { success: true, output: result.stdout || result.stderr };
+  }
 }

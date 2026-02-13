@@ -681,6 +681,296 @@ async function handleVersion(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * POST /api/k8s/port-forward - Start port forwarding
+ */
+async function handlePortForward(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      resource: string;
+      name: string;
+      namespace?: string;
+      ports: string[];
+      address?: string;
+      kubeconfig?: string;
+      context?: string;
+    }>(ctx.req);
+
+    if (!body.resource) {
+      return error('Missing required field: resource', 400);
+    }
+
+    if (!body.name) {
+      return error('Missing required field: name', 400);
+    }
+
+    if (!body.ports || body.ports.length === 0) {
+      return error('Missing required field: ports', 400);
+    }
+
+    const k8s = new KubernetesOperations({
+      kubeconfig: body.kubeconfig,
+      context: body.context,
+      namespace: body.namespace,
+    });
+
+    const result = await k8s.portForward({
+      resource: body.resource,
+      name: body.name,
+      namespace: body.namespace,
+      ports: body.ports,
+      address: body.address,
+    });
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Port forward failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/k8s/label - Label a resource
+ */
+async function handleLabel(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      resource: string;
+      name: string;
+      namespace?: string;
+      labels: Record<string, string | null>;
+      overwrite?: boolean;
+      kubeconfig?: string;
+      context?: string;
+    }>(ctx.req);
+
+    if (!body.resource || !body.name || !body.labels) {
+      return error('Missing required fields: resource, name, labels', 400);
+    }
+
+    const k8s = new KubernetesOperations({
+      kubeconfig: body.kubeconfig,
+      context: body.context,
+      namespace: body.namespace,
+    });
+
+    const result = await k8s.label({
+      resource: body.resource,
+      name: body.name,
+      namespace: body.namespace,
+      labels: body.labels,
+      overwrite: body.overwrite,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to label resource', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Label failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/k8s/annotate - Annotate a resource
+ */
+async function handleAnnotate(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      resource: string;
+      name: string;
+      namespace?: string;
+      annotations: Record<string, string | null>;
+      overwrite?: boolean;
+      kubeconfig?: string;
+      context?: string;
+    }>(ctx.req);
+
+    if (!body.resource || !body.name || !body.annotations) {
+      return error('Missing required fields: resource, name, annotations', 400);
+    }
+
+    const k8s = new KubernetesOperations({
+      kubeconfig: body.kubeconfig,
+      context: body.context,
+      namespace: body.namespace,
+    });
+
+    const result = await k8s.annotate({
+      resource: body.resource,
+      name: body.name,
+      namespace: body.namespace,
+      annotations: body.annotations,
+      overwrite: body.overwrite,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to annotate resource', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Annotate failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/k8s/patch - Patch a resource
+ */
+async function handlePatch(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      resource: string;
+      name: string;
+      namespace?: string;
+      patch: Record<string, unknown>;
+      type?: 'json' | 'merge' | 'strategic';
+      kubeconfig?: string;
+      context?: string;
+    }>(ctx.req);
+
+    if (!body.resource || !body.name || !body.patch) {
+      return error('Missing required fields: resource, name, patch', 400);
+    }
+
+    const k8s = new KubernetesOperations({
+      kubeconfig: body.kubeconfig,
+      context: body.context,
+      namespace: body.namespace,
+    });
+
+    const result = await k8s.patch({
+      resource: body.resource,
+      name: body.name,
+      namespace: body.namespace,
+      patch: body.patch,
+      type: body.type,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to patch resource', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Patch failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/k8s/node/cordon - Cordon a node
+ */
+async function handleCordon(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      nodeName: string;
+      kubeconfig?: string;
+      context?: string;
+    }>(ctx.req);
+
+    if (!body.nodeName) {
+      return error('Missing required field: nodeName', 400);
+    }
+
+    const k8s = new KubernetesOperations({
+      kubeconfig: body.kubeconfig,
+      context: body.context,
+    });
+
+    const result = await k8s.cordon(body.nodeName);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to cordon node', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Cordon failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/k8s/node/uncordon - Uncordon a node
+ */
+async function handleUncordon(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      nodeName: string;
+      kubeconfig?: string;
+      context?: string;
+    }>(ctx.req);
+
+    if (!body.nodeName) {
+      return error('Missing required field: nodeName', 400);
+    }
+
+    const k8s = new KubernetesOperations({
+      kubeconfig: body.kubeconfig,
+      context: body.context,
+    });
+
+    const result = await k8s.uncordon(body.nodeName);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to uncordon node', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Uncordon failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/k8s/node/drain - Drain a node
+ */
+async function handleDrain(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      nodeName: string;
+      force?: boolean;
+      ignoreDaemonsets?: boolean;
+      deleteEmptyDirData?: boolean;
+      gracePeriod?: number;
+      timeout?: string;
+      kubeconfig?: string;
+      context?: string;
+    }>(ctx.req);
+
+    if (!body.nodeName) {
+      return error('Missing required field: nodeName', 400);
+    }
+
+    const k8s = new KubernetesOperations({
+      kubeconfig: body.kubeconfig,
+      context: body.context,
+    });
+
+    const result = await k8s.drain(body.nodeName, {
+      force: body.force,
+      ignoreDaemonsets: body.ignoreDaemonsets,
+      deleteEmptyDirData: body.deleteEmptyDirData,
+      gracePeriod: body.gracePeriod,
+      timeout: body.timeout,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to drain node', 500);
+    }
+
+    return success({ output: result.output });
+  } catch (err: any) {
+    logger.error('Drain failed', err);
+    return error(err.message);
+  }
+}
+
+/**
  * Main router function
  */
 export async function router(req: Request): Promise<Response> {
@@ -716,6 +1006,20 @@ export async function router(req: Request): Promise<Response> {
           return handleSwitchContext(ctx);
         case '/namespace':
           return handleCreateNamespace(ctx);
+        case '/port-forward':
+          return handlePortForward(ctx);
+        case '/label':
+          return handleLabel(ctx);
+        case '/annotate':
+          return handleAnnotate(ctx);
+        case '/patch':
+          return handlePatch(ctx);
+        case '/node/cordon':
+          return handleCordon(ctx);
+        case '/node/uncordon':
+          return handleUncordon(ctx);
+        case '/node/drain':
+          return handleDrain(ctx);
       }
     }
 

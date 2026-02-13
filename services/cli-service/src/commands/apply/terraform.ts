@@ -9,6 +9,13 @@
 import { logger } from '@nimbus/shared-utils';
 import { ui, confirm } from '../../wizard';
 import { terraformClient } from '../../clients';
+import {
+  loadSafetyPolicy,
+  evaluateSafety,
+  type SafetyContext,
+  type SafetyCheckResult,
+} from '../../config/safety-policy';
+import { promptForApproval, displaySafetySummary } from '../../wizard/approval';
 
 /**
  * Command options
@@ -23,6 +30,26 @@ export interface ApplyTerraformOptions {
   parallelism?: number;
   refresh?: boolean;
   lock?: boolean;
+  /** Skip safety checks */
+  skipSafety?: boolean;
+  /** Environment name (for safety policy) */
+  environment?: string;
+}
+
+/**
+ * Display cost estimation hint after plan
+ */
+function displayCostHint(): void {
+  try {
+    const { execFileSync } = require('child_process');
+    execFileSync('infracost', ['--version'], { stdio: 'pipe', timeout: 3000 });
+    // infracost is available — user can run it themselves
+    ui.newLine();
+    ui.print(ui.dim('  Cost estimation available: run "nimbus cost estimate" or "infracost breakdown"'));
+  } catch {
+    ui.newLine();
+    ui.print(ui.dim('  Cost estimation available with infracost. Install: https://infracost.io'));
+  }
 }
 
 /**
@@ -81,6 +108,11 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
       return;
     }
 
+    // Show cost estimation hint if resources are being created
+    if (planResult.hasChanges) {
+      displayCostHint();
+    }
+
     // Dry run - don't apply
     if (options.dryRun) {
       ui.newLine();
@@ -88,16 +120,66 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
       return;
     }
 
-    // Confirm apply
-    ui.newLine();
-    const proceed = await confirm({
-      message: 'Do you want to apply these changes?',
-      defaultValue: false,
-    });
+    // Run safety checks if not skipped
+    if (!options.skipSafety) {
+      const safetyResult = await runSafetyChecks('apply', planResult.output, options);
 
-    if (!proceed) {
-      ui.info('Apply cancelled');
-      return;
+      if (!safetyResult.passed) {
+        ui.newLine();
+        ui.error('Safety checks failed - operation blocked');
+        for (const blocker of safetyResult.blockers) {
+          ui.print(`  ${ui.color('✗', 'red')} ${blocker.message}`);
+        }
+        process.exit(1);
+      }
+
+      // If safety requires approval, prompt for it
+      if (safetyResult.requiresApproval) {
+        const approvalResult = await promptForApproval({
+          title: 'Terraform Apply',
+          operation: 'terraform apply',
+          risks: safetyResult.risks,
+          environment: options.environment,
+          affectedResources: safetyResult.affectedResources,
+          estimatedCost: safetyResult.estimatedCost,
+        });
+
+        if (!approvalResult.approved) {
+          ui.newLine();
+          ui.info(`Apply cancelled: ${approvalResult.reason || 'User declined'}`);
+          return;
+        }
+      } else {
+        // Show safety summary and simple confirm
+        displaySafetySummary({
+          operation: 'terraform apply',
+          risks: safetyResult.risks,
+          passed: safetyResult.passed,
+        });
+
+        ui.newLine();
+        const proceed = await confirm({
+          message: 'Do you want to apply these changes?',
+          defaultValue: false,
+        });
+
+        if (!proceed) {
+          ui.info('Apply cancelled');
+          return;
+        }
+      }
+    } else {
+      // Simple confirmation when safety is skipped
+      ui.newLine();
+      const proceed = await confirm({
+        message: 'Do you want to apply these changes?',
+        defaultValue: false,
+      });
+
+      if (!proceed) {
+        ui.info('Apply cancelled');
+        return;
+      }
     }
   }
 
@@ -125,6 +207,12 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
 
   ui.stopSpinnerSuccess('Apply complete!');
 
+  // Track successful terraform apply
+  try {
+    const { trackGeneration } = await import('../../telemetry');
+    trackGeneration('terraform-apply', ['terraform']);
+  } catch { /* telemetry failure is non-critical */ }
+
   // Display output
   if (applyResult.output) {
     ui.newLine();
@@ -140,12 +228,89 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
 
   const directory = options.directory || '.';
 
-  // Build terraform command
-  const args = ['apply'];
+  // First, run plan to get the output for safety checks (unless auto-approved)
+  if (!options.autoApprove && !options.skipSafety) {
+    ui.startSpinner({ message: 'Creating execution plan...' });
 
-  if (options.autoApprove) {
-    args.push('-auto-approve');
+    const planOutput = await runLocalTerraformPlan(directory, options);
+
+    ui.stopSpinnerSuccess('Plan created');
+    ui.newLine();
+
+    // Display plan summary
+    const hasChanges = planOutput.includes('to add') ||
+                       planOutput.includes('to change') ||
+                       planOutput.includes('to destroy');
+
+    displayPlanSummary({
+      success: true,
+      hasChanges,
+      output: planOutput,
+    });
+
+    if (!hasChanges) {
+      ui.success('No changes. Infrastructure is up to date.');
+      return;
+    }
+
+    // Dry run - don't apply
+    if (options.dryRun) {
+      ui.newLine();
+      ui.info('Dry run mode - no changes applied');
+      return;
+    }
+
+    // Run safety checks
+    const safetyResult = await runSafetyChecks('apply', planOutput, options);
+
+    if (!safetyResult.passed) {
+      ui.newLine();
+      ui.error('Safety checks failed - operation blocked');
+      for (const blocker of safetyResult.blockers) {
+        ui.print(`  ${ui.color('✗', 'red')} ${blocker.message}`);
+      }
+      process.exit(1);
+    }
+
+    // If safety requires approval, prompt for it
+    if (safetyResult.requiresApproval) {
+      const approvalResult = await promptForApproval({
+        title: 'Terraform Apply',
+        operation: 'terraform apply',
+        risks: safetyResult.risks,
+        environment: options.environment,
+        affectedResources: safetyResult.affectedResources,
+        estimatedCost: safetyResult.estimatedCost,
+      });
+
+      if (!approvalResult.approved) {
+        ui.newLine();
+        ui.info(`Apply cancelled: ${approvalResult.reason || 'User declined'}`);
+        return;
+      }
+    } else {
+      // Show safety summary and simple confirm
+      displaySafetySummary({
+        operation: 'terraform apply',
+        risks: safetyResult.risks,
+        passed: safetyResult.passed,
+      });
+
+      ui.newLine();
+      const proceed = await confirm({
+        message: 'Do you want to apply these changes?',
+        defaultValue: false,
+      });
+
+      if (!proceed) {
+        ui.info('Apply cancelled');
+        return;
+      }
+    }
   }
+
+  // Build terraform apply command
+  const args = ['apply', '-auto-approve']; // Auto-approve since we already confirmed
 
   if (options.var) {
     for (const [key, value] of Object.entries(options.var)) {
@@ -173,11 +338,12 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
     args.push('-lock=false');
   }
 
+  ui.newLine();
   ui.info(`Running: terraform ${args.join(' ')}`);
   ui.newLine();
 
   // Run terraform
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const proc = spawn('terraform', args, {
       cwd: directory,
       stdio: 'inherit',
@@ -193,6 +359,13 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
       if (code === 0) {
         ui.newLine();
         ui.success('Terraform apply completed successfully');
+
+        // Track successful terraform apply
+        try {
+          const { trackGeneration } = require('../../telemetry');
+          trackGeneration('terraform-apply', ['terraform']);
+        } catch { /* telemetry failure is non-critical */ }
+
         resolve();
       } else {
         ui.newLine();
@@ -201,6 +374,85 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
       }
     });
   });
+}
+
+/**
+ * Run local terraform plan and capture output
+ */
+async function runLocalTerraformPlan(
+  directory: string,
+  options: ApplyTerraformOptions
+): Promise<string> {
+  const { spawn } = await import('child_process');
+
+  const args = ['plan', '-no-color'];
+
+  if (options.var) {
+    for (const [key, value] of Object.entries(options.var)) {
+      args.push('-var', `${key}=${value}`);
+    }
+  }
+
+  if (options.varFile) {
+    args.push('-var-file', options.varFile);
+  }
+
+  if (options.target) {
+    args.push('-target', options.target);
+  }
+
+  return new Promise((resolve, reject) => {
+    let output = '';
+
+    const proc = spawn('terraform', args, {
+      cwd: directory,
+      stdio: ['inherit', 'pipe', 'pipe'],
+    });
+
+    proc.stdout?.on('data', (data) => {
+      output += data.toString();
+    });
+
+    proc.stderr?.on('data', (data) => {
+      output += data.toString();
+    });
+
+    proc.on('error', (error) => {
+      reject(new Error(`Failed to run terraform plan: ${error.message}`));
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve(output);
+      } else {
+        reject(new Error(`Terraform plan failed with exit code ${code}`));
+      }
+    });
+  });
+}
+
+/**
+ * Run safety checks for the operation
+ */
+async function runSafetyChecks(
+  operation: string,
+  planOutput: string,
+  options: ApplyTerraformOptions
+): Promise<SafetyCheckResult> {
+  const policy = loadSafetyPolicy();
+
+  const context: SafetyContext = {
+    operation,
+    type: 'terraform',
+    environment: options.environment,
+    planOutput,
+    metadata: {
+      directory: options.directory,
+      target: options.target,
+    },
+  };
+
+  return evaluateSafety(context, policy);
 }
 
 /**

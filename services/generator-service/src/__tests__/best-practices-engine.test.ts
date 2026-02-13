@@ -33,12 +33,16 @@ describe('BestPracticesEngine', () => {
         restrict_public_buckets: true,
         enable_lifecycle_rules: true,
         abort_incomplete_multipart_days: 7,
+        intelligent_tiering: true,
+        enable_access_logging: true,
+        mfa_delete: true,
         environment: 'production',
         tags: {
           Environment: 'production',
           ManagedBy: 'terraform',
           Project: 'test',
           CostCenter: 'engineering',
+          ComplianceFramework: 'SOC2',
         },
       };
 
@@ -193,11 +197,14 @@ describe('BestPracticesEngine', () => {
         restrict_public_buckets: true,
         enable_lifecycle_rules: true,
         abort_incomplete_multipart_days: 7,
+        intelligent_tiering: true,
+        enable_access_logging: true,
         tags: {
           Environment: 'production',
           ManagedBy: 'Terraform',
           Project: 'test',
           CostCenter: 'engineering',
+          ComplianceFramework: 'SOC2',
         },
       };
 

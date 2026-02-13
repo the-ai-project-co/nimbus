@@ -1,6 +1,6 @@
 export interface BestPracticeRule {
   id: string;
-  category: 'security' | 'tagging' | 'cost' | 'reliability' | 'performance';
+  category: 'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance';
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
   title: string;
   description: string;

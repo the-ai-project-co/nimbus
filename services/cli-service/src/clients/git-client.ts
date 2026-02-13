@@ -226,6 +226,43 @@ export class GitClient {
   }
 
   /**
+   * Merge a branch
+   */
+  async merge(
+    branch: string,
+    options?: {
+      directory?: string;
+      noFf?: boolean;
+      squash?: boolean;
+      message?: string;
+    }
+  ): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/merge', { branch, ...options });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
+   * Stash operations
+   */
+  async stash(
+    command: 'push' | 'pop' | 'list' | 'drop' | 'apply' | 'clear',
+    options?: {
+      directory?: string;
+      message?: string;
+      index?: number;
+    }
+  ): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/stash', { command, ...options });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
    * Check if service is available
    */
   async isAvailable(): Promise<boolean> {

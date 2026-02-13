@@ -21,6 +21,20 @@ import {
   createBranchHandler,
   deleteBranchHandler,
   getUserHandler,
+  // Actions handlers
+  listWorkflowsHandler,
+  listWorkflowRunsHandler,
+  getWorkflowRunHandler,
+  triggerWorkflowHandler,
+  cancelWorkflowRunHandler,
+  rerunWorkflowHandler,
+  // Release handlers
+  listReleasesHandler,
+  getLatestReleaseHandler,
+  getReleaseByTagHandler,
+  createReleaseHandler,
+  deleteReleaseHandler,
+  generateReleaseNotesHandler,
 } from './routes/github';
 
 /**
@@ -188,6 +202,104 @@ export async function startServer(port: number) {
         return addCorsHeaders(response);
       }
 
+      // ==========================================
+      // Actions Routes
+      // ==========================================
+
+      // GET /api/github/actions/workflows - List workflows
+      if (path === '/api/github/actions/workflows' && method === 'GET') {
+        response = await listWorkflowsHandler(req);
+        return addCorsHeaders(response);
+      }
+
+      // GET /api/github/actions/runs - List workflow runs
+      if (path === '/api/github/actions/runs' && method === 'GET') {
+        response = await listWorkflowRunsHandler(req);
+        return addCorsHeaders(response);
+      }
+
+      // GET /api/github/actions/runs/:runId - Get a workflow run
+      const getRunMatch = path.match(/^\/api\/github\/actions\/runs\/(\d+)$/);
+      if (getRunMatch && method === 'GET') {
+        const runId = parseNumber(getRunMatch[1]);
+        if (runId) {
+          response = await getWorkflowRunHandler(req, runId);
+          return addCorsHeaders(response);
+        }
+      }
+
+      // POST /api/github/actions/trigger - Trigger a workflow
+      if (path === '/api/github/actions/trigger' && method === 'POST') {
+        response = await triggerWorkflowHandler(req);
+        return addCorsHeaders(response);
+      }
+
+      // POST /api/github/actions/runs/:runId/cancel - Cancel a workflow run
+      const cancelRunMatch = path.match(/^\/api\/github\/actions\/runs\/(\d+)\/cancel$/);
+      if (cancelRunMatch && method === 'POST') {
+        const runId = parseNumber(cancelRunMatch[1]);
+        if (runId) {
+          response = await cancelWorkflowRunHandler(req, runId);
+          return addCorsHeaders(response);
+        }
+      }
+
+      // POST /api/github/actions/runs/:runId/rerun - Re-run a workflow
+      const rerunMatch = path.match(/^\/api\/github\/actions\/runs\/(\d+)\/rerun$/);
+      if (rerunMatch && method === 'POST') {
+        const runId = parseNumber(rerunMatch[1]);
+        if (runId) {
+          response = await rerunWorkflowHandler(req, runId);
+          return addCorsHeaders(response);
+        }
+      }
+
+      // ==========================================
+      // Release Routes
+      // ==========================================
+
+      // GET /api/github/releases - List releases
+      if (path === '/api/github/releases' && method === 'GET') {
+        response = await listReleasesHandler(req);
+        return addCorsHeaders(response);
+      }
+
+      // GET /api/github/releases/latest - Get latest release
+      if (path === '/api/github/releases/latest' && method === 'GET') {
+        response = await getLatestReleaseHandler(req);
+        return addCorsHeaders(response);
+      }
+
+      // GET /api/github/releases/tag/:tag - Get release by tag
+      const getReleaseByTagMatch = path.match(/^\/api\/github\/releases\/tag\/(.+)$/);
+      if (getReleaseByTagMatch && method === 'GET') {
+        const tag = decodeURIComponent(getReleaseByTagMatch[1]);
+        response = await getReleaseByTagHandler(req, tag);
+        return addCorsHeaders(response);
+      }
+
+      // POST /api/github/releases - Create a release
+      if (path === '/api/github/releases' && method === 'POST') {
+        response = await createReleaseHandler(req);
+        return addCorsHeaders(response);
+      }
+
+      // DELETE /api/github/releases/:releaseId - Delete a release
+      const deleteReleaseMatch = path.match(/^\/api\/github\/releases\/(\d+)$/);
+      if (deleteReleaseMatch && method === 'DELETE') {
+        const releaseId = parseNumber(deleteReleaseMatch[1]);
+        if (releaseId) {
+          response = await deleteReleaseHandler(req, releaseId);
+          return addCorsHeaders(response);
+        }
+      }
+
+      // POST /api/github/releases/notes - Generate release notes
+      if (path === '/api/github/releases/notes' && method === 'POST') {
+        response = await generateReleaseNotesHandler(req);
+        return addCorsHeaders(response);
+      }
+
       // 404
       response = new Response('Not Found', { status: 404 });
       return addCorsHeaders(response);
@@ -211,6 +323,18 @@ export async function startServer(port: number) {
   logger.info('  - GET  /api/github/repos/branches');
   logger.info('  - POST /api/github/repos/branches');
   logger.info('  - DELETE /api/github/repos/branches');
+  logger.info('  - GET  /api/github/actions/workflows');
+  logger.info('  - GET  /api/github/actions/runs');
+  logger.info('  - GET  /api/github/actions/runs/:runId');
+  logger.info('  - POST /api/github/actions/trigger');
+  logger.info('  - POST /api/github/actions/runs/:runId/cancel');
+  logger.info('  - POST /api/github/actions/runs/:runId/rerun');
+  logger.info('  - GET  /api/github/releases');
+  logger.info('  - GET  /api/github/releases/latest');
+  logger.info('  - GET  /api/github/releases/tag/:tag');
+  logger.info('  - POST /api/github/releases');
+  logger.info('  - DELETE /api/github/releases/:releaseId');
+  logger.info('  - POST /api/github/releases/notes');
 
   return server;
 }

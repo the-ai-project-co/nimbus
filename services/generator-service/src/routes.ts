@@ -2,7 +2,7 @@ import type { Elysia } from 'elysia';
 import { QuestionnaireEngine } from './questionnaire';
 import { TemplateLoader, TemplateRenderer } from './templates';
 import { BestPracticesEngine } from './best-practices';
-import { ConversationalEngine } from './conversational';
+import { ConversationalEngine, mapStackToVariables, getRequiredTemplates } from './conversational';
 import { logger } from '@nimbus/shared-utils';
 
 // Initialize engines
@@ -399,7 +399,7 @@ export function setupRoutes(app: Elysia) {
   // ===== Conversational Routes =====
 
   // Process conversational message
-  app.post('/api/conversational/message', ({ body }) => {
+  app.post('/api/conversational/message', async ({ body }) => {
     const typedBody = body as {
       sessionId: string;
       message: string;
@@ -407,7 +407,7 @@ export function setupRoutes(app: Elysia) {
     };
 
     try {
-      const response = conversationalEngine.processMessage(
+      const response = await conversationalEngine.processMessage(
         typedBody.sessionId,
         typedBody.message,
         typedBody.userId
@@ -592,7 +592,7 @@ export function setupRoutes(app: Elysia) {
   });
 
   // Generate infrastructure from conversational session
-  app.post('/api/generate/from-conversation', ({ body }) => {
+  app.post('/api/generate/from-conversation', async ({ body }) => {
     const typedBody = body as {
       sessionId: string;
       applyBestPractices?: boolean;
@@ -610,25 +610,242 @@ export function setupRoutes(app: Elysia) {
       }
 
       // Extract requirements from conversation
-      const requirements = session.infrastructure_stack;
-      if (!requirements || !requirements.components || requirements.components.length === 0) {
+      const stack = session.infrastructure_stack;
+      if (!stack || !stack.components || stack.components.length === 0) {
         return {
           success: false,
           error: 'Insufficient information to generate infrastructure',
         };
       }
 
-      // TODO: Convert requirements to template variables
-      // For now, return placeholder
+      // Check generation_type from stack
+      const generationType = (stack as any).generation_type || 'terraform';
+
+      // ===== Kubernetes Generation =====
+      if (generationType === 'kubernetes') {
+        const { KubernetesGenerator } = await import('./generators/kubernetes-generator');
+
+        const k8sConfig = {
+          appName: (session as any).project_name || stack.components?.[0] || 'app',
+          workloadType: ((stack as any).k8s_config?.workloadType || stack.components?.[0] || 'deployment') as 'deployment' | 'statefulset' | 'daemonset' | 'job' | 'cronjob',
+          image: (stack as any).k8s_config?.image || 'nginx',
+          imageTag: 'latest',
+          replicas: (stack as any).k8s_config?.replicas || 1,
+          containerPort: (stack as any).k8s_config?.containerPort || 80,
+          serviceType: ((stack as any).k8s_config?.serviceType || 'ClusterIP') as 'ClusterIP' | 'NodePort' | 'LoadBalancer' | 'None',
+          namespace: (stack as any).k8s_config?.namespace,
+        };
+
+        const generator = new KubernetesGenerator(k8sConfig);
+        const manifests = generator.generate();
+        const generatedFiles: Record<string, string> = {};
+
+        for (const manifest of manifests) {
+          generatedFiles[`${manifest.name}.yaml`] = manifest.content;
+        }
+
+        return {
+          success: true,
+          data: {
+            generated_files: generatedFiles,
+            configuration: k8sConfig,
+            stack: {
+              generation_type: 'kubernetes',
+              components: stack.components,
+              environment: stack.environment,
+            },
+          },
+        };
+      }
+
+      // ===== Helm Generation =====
+      if (generationType === 'helm') {
+        const { HelmGenerator } = await import('./generators/helm-generator');
+
+        const chartName = (stack as any).helm_config?.chartName || (session as any).project_name || 'my-chart';
+        const imageRepo = (stack as any).helm_config?.image || 'nginx';
+
+        const helmConfig = {
+          name: chartName,
+          values: {
+            image: {
+              repository: imageRepo,
+              tag: 'latest',
+            },
+            replicaCount: (stack as any).helm_config?.replicas || 1,
+          },
+        };
+
+        const generator = new HelmGenerator(helmConfig);
+        const chartFiles = generator.generate();
+        const generatedFiles: Record<string, string> = {};
+
+        for (const file of chartFiles) {
+          generatedFiles[file.path] = file.content;
+        }
+
+        return {
+          success: true,
+          data: {
+            generated_files: generatedFiles,
+            configuration: helmConfig,
+            stack: {
+              generation_type: 'helm',
+              components: stack.components,
+              environment: stack.environment,
+            },
+          },
+        };
+      }
+
+      // ===== Terraform Generation (default) =====
+
+      // Map stack to template variables
+      const variables = mapStackToVariables({
+        provider: stack.provider,
+        components: stack.components,
+        environment: stack.environment,
+        region: stack.region,
+        name: (session as any).project_name,
+        requirements: stack as any,
+      });
+
+      // Get required template IDs
+      const provider = stack.provider || 'aws';
+      const templateIds = getRequiredTemplates({
+        provider,
+        components: stack.components,
+      });
+
+      // Generate files for each component
+      const generatedFiles: Record<string, string> = {};
+      const errors: string[] = [];
+
+      for (const templateId of templateIds) {
+        try {
+          const template = templateLoader.loadTemplate(templateId);
+          const rendered = templateRenderer.render(template, variables as any);
+          const component = templateId.split('/').pop() || templateId;
+          generatedFiles[`${component}.tf`] = rendered;
+        } catch (templateError) {
+          errors.push(`Failed to render ${templateId}: ${(templateError as Error).message}`);
+        }
+      }
+
+      // Apply best practices if requested
+      let bestPracticesReport = null;
+      if (typedBody.applyBestPractices && stack.components) {
+        const analysisConfigs = stack.components.map((component) => ({
+          component,
+          config: variables as any,
+        }));
+        bestPracticesReport = bestPracticesEngine.analyzeAll(analysisConfigs);
+
+        // Apply autofixes if requested
+        if (typedBody.autofix && bestPracticesReport.summary.autofixable_violations > 0) {
+          for (const component of stack.components) {
+            const autofixResult = bestPracticesEngine.autofix(component, variables as any);
+            Object.assign(variables, autofixResult.fixed_config);
+          }
+
+          // Re-render templates with fixed config
+          for (const templateId of templateIds) {
+            try {
+              const template = templateLoader.loadTemplate(templateId);
+              const rendered = templateRenderer.render(template, variables as any);
+              const component = templateId.split('/').pop() || templateId;
+              generatedFiles[`${component}.tf`] = rendered;
+            } catch (templateError) {
+              // Keep original if re-render fails
+            }
+          }
+        }
+      }
+
       return {
         success: true,
         data: {
-          message: 'Generation from conversation session',
-          requirements,
+          generated_files: generatedFiles,
+          configuration: variables,
+          stack: {
+            provider,
+            components: stack.components,
+            environment: stack.environment,
+            region: stack.region,
+          },
+          best_practices_report: bestPracticesReport,
+          errors: errors.length > 0 ? errors : undefined,
         },
       };
     } catch (error) {
       logger.error('Error generating from conversation', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // ===== Terraform Project Generator Routes =====
+
+  app.post('/api/generators/terraform/project', async ({ body }) => {
+    const typedBody = body as {
+      projectName: string;
+      provider?: 'aws' | 'gcp' | 'azure';
+      region?: string;
+      components?: string[];
+      environment?: string;
+      backendConfig?: { bucket: string; dynamodbTable?: string; key?: string };
+      tags?: Record<string, string>;
+    };
+
+    try {
+      const { TerraformProjectGenerator } = await import('./generators/terraform-project-generator');
+      const generator = new TerraformProjectGenerator();
+      const result = await generator.generate({
+        projectName: typedBody.projectName || 'my-project',
+        provider: typedBody.provider || 'aws',
+        region: typedBody.region || 'us-east-1',
+        components: typedBody.components || ['vpc'],
+        environment: typedBody.environment,
+        backendConfig: typedBody.backendConfig,
+        tags: typedBody.tags,
+      });
+
+      return {
+        success: true,
+        data: {
+          files: result.files,
+          validation: result.validation,
+        },
+      };
+    } catch (error) {
+      logger.error('Error generating terraform project', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // ===== Terraform Validation Route =====
+
+  app.post('/api/generators/terraform/validate', async ({ body }) => {
+    const typedBody = body as {
+      files: Array<{ path: string; content: string }>;
+    };
+
+    try {
+      const { TerraformProjectGenerator } = await import('./generators/terraform-project-generator');
+      const generator = new TerraformProjectGenerator();
+      const report = generator.validateProject(typedBody.files || []);
+
+      return {
+        success: true,
+        data: report,
+      };
+    } catch (error) {
+      logger.error('Error validating terraform project', error);
       return {
         success: false,
         error: (error as Error).message,

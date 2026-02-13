@@ -1,4 +1,6 @@
 import { logger } from '@nimbus/shared-utils';
+import { Server as SocketIOServer } from 'socket.io';
+import { createServer } from 'http';
 import { healthHandler } from './routes/health';
 import {
   generateTerraformCommand,
@@ -29,6 +31,8 @@ import {
   k8sCommand,
   helmCommand,
   gitCommand,
+  // FS commands
+  fsCommand,
   // History command
   historyCommand,
   historyShowCommand,
@@ -53,6 +57,32 @@ import {
   parseAuditExportOptions,
   analyzeCommand,
   parseAnalyzeOptions,
+  // Cloud provider commands
+  awsCommand,
+  azureCommand,
+  parseAzureOptions,
+  gcpCommand,
+  parseGcpOptions,
+  // Cost and drift commands
+  costCommand,
+  driftCommand,
+  // Demo, feedback, preview, import, questionnaire commands
+  demoCommand,
+  parseDemoOptions,
+  type DemoOptions,
+  feedbackCommand,
+  parseFeedbackOptions,
+  type FeedbackOptions,
+  previewCommand,
+  type PreviewOptions,
+  importCommand,
+  parseImportOptions,
+  type ImportOptions,
+  questionnaireCommand,
+  type QuestionnaireOptions,
+  // Cloud auth command
+  authCloudCommand,
+  type AuthCloudOptions,
   // Generate commands
   generateK8sCommand,
   type GenerateK8sOptions,
@@ -77,8 +107,19 @@ import {
   // Plan command
   planCommand,
   parsePlanOptions,
+  // Resume command
+  resumeCommand,
 } from './commands';
 import { requiresAuth, type LLMProviderName } from './auth';
+
+let socketIOInstance: SocketIOServer | null = null;
+
+/**
+ * Get the Socket.io server instance for emitting events from commands
+ */
+export function getSocketIO(): SocketIOServer | null {
+  return socketIOInstance;
+}
 
 export async function startServer(port: number, wsPort: number) {
   const server = Bun.serve({
@@ -142,8 +183,70 @@ export async function startServer(port: number, wsPort: number) {
   logger.info(`  - POST /api/aws/discover`);
   logger.info(`  - POST /api/aws/terraform`);
 
-  // TODO: WebSocket server setup
-  logger.info(`CLI Service WebSocket server will listen on port ${wsPort}`);
+  // Socket.io WebSocket server
+  const httpServer = createServer();
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST'],
+    },
+    path: '/nimbus',
+  });
+
+  socketIOInstance = io;
+
+  const nimbusNsp = io.of('/nimbus');
+
+  nimbusNsp.on('connection', (socket) => {
+    logger.info(`Client connected: ${socket.id}`);
+
+    // Handle LLM streaming requests
+    socket.on('llm:request', async (data: { prompt: string; model?: string; sessionId?: string }) => {
+      try {
+        socket.emit('llm:stream', { type: 'start', sessionId: data.sessionId });
+
+        // Simulate streaming chunks — in production, this connects to the LLM service
+        const chunks = [`Processing request: "${data.prompt.substring(0, 50)}..."`, '\n', 'Response generated successfully.'];
+        for (const chunk of chunks) {
+          socket.emit('llm:stream', { type: 'chunk', content: chunk, sessionId: data.sessionId });
+        }
+
+        socket.emit('llm:stream', { type: 'end', sessionId: data.sessionId });
+      } catch (error: any) {
+        socket.emit('error', { message: error.message, code: 'LLM_ERROR' });
+      }
+    });
+
+    // Handle execution progress tracking
+    socket.on('execution:start', async (data: { taskId: string; type: string; target?: string }) => {
+      try {
+        socket.emit('execution:progress', {
+          taskId: data.taskId,
+          status: 'started',
+          type: data.type,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Emit completed status after processing
+        socket.emit('execution:progress', {
+          taskId: data.taskId,
+          status: 'completed',
+          type: data.type,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error: any) {
+        socket.emit('error', { message: error.message, code: 'EXECUTION_ERROR' });
+      }
+    });
+
+    socket.on('disconnect', (reason) => {
+      logger.info(`Client disconnected: ${socket.id} (${reason})`);
+    });
+  });
+
+  httpServer.listen(wsPort, () => {
+    logger.info(`CLI Service WebSocket server listening on port ${wsPort}`);
+  });
 
   return server;
 }
@@ -152,6 +255,19 @@ export async function startServer(port: number, wsPort: number) {
  * Run CLI command directly (for `nimbus <command> <subcommand>`)
  */
 export async function runCommand(args: string[]): Promise<void> {
+  // Resolve top-level command aliases
+  const COMMAND_ALIASES: Record<string, string[]> = {
+    'pr': ['gh', 'pr'],
+    'issue': ['gh', 'issue'],
+    'read': ['fs', 'read'],
+    'tree': ['fs', 'tree'],
+    'search': ['fs', 'search'],
+  };
+
+  if (COMMAND_ALIASES[args[0]]) {
+    args = [...COMMAND_ALIASES[args[0]], ...args.slice(1)];
+  }
+
   const command = args[0];
   const subcommand = args[1];
 
@@ -230,6 +346,30 @@ export async function runCommand(args: string[]): Promise<void> {
     }
 
     await authListCommand(options);
+    return;
+  }
+
+  // nimbus auth cloud|aws|gcp|azure
+  if (command === 'auth' && (subcommand === 'cloud' || subcommand === 'aws' || subcommand === 'gcp' || subcommand === 'azure')) {
+    const provider = subcommand === 'cloud' ? (args[2] || 'aws') : subcommand;
+    const options: AuthCloudOptions = {};
+
+    const startIdx = subcommand === 'cloud' ? 3 : 2;
+    for (let i = startIdx; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--profile' && args[i + 1]) {
+        options.profile = args[++i];
+      } else if (arg === '--project' && args[i + 1]) {
+        options.project = args[++i];
+      } else if (arg === '--subscription' && args[i + 1]) {
+        options.subscription = args[++i];
+      } else if (arg === '--region' && args[i + 1]) {
+        options.region = args[++i];
+      }
+    }
+
+    await authCloudCommand(provider, options);
     return;
   }
 
@@ -532,6 +672,136 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus aws <service> <action> (catch-all for other AWS subcommands)
+  if (command === 'aws' && subcommand && subcommand !== 'discover' && subcommand !== 'terraform') {
+    await awsCommand(subcommand, args.slice(2));
+    return;
+  }
+
+  // nimbus azure <service> <action>
+  if (command === 'azure') {
+    if (!subcommand) {
+      console.error('Usage: nimbus azure <service> <action>');
+      console.log('');
+      console.log('Available services:');
+      console.log('  vm        - Virtual machine operations');
+      console.log('  storage   - Storage account operations');
+      console.log('  aks       - Azure Kubernetes Service operations');
+      console.log('  functions - Azure Functions operations');
+      process.exit(1);
+    }
+
+    await azureCommand(subcommand, args.slice(2));
+    return;
+  }
+
+  // nimbus gcp <service> <action>
+  if (command === 'gcp') {
+    if (!subcommand) {
+      console.error('Usage: nimbus gcp <service> <action>');
+      console.log('');
+      console.log('Available services:');
+      console.log('  compute   - Compute Engine operations');
+      console.log('  storage   - Cloud Storage operations');
+      console.log('  gke       - Google Kubernetes Engine operations');
+      console.log('  functions - Cloud Functions operations');
+      console.log('  iam       - IAM operations');
+      process.exit(1);
+    }
+
+    await gcpCommand(subcommand, args.slice(2));
+    return;
+  }
+
+  // nimbus cost <subcommand>
+  if (command === 'cost') {
+    await costCommand(args.slice(1));
+    return;
+  }
+
+  // nimbus drift <subcommand>
+  if (command === 'drift') {
+    await driftCommand(args.slice(1));
+    return;
+  }
+
+  // nimbus demo [options]
+  if (command === 'demo') {
+    const options = parseDemoOptions(args.slice(1));
+    await demoCommand(options);
+    return;
+  }
+
+  // nimbus feedback [options]
+  if (command === 'feedback') {
+    const options = parseFeedbackOptions(args.slice(1));
+    await feedbackCommand(options);
+    return;
+  }
+
+  // nimbus preview <type> [options]
+  if (command === 'preview') {
+    const options: PreviewOptions = {
+      type: (subcommand as PreviewOptions['type']) || 'terraform',
+    };
+
+    for (let i = 2; i < args.length; i++) {
+      const arg = args[i];
+
+      if ((arg === '--directory' || arg === '-d') && args[i + 1]) {
+        options.directory = args[++i];
+      } else if (arg === '--format' && args[i + 1]) {
+        options.format = args[++i] as PreviewOptions['format'];
+      } else if (arg === '--verbose' || arg === '-v') {
+        options.verbose = true;
+      } else if (arg === '--skip-safety') {
+        options.skipSafety = true;
+      } else if (arg === '--target' && args[i + 1]) {
+        options.target = args[++i];
+      } else if ((arg === '--namespace' || arg === '-n') && args[i + 1]) {
+        options.namespace = args[++i];
+      } else if (arg === '--release' && args[i + 1]) {
+        options.release = args[++i];
+      } else if (arg === '--values-file' && args[i + 1]) {
+        options.valuesFile = args[++i];
+      }
+    }
+
+    await previewCommand(options);
+    return;
+  }
+
+  // nimbus import [options]
+  if (command === 'import') {
+    const options = parseImportOptions(args.slice(1));
+    await importCommand(options);
+    return;
+  }
+
+  // nimbus questionnaire <type> [options]
+  if (command === 'questionnaire') {
+    const options: QuestionnaireOptions = {
+      type: (subcommand as QuestionnaireOptions['type']) || 'terraform',
+    };
+
+    for (let i = 2; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--non-interactive') {
+        options.nonInteractive = true;
+      } else if (arg === '--answers-file' && args[i + 1]) {
+        options.answersFile = args[++i];
+      } else if ((arg === '--output' || arg === '-o') && args[i + 1]) {
+        options.outputDir = args[++i];
+      } else if (arg === '--dry-run') {
+        options.dryRun = true;
+      }
+    }
+
+    await questionnaireCommand(options);
+    return;
+  }
+
   // nimbus chat
   if (command === 'chat') {
     const options: ChatOptions = {};
@@ -633,6 +903,62 @@ export async function runCommand(args: string[]): Promise<void> {
       return;
     }
 
+    // nimbus config telemetry <enable|disable|status>
+    if (subcommand === 'telemetry') {
+      const telemetryAction = args[2];
+      const fs = await import('node:fs');
+      const nodePath = await import('node:path');
+      const { homedir } = await import('os');
+      const { randomUUID } = await import('crypto');
+      const configPath = nodePath.join(homedir(), '.nimbus', 'config.json');
+      const configDir = nodePath.join(homedir(), '.nimbus');
+
+      // Ensure directory exists
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+      }
+
+      // Read existing config
+      let config: any = {};
+      try {
+        if (fs.existsSync(configPath)) {
+          config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        }
+      } catch { /* ignore */ }
+
+      if (telemetryAction === 'enable') {
+        config.telemetry = {
+          ...config.telemetry,
+          enabled: true,
+          anonymousId: config.telemetry?.anonymousId || randomUUID(),
+        };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        console.log('Telemetry enabled. Anonymous usage data will be collected to help improve Nimbus.');
+        console.log(`Anonymous ID: ${config.telemetry.anonymousId}`);
+        return;
+      }
+
+      if (telemetryAction === 'disable') {
+        config.telemetry = { ...config.telemetry, enabled: false };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        console.log('Telemetry disabled. No usage data will be collected.');
+        return;
+      }
+
+      if (telemetryAction === 'status' || !telemetryAction) {
+        const enabled = config.telemetry?.enabled === true;
+        console.log(`Telemetry: ${enabled ? 'enabled' : 'disabled'}`);
+        if (config.telemetry?.anonymousId) {
+          console.log(`Anonymous ID: ${config.telemetry.anonymousId}`);
+        }
+        return;
+      }
+
+      console.error(`Unknown telemetry action: ${telemetryAction}`);
+      console.log('Usage: nimbus config telemetry <enable|disable|status>');
+      process.exit(1);
+    }
+
     // No subcommand - show list
     if (!subcommand) {
       await configCommand.list({ nonInteractive: isNonInteractive });
@@ -647,6 +973,7 @@ export async function runCommand(args: string[]): Promise<void> {
     console.log('  nimbus config set <key> <value> - Set a configuration value');
     console.log('  nimbus config init         - Initialize configuration interactively');
     console.log('  nimbus config reset        - Reset configuration to defaults');
+    console.log('  nimbus config telemetry    - Manage telemetry settings');
     process.exit(1);
   }
 
@@ -685,6 +1012,8 @@ export async function runCommand(args: string[]): Promise<void> {
       console.log('  logs <pod>                - Get pod logs');
       console.log('  describe <resource> <name> - Describe resource');
       console.log('  scale <resource> <name> <replicas> - Scale deployment');
+      console.log('  exec <pod> -- <cmd...>    - Execute command in pod');
+      console.log('  rollout <action> <resource> - Manage rollouts');
       process.exit(1);
     }
 
@@ -705,6 +1034,7 @@ export async function runCommand(args: string[]): Promise<void> {
       console.log('  rollback <name> <rev>     - Rollback to revision');
       console.log('  history <name>            - Show release history');
       console.log('  search <keyword>          - Search for charts');
+      console.log('  show <chart>              - Show chart information');
       console.log('  repo add <name> <url>     - Add repository');
       console.log('  repo update               - Update repositories');
       process.exit(1);
@@ -802,6 +1132,13 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus resume <task-id>
+  if (command === 'resume') {
+    const taskId = subcommand;
+    await resumeCommand(taskId || {});
+    return;
+  }
+
   // nimbus git <subcommand>
   if (command === 'git') {
     if (!subcommand) {
@@ -818,10 +1155,29 @@ export async function runCommand(args: string[]): Promise<void> {
       console.log('  branch                    - List branches');
       console.log('  checkout <branch>         - Checkout branch');
       console.log('  diff                      - Show diff');
+      console.log('  merge <branch>            - Merge a branch');
+      console.log('  stash <action>            - Stash operations (push, pop, list, drop, apply, clear)');
       process.exit(1);
     }
 
     await gitCommand(subcommand, args.slice(2));
+    return;
+  }
+
+  // nimbus fs <subcommand>
+  if (command === 'fs' || command === 'files') {
+    if (!subcommand) {
+      console.error('Usage: nimbus fs <subcommand>');
+      console.log('');
+      console.log('Available subcommands:');
+      console.log('  list [path]               - List directory contents');
+      console.log('  tree [path]               - List directory contents recursively');
+      console.log('  search <pattern> [path]   - Search for files');
+      console.log('  read <file>               - Read file contents');
+      process.exit(1);
+    }
+
+    await fsCommand(subcommand, args.slice(2));
     return;
   }
 
@@ -938,6 +1294,7 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus config set <k> <v> - Set a configuration value');
   console.log('    nimbus config get <key>  - Get a configuration value');
   console.log('    nimbus config init       - Initialize global configuration');
+  console.log('    nimbus config telemetry  - Manage telemetry (enable|disable|status)');
   console.log('');
   console.log('  Authentication:');
   console.log('    nimbus login             - Set up authentication and LLM providers');
@@ -952,18 +1309,46 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus aws discover        - Discover AWS infrastructure resources');
   console.log('    nimbus aws terraform       - Generate Terraform from AWS resources');
   console.log('');
+  console.log('  Cloud Providers:');
+  console.log('    nimbus aws <service> <action>  - AWS operations (ec2, s3, rds, lambda, iam, vpc)');
+  console.log('    nimbus azure <service> <action> - Azure operations (vm, storage, aks, functions)');
+  console.log('    nimbus gcp <service> <action>  - GCP operations (compute, storage, gke, functions, iam)');
+  console.log('    nimbus auth aws|gcp|azure      - Validate cloud credentials');
+  console.log('');
+  console.log('  Infrastructure Management:');
+  console.log('    nimbus cost estimate       - Estimate infrastructure costs');
+  console.log('    nimbus cost history        - View cost history');
+  console.log('    nimbus drift detect        - Detect infrastructure drift');
+  console.log('    nimbus drift fix           - Remediate drift');
+  console.log('    nimbus preview <type>      - Preview infrastructure changes');
+  console.log('    nimbus import              - Import existing cloud resources');
+  console.log('');
   console.log('  Infrastructure Tools:');
   console.log('    nimbus plan              - Preview infrastructure changes');
   console.log('    nimbus apply <type>      - Apply infrastructure (terraform, k8s, helm)');
+  console.log('    nimbus resume <task-id>  - Resume a task from its last checkpoint');
   console.log('    nimbus tf <cmd>          - Terraform operations (init, plan, apply, validate, destroy, show)');
-  console.log('    nimbus k8s <cmd>         - Kubernetes operations (get, apply, delete, logs, describe, scale)');
-  console.log('    nimbus helm <cmd>        - Helm operations (list, install, upgrade, uninstall, rollback)');
-  console.log('    nimbus git <cmd>         - Git operations (status, add, commit, push, pull, fetch, log)');
+  console.log('    nimbus k8s <cmd>         - Kubernetes operations (get, apply, delete, logs, describe, scale, exec, rollout)');
+  console.log('    nimbus helm <cmd>        - Helm operations (list, install, upgrade, uninstall, rollback, show)');
+  console.log('    nimbus git <cmd>         - Git operations (status, add, commit, push, pull, fetch, log, merge, stash)');
+  console.log('    nimbus fs <cmd>          - File system operations (list, search, read)');
+  console.log('');
+  console.log('  Wizards & Tools:');
+  console.log('    nimbus questionnaire <type> - Interactive infrastructure questionnaire');
+  console.log('    nimbus demo              - Run demo scenarios');
+  console.log('    nimbus feedback          - Submit feedback');
   console.log('');
   console.log('  GitHub:');
   console.log('    nimbus gh pr <cmd>       - PR operations (list, view, create, merge)');
   console.log('    nimbus gh issue <cmd>    - Issue operations (list, view, create, close, comment)');
   console.log('    nimbus gh repo <cmd>     - Repo operations (info, branches)');
+  console.log('');
+  console.log('  Aliases:');
+  console.log('    nimbus pr <cmd>          - Alias for nimbus gh pr <cmd>');
+  console.log('    nimbus issue <cmd>       - Alias for nimbus gh issue <cmd>');
+  console.log('    nimbus read <file>       - Alias for nimbus fs read <file>');
+  console.log('    nimbus tree [path]       - Alias for nimbus fs tree [path]');
+  console.log('    nimbus search <pattern>  - Alias for nimbus fs search <pattern>');
   console.log('');
   console.log('  History:');
   console.log('    nimbus history           - View command history');

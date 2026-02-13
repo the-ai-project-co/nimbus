@@ -1,5 +1,6 @@
 import { logger } from '@nimbus/shared-utils';
 import { $ } from 'bun';
+import { spawn } from 'child_process';
 
 export interface KubernetesConfig {
   kubeconfig?: string;
@@ -501,4 +502,321 @@ export class KubernetesOperations {
   async version(): Promise<CommandResult> {
     return this.execute(['version', '-o', 'json']);
   }
+
+  /**
+   * Port forward to a pod or service
+   * Note: This starts a background process and returns immediately
+   */
+  async portForward(options: PortForwardOptions): Promise<PortForwardResult> {
+    const args = ['port-forward'];
+
+    // Resource type and name
+    const resourceSpec = `${options.resource}/${options.name}`;
+    args.push(resourceSpec);
+
+    // Add ports
+    for (const port of options.ports) {
+      args.push(port);
+    }
+
+    // Namespace
+    if (options.namespace) {
+      args.push('-n', options.namespace);
+    } else {
+      args.push('-n', this.defaultNamespace);
+    }
+
+    // Address to listen on
+    if (options.address) {
+      args.push('--address', options.address);
+    }
+
+    const baseArgs = this.buildBaseArgs();
+    const fullArgs = [...baseArgs, ...args];
+
+    logger.info(`Starting port-forward: ${this.kubectlPath} ${fullArgs.join(' ')}`);
+
+    // Spawn the port-forward as a background process
+    const proc = spawn(this.kubectlPath, fullArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    // Wait briefly for the "Forwarding from..." confirmation or an error
+    const result = await new Promise<PortForwardResult>((resolve) => {
+      let stderr = '';
+
+      const timeout = setTimeout(() => {
+        // If no output after 5s, assume it started
+        proc.unref();
+        resolve({
+          success: true,
+          resource: resourceSpec,
+          ports: options.ports,
+          namespace: options.namespace || this.defaultNamespace,
+          address: options.address || '127.0.0.1',
+          message: `Port-forward started for ${resourceSpec}`,
+          pid: proc.pid,
+        });
+      }, 5000);
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        const output = data.toString();
+        if (output.includes('Forwarding from')) {
+          clearTimeout(timeout);
+          proc.unref();
+          resolve({
+            success: true,
+            resource: resourceSpec,
+            ports: options.ports,
+            namespace: options.namespace || this.defaultNamespace,
+            address: options.address || '127.0.0.1',
+            message: output.trim(),
+            pid: proc.pid,
+          });
+        }
+      });
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('error', (err) => {
+        clearTimeout(timeout);
+        resolve({
+          success: false,
+          resource: resourceSpec,
+          ports: options.ports,
+          namespace: options.namespace || this.defaultNamespace,
+          address: options.address || '127.0.0.1',
+          message: `Port-forward failed: ${err.message}`,
+        });
+      });
+
+      proc.on('close', (code) => {
+        if (code !== 0) {
+          clearTimeout(timeout);
+          resolve({
+            success: false,
+            resource: resourceSpec,
+            ports: options.ports,
+            namespace: options.namespace || this.defaultNamespace,
+            address: options.address || '127.0.0.1',
+            message: stderr.trim() || `Port-forward exited with code ${code}`,
+          });
+        }
+      });
+    });
+
+    return result;
+  }
+
+  /**
+   * Copy files to/from a pod
+   */
+  async cp(options: CopyOptions): Promise<CommandResult> {
+    const args = ['cp'];
+
+    if (options.namespace) {
+      args.push('-n', options.namespace);
+    } else {
+      args.push('-n', this.defaultNamespace);
+    }
+
+    if (options.container) {
+      args.push('-c', options.container);
+    }
+
+    // Source and destination
+    args.push(options.source, options.destination);
+
+    return this.execute(args);
+  }
+
+  /**
+   * Label a resource
+   */
+  async label(options: LabelOptions): Promise<CommandResult> {
+    const args = ['label', `${options.resource}/${options.name}`];
+
+    if (options.namespace) {
+      args.push('-n', options.namespace);
+    } else {
+      args.push('-n', this.defaultNamespace);
+    }
+
+    // Add labels
+    for (const [key, value] of Object.entries(options.labels)) {
+      if (value === null) {
+        args.push(`${key}-`); // Remove label
+      } else {
+        args.push(`${key}=${value}`);
+      }
+    }
+
+    if (options.overwrite) {
+      args.push('--overwrite');
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Annotate a resource
+   */
+  async annotate(options: AnnotateOptions): Promise<CommandResult> {
+    const args = ['annotate', `${options.resource}/${options.name}`];
+
+    if (options.namespace) {
+      args.push('-n', options.namespace);
+    } else {
+      args.push('-n', this.defaultNamespace);
+    }
+
+    // Add annotations
+    for (const [key, value] of Object.entries(options.annotations)) {
+      if (value === null) {
+        args.push(`${key}-`); // Remove annotation
+      } else {
+        args.push(`${key}=${value}`);
+      }
+    }
+
+    if (options.overwrite) {
+      args.push('--overwrite');
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Patch a resource
+   */
+  async patch(options: PatchOptions): Promise<CommandResult> {
+    const args = ['patch', options.resource, options.name];
+
+    if (options.namespace) {
+      args.push('-n', options.namespace);
+    } else {
+      args.push('-n', this.defaultNamespace);
+    }
+
+    args.push('--type', options.type || 'strategic');
+    args.push('-p', JSON.stringify(options.patch));
+
+    return this.execute(args);
+  }
+
+  /**
+   * Cordon a node (mark as unschedulable)
+   */
+  async cordon(nodeName: string): Promise<CommandResult> {
+    return this.execute(['cordon', nodeName]);
+  }
+
+  /**
+   * Uncordon a node (mark as schedulable)
+   */
+  async uncordon(nodeName: string): Promise<CommandResult> {
+    return this.execute(['uncordon', nodeName]);
+  }
+
+  /**
+   * Drain a node
+   */
+  async drain(nodeName: string, options?: DrainOptions): Promise<CommandResult> {
+    const args = ['drain', nodeName];
+
+    if (options?.force) {
+      args.push('--force');
+    }
+    if (options?.ignoreDaemonsets) {
+      args.push('--ignore-daemonsets');
+    }
+    if (options?.deleteEmptyDirData) {
+      args.push('--delete-emptydir-data');
+    }
+    if (options?.gracePeriod !== undefined) {
+      args.push('--grace-period', options.gracePeriod.toString());
+    }
+    if (options?.timeout) {
+      args.push('--timeout', options.timeout);
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Taint a node
+   */
+  async taint(nodeName: string, taints: string[]): Promise<CommandResult> {
+    const args = ['taint', 'nodes', nodeName, ...taints];
+    return this.execute(args);
+  }
+}
+
+/**
+ * Port forward result
+ */
+export interface PortForwardResult {
+  success: boolean;
+  resource: string;
+  ports: string[];
+  namespace: string;
+  address: string;
+  message: string;
+  pid?: number;
+}
+
+/**
+ * Copy options
+ */
+export interface CopyOptions {
+  source: string;
+  destination: string;
+  namespace?: string;
+  container?: string;
+}
+
+/**
+ * Label options
+ */
+export interface LabelOptions {
+  resource: string;
+  name: string;
+  namespace?: string;
+  labels: Record<string, string | null>;
+  overwrite?: boolean;
+}
+
+/**
+ * Annotate options
+ */
+export interface AnnotateOptions {
+  resource: string;
+  name: string;
+  namespace?: string;
+  annotations: Record<string, string | null>;
+  overwrite?: boolean;
+}
+
+/**
+ * Patch options
+ */
+export interface PatchOptions {
+  resource: string;
+  name: string;
+  namespace?: string;
+  patch: Record<string, unknown>;
+  type?: 'json' | 'merge' | 'strategic';
+}
+
+/**
+ * Drain options
+ */
+export interface DrainOptions {
+  force?: boolean;
+  ignoreDaemonsets?: boolean;
+  deleteEmptyDirData?: boolean;
+  gracePeriod?: number;
+  timeout?: string;
 }

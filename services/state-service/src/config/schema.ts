@@ -41,7 +41,8 @@ export const LLMConfigSchema = z.object({
 export const PersonaConfigSchema = z.object({
   name: z.string().default('Nimbus AI'),
   role: z.string().default('DevOps Assistant'),
-  tone: z.enum(['professional', 'friendly', 'technical']).default('professional'),
+  tone: z.enum(['professional', 'assistant', 'expert']).default('professional'),
+  verbosity: z.enum(['minimal', 'normal', 'detailed']).default('normal'),
   expertise: z.array(z.string()).default(['terraform', 'kubernetes', 'aws', 'gcp', 'azure']),
 });
 
@@ -52,6 +53,19 @@ export const SafetyConfigSchema = z.object({
   maxCostPerOperation: z.number().positive().default(10.0),
   allowDestructiveOps: z.boolean().default(false),
   restrictedCommands: z.array(z.string()).default(['rm -rf', 'kubectl delete', 'terraform destroy']),
+  autoApprove: z.object({
+    read: z.boolean().default(true),
+    generate: z.boolean().default(true),
+    create: z.boolean().default(false),
+    update: z.boolean().default(false),
+    delete: z.boolean().default(false),
+  }).default({
+    read: true,
+    generate: true,
+    create: false,
+    update: false,
+    delete: false,
+  }),
 });
 
 // Cloud Provider Configuration
@@ -62,10 +76,26 @@ export const CloudProviderConfigSchema = z.object({
   profile: z.string().optional(),
 });
 
+export const AWSProviderConfigSchema = CloudProviderConfigSchema.extend({
+  defaultRegion: z.string().default('us-east-1'),
+  defaultProfile: z.string().default('default'),
+});
+
+export const GCPProviderConfigSchema = CloudProviderConfigSchema.extend({
+  defaultProject: z.string().optional(),
+  defaultRegion: z.string().default('us-central1'),
+});
+
+export const AzureProviderConfigSchema = CloudProviderConfigSchema.extend({
+  defaultSubscription: z.string().optional(),
+  defaultRegion: z.string().default('eastus'),
+});
+
 export const CloudConfigSchema = z.object({
-  aws: CloudProviderConfigSchema.optional(),
-  gcp: CloudProviderConfigSchema.optional(),
-  azure: CloudProviderConfigSchema.optional(),
+  defaultProvider: z.enum(['aws', 'gcp', 'azure']).default('aws'),
+  aws: AWSProviderConfigSchema.optional(),
+  gcp: GCPProviderConfigSchema.optional(),
+  azure: AzureProviderConfigSchema.optional(),
 });
 
 // Terraform Configuration
@@ -73,6 +103,8 @@ export const TerraformConfigSchema = z.object({
   version: z.string().default('latest'),
   backend: z.enum(['local', 's3', 'gcs', 'azurerm']).default('local'),
   backendConfig: z.record(z.string(), z.any()).optional(),
+  stateBucket: z.string().optional(),
+  lockTable: z.string().optional(),
   workingDirectory: z.string().default('~/.nimbus/terraform'),
   autoApprove: z.boolean().default(false),
   planTimeout: z.number().positive().default(300), // seconds
@@ -94,6 +126,16 @@ export const UIConfigSchema = z.object({
   showCostEstimates: z.boolean().default(true),
   verboseOutput: z.boolean().default(false),
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  colors: z.boolean().default(true),
+  spinner: z.enum(['dots', 'line', 'simple']).default('dots'),
+});
+
+// Telemetry Configuration
+export const TelemetryConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  anonymousId: z.string().optional(),
+  posthogApiKey: z.string().optional(),
+  posthogHost: z.string().optional(),
 });
 
 // Main Configuration Schema
@@ -106,6 +148,7 @@ export const NimbusConfigSchema = z.object({
   terraform: TerraformConfigSchema.optional().default(() => DEFAULT_CONFIG.terraform),
   kubernetes: KubernetesConfigSchema.optional().default(() => DEFAULT_CONFIG.kubernetes),
   ui: UIConfigSchema.optional().default(() => DEFAULT_CONFIG.ui),
+  telemetry: TelemetryConfigSchema.optional().default(() => DEFAULT_CONFIG.telemetry),
 });
 
 export type NimbusConfig = z.infer<typeof NimbusConfigSchema>;
@@ -116,6 +159,7 @@ export type CloudConfig = z.infer<typeof CloudConfigSchema>;
 export type TerraformConfig = z.infer<typeof TerraformConfigSchema>;
 export type KubernetesConfig = z.infer<typeof KubernetesConfigSchema>;
 export type UIConfig = z.infer<typeof UIConfigSchema>;
+export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
 
 // Default configuration
 export const DEFAULT_CONFIG: NimbusConfig = {
@@ -131,6 +175,7 @@ export const DEFAULT_CONFIG: NimbusConfig = {
     name: 'Nimbus AI',
     role: 'DevOps Assistant',
     tone: 'professional',
+    verbosity: 'normal',
     expertise: ['terraform', 'kubernetes', 'aws', 'gcp', 'azure'],
   },
   safety: {
@@ -139,8 +184,17 @@ export const DEFAULT_CONFIG: NimbusConfig = {
     maxCostPerOperation: 10.0,
     allowDestructiveOps: false,
     restrictedCommands: ['rm -rf', 'kubectl delete', 'terraform destroy'],
+    autoApprove: {
+      read: true,
+      generate: true,
+      create: false,
+      update: false,
+      delete: false,
+    },
   },
-  cloud: {},
+  cloud: {
+    defaultProvider: 'aws',
+  },
   terraform: {
     version: 'latest',
     backend: 'local',
@@ -160,5 +214,10 @@ export const DEFAULT_CONFIG: NimbusConfig = {
     showCostEstimates: true,
     verboseOutput: false,
     logLevel: 'info',
+    colors: true,
+    spinner: 'dots',
+  },
+  telemetry: {
+    enabled: false,
   },
 };

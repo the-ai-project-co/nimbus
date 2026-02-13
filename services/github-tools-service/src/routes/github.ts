@@ -474,3 +474,407 @@ export async function getUserHandler(req: Request): Promise<Response> {
     return error(err.message, err.status || 500);
   }
 }
+
+// ==========================================
+// Actions Routes
+// ==========================================
+
+/**
+ * GET /api/github/actions/workflows - List workflows
+ */
+export async function listWorkflowsHandler(req: Request): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const url = new URL(req.url);
+  const owner = url.searchParams.get('owner');
+  const repo = url.searchParams.get('repo');
+  const perPage = parseInt(url.searchParams.get('per_page') || '30', 10);
+
+  if (!owner || !repo) {
+    return error('owner and repo query parameters required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const workflows = await github.listWorkflows(owner, repo, perPage);
+    return success(workflows);
+  } catch (err: any) {
+    logger.error('Failed to list workflows', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * GET /api/github/actions/runs - List workflow runs
+ */
+export async function listWorkflowRunsHandler(req: Request): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const url = new URL(req.url);
+  const owner = url.searchParams.get('owner');
+  const repo = url.searchParams.get('repo');
+  const workflowId = url.searchParams.get('workflow_id') || undefined;
+  const branch = url.searchParams.get('branch') || undefined;
+  const event = url.searchParams.get('event') || undefined;
+  const status = url.searchParams.get('status') as any || undefined;
+  const perPage = parseInt(url.searchParams.get('per_page') || '30', 10);
+
+  if (!owner || !repo) {
+    return error('owner and repo query parameters required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const runs = await github.listWorkflowRuns(owner, repo, {
+      workflowId,
+      branch,
+      event,
+      status,
+      perPage,
+    });
+    return success(runs);
+  } catch (err: any) {
+    logger.error('Failed to list workflow runs', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * GET /api/github/actions/runs/:runId - Get a workflow run
+ */
+export async function getWorkflowRunHandler(req: Request, runId: number): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const url = new URL(req.url);
+  const owner = url.searchParams.get('owner');
+  const repo = url.searchParams.get('repo');
+
+  if (!owner || !repo) {
+    return error('owner and repo query parameters required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const run = await github.getWorkflowRun(owner, repo, runId);
+    return success(run);
+  } catch (err: any) {
+    logger.error('Failed to get workflow run', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * POST /api/github/actions/trigger - Trigger a workflow
+ */
+export async function triggerWorkflowHandler(req: Request): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const body = await parseBody<{
+    owner: string;
+    repo: string;
+    workflow_id: string | number;
+    ref: string;
+    inputs?: Record<string, string>;
+  }>(req);
+
+  if (!body) {
+    return error('Invalid JSON body', 400);
+  }
+
+  const { owner, repo, workflow_id, ref, inputs } = body;
+
+  if (!owner || !repo || !workflow_id || !ref) {
+    return error('owner, repo, workflow_id, and ref are required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    await github.triggerWorkflow(owner, repo, workflow_id, ref, inputs);
+    return success({ message: 'Workflow triggered successfully' }, 202);
+  } catch (err: any) {
+    logger.error('Failed to trigger workflow', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * POST /api/github/actions/runs/:runId/cancel - Cancel a workflow run
+ */
+export async function cancelWorkflowRunHandler(req: Request, runId: number): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const body = await parseBody<{
+    owner: string;
+    repo: string;
+  }>(req);
+
+  if (!body) {
+    return error('Invalid JSON body', 400);
+  }
+
+  const { owner, repo } = body;
+
+  if (!owner || !repo) {
+    return error('owner and repo are required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    await github.cancelWorkflowRun(owner, repo, runId);
+    return success({ message: 'Workflow run cancelled' });
+  } catch (err: any) {
+    logger.error('Failed to cancel workflow run', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * POST /api/github/actions/runs/:runId/rerun - Re-run a workflow
+ */
+export async function rerunWorkflowHandler(req: Request, runId: number): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const body = await parseBody<{
+    owner: string;
+    repo: string;
+  }>(req);
+
+  if (!body) {
+    return error('Invalid JSON body', 400);
+  }
+
+  const { owner, repo } = body;
+
+  if (!owner || !repo) {
+    return error('owner and repo are required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    await github.rerunWorkflow(owner, repo, runId);
+    return success({ message: 'Workflow re-run triggered' });
+  } catch (err: any) {
+    logger.error('Failed to re-run workflow', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+// ==========================================
+// Release Routes
+// ==========================================
+
+/**
+ * GET /api/github/releases - List releases
+ */
+export async function listReleasesHandler(req: Request): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const url = new URL(req.url);
+  const owner = url.searchParams.get('owner');
+  const repo = url.searchParams.get('repo');
+  const perPage = parseInt(url.searchParams.get('per_page') || '30', 10);
+
+  if (!owner || !repo) {
+    return error('owner and repo query parameters required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const releases = await github.listReleases(owner, repo, perPage);
+    return success(releases);
+  } catch (err: any) {
+    logger.error('Failed to list releases', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * GET /api/github/releases/latest - Get latest release
+ */
+export async function getLatestReleaseHandler(req: Request): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const url = new URL(req.url);
+  const owner = url.searchParams.get('owner');
+  const repo = url.searchParams.get('repo');
+
+  if (!owner || !repo) {
+    return error('owner and repo query parameters required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const release = await github.getLatestRelease(owner, repo);
+    return success(release);
+  } catch (err: any) {
+    logger.error('Failed to get latest release', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * GET /api/github/releases/tag/:tag - Get release by tag
+ */
+export async function getReleaseByTagHandler(req: Request, tag: string): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const url = new URL(req.url);
+  const owner = url.searchParams.get('owner');
+  const repo = url.searchParams.get('repo');
+
+  if (!owner || !repo) {
+    return error('owner and repo query parameters required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const release = await github.getReleaseByTag(owner, repo, tag);
+    return success(release);
+  } catch (err: any) {
+    logger.error('Failed to get release by tag', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * POST /api/github/releases - Create a release
+ */
+export async function createReleaseHandler(req: Request): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const body = await parseBody<{
+    owner: string;
+    repo: string;
+    tag_name: string;
+    target_commitish?: string;
+    name?: string;
+    body?: string;
+    draft?: boolean;
+    prerelease?: boolean;
+    generate_release_notes?: boolean;
+  }>(req);
+
+  if (!body) {
+    return error('Invalid JSON body', 400);
+  }
+
+  const { owner, repo, tag_name, ...options } = body;
+
+  if (!owner || !repo || !tag_name) {
+    return error('owner, repo, and tag_name are required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const release = await github.createRelease(owner, repo, {
+      tagName: tag_name,
+      targetCommitish: options.target_commitish,
+      name: options.name,
+      body: options.body,
+      draft: options.draft,
+      prerelease: options.prerelease,
+      generateReleaseNotes: options.generate_release_notes,
+    });
+    return success(release, 201);
+  } catch (err: any) {
+    logger.error('Failed to create release', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * DELETE /api/github/releases/:releaseId - Delete a release
+ */
+export async function deleteReleaseHandler(req: Request, releaseId: number): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const url = new URL(req.url);
+  const owner = url.searchParams.get('owner');
+  const repo = url.searchParams.get('repo');
+
+  if (!owner || !repo) {
+    return error('owner and repo query parameters required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    await github.deleteRelease(owner, repo, releaseId);
+    return success({ message: 'Release deleted' });
+  } catch (err: any) {
+    logger.error('Failed to delete release', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
+/**
+ * POST /api/github/releases/notes - Generate release notes
+ */
+export async function generateReleaseNotesHandler(req: Request): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const body = await parseBody<{
+    owner: string;
+    repo: string;
+    tag_name: string;
+    previous_tag_name?: string;
+    target_commitish?: string;
+  }>(req);
+
+  if (!body) {
+    return error('Invalid JSON body', 400);
+  }
+
+  const { owner, repo, tag_name, previous_tag_name, target_commitish } = body;
+
+  if (!owner || !repo || !tag_name) {
+    return error('owner, repo, and tag_name are required', 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const notes = await github.generateReleaseNotes(owner, repo, tag_name, {
+      previousTagName: previous_tag_name,
+      targetCommitish: target_commitish,
+    });
+    return success(notes);
+  } catch (err: any) {
+    logger.error('Failed to generate release notes', err);
+    return error(err.message, err.status || 500);
+  }
+}

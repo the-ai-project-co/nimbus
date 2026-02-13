@@ -1,0 +1,58 @@
+# Nimbus CLI Service Dockerfile
+# Build and run the CLI service
+
+FROM oven/bun:1.1-alpine AS builder
+
+WORKDIR /app
+
+# Copy workspace configuration
+COPY package.json bun.lock bunfig.toml ./
+COPY tsconfig.json ./
+
+# Copy shared packages
+COPY shared/ ./shared/
+
+# Copy CLI service
+COPY services/cli-service/ ./services/cli-service/
+
+# Install dependencies
+RUN bun install --frozen-lockfile
+
+# Build CLI
+WORKDIR /app/services/cli-service
+RUN bun run build
+
+# Production image
+FROM oven/bun:1.1-alpine AS production
+
+LABEL maintainer="Nimbus Team <team@nimbus.dev>"
+LABEL org.opencontainers.image.description="Nimbus CLI - AI-Powered Infrastructure Assistant"
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    git \
+    curl \
+    ca-certificates \
+    && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 nimbus && \
+    adduser -u 1001 -G nimbus -s /bin/sh -D nimbus
+
+# Copy built application
+COPY --from=builder /app/services/cli-service/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/services/cli-service/package.json ./
+
+# Set ownership
+RUN chown -R nimbus:nimbus /app
+
+USER nimbus
+
+ENV NODE_ENV=production
+
+# CLI entrypoint
+ENTRYPOINT ["bun", "run", "./dist/index.js"]
+CMD ["--help"]

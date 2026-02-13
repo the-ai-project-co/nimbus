@@ -1,28 +1,67 @@
 {
-  "name": "@nimbus/cli-service",
-  "version": "0.1.0",
+  "name": "@nimbus/cli",
+  "version": "1.0.0",
   "type": "module",
-  "description": "CLI Service for Nimbus",
-  "main": "src/index.ts",
+  "description": "Nimbus CLI - AI-powered infrastructure assistant",
+  "main": "dist/index.js",
   "bin": {
-    "nimbus": "./src/index.ts"
+    "nimbus": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "cli",
+    "infrastructure",
+    "terraform",
+    "kubernetes",
+    "helm",
+    "ai",
+    "devops",
+    "iac",
+    "cloud"
+  ],
+  "author": "Nimbus Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/the-ai-project-co/nimbus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/the-ai-project-co/nimbus/issues"
+  },
+  "homepage": "https://github.com/the-ai-project-co/nimbus#readme",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "lint": "echo 'Lint not configured yet'",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
     "type-check": "tsc --noEmit",
-    "build": "bun build src/index.ts --outdir=dist --target=bun"
+    "build": "bun build src/index.ts --outdir=dist --target=bun --minify",
+    "build:node": "bun build src/index.ts --outdir=dist --target=node --minify",
+    "prepublishOnly": "bun run build:node",
+    "postbuild": "chmod +x dist/index.js"
   },
   "dependencies": {
+    "@nimbus/shared-clients": "workspace:*",
     "@nimbus/shared-types": "workspace:*",
     "@nimbus/shared-utils": "workspace:*",
-    "@nimbus/shared-clients": "workspace:*"
+    "posthog-node": "^4.0.0",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

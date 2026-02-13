@@ -1,0 +1,62 @@
+# Build outputs
+dist
+build
+out
+
+# Dependencies
+node_modules
+.bun-cache
+
+# Coverage
+coverage
+
+# Lock files
+bun.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+*.d.ts
+*.min.js
+*.min.css
+
+# Logs
+logs
+*.log
+
+# Binary files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.woff
+*.woff2
+*.ttf
+*.eot
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Docker
+docker
+
+# Release artifacts
+releases
+
+# Test snapshots
+**/__snapshots__/**
+
+# Generated API specs
+docs/api/*.yaml
+docs/api/*.json
+
+# Terraform state
+*.tfstate
+*.tfstate.*
+.terraform

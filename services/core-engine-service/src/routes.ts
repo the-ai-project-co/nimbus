@@ -1,9 +1,13 @@
 import type { Elysia } from 'elysia';
-import { AgentOrchestrator } from './components';
+import { AgentOrchestrator, DriftDetector, DriftAnalyzer, RollbackManager } from './components';
 import { logger } from '@nimbus/shared-utils';
+import type { DriftDetectionOptions, DriftRemediationOptions } from './types/drift';
 
-// Initialize orchestrator
+// Initialize orchestrator and managers
 const orchestrator = new AgentOrchestrator();
+const driftDetector = new DriftDetector();
+const driftAnalyzer = new DriftAnalyzer();
+const rollbackManager = new RollbackManager();
 
 /**
  * Setup Core Engine Service routes
@@ -57,6 +61,23 @@ export function setupRoutes(app: Elysia) {
       };
     } catch (error) {
       logger.error('Error executing task', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Resume a task from checkpoint
+  app.post('/api/tasks/:taskId/resume', async ({ params }: { params: { taskId: string } }) => {
+    try {
+      const result = await orchestrator.resumeTask(params.taskId);
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      logger.error('Error resuming task', error);
       return {
         success: false,
         error: (error as Error).message,
@@ -363,6 +384,252 @@ export function setupRoutes(app: Elysia) {
       };
     } catch (error) {
       logger.error('Error getting events', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // ===== Drift Detection Routes =====
+
+  // Detect drift
+  app.post('/api/drift/detect', async ({ body }) => {
+    const typedBody = body as DriftDetectionOptions;
+
+    try {
+      if (!typedBody.workDir) {
+        return {
+          success: false,
+          error: 'workDir is required',
+        };
+      }
+
+      if (!typedBody.provider) {
+        return {
+          success: false,
+          error: 'provider is required (terraform, kubernetes, or helm)',
+        };
+      }
+
+      const report = await driftDetector.detectDrift(typedBody);
+
+      return {
+        success: true,
+        data: report,
+      };
+    } catch (error) {
+      logger.error('Error detecting drift', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Get drift remediation plan
+  app.post('/api/drift/plan', async ({ body }) => {
+    const typedBody = body as { report: any };
+
+    try {
+      if (!typedBody.report) {
+        return {
+          success: false,
+          error: 'Drift report is required',
+        };
+      }
+
+      const plan = driftAnalyzer.createRemediationPlan(typedBody.report);
+
+      return {
+        success: true,
+        data: plan,
+      };
+    } catch (error) {
+      logger.error('Error creating remediation plan', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Fix drift
+  app.post('/api/drift/fix', async ({ body }) => {
+    const typedBody = body as DriftRemediationOptions;
+
+    try {
+      if (!typedBody.report) {
+        return {
+          success: false,
+          error: 'Drift report is required',
+        };
+      }
+
+      const result = await driftAnalyzer.remediate(typedBody);
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      logger.error('Error remediating drift', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Format drift report as markdown
+  app.post('/api/drift/format', ({ body }) => {
+    const typedBody = body as { report: any };
+
+    try {
+      if (!typedBody.report) {
+        return {
+          success: false,
+          error: 'Drift report is required',
+        };
+      }
+
+      const markdown = driftDetector.formatReportAsMarkdown(typedBody.report);
+
+      return {
+        success: true,
+        data: { markdown },
+      };
+    } catch (error) {
+      logger.error('Error formatting drift report', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Generate compliance report from drift
+  app.post('/api/drift/compliance', ({ body }) => {
+    const typedBody = body as { report: any };
+
+    try {
+      if (!typedBody.report) {
+        return {
+          success: false,
+          error: 'Drift report is required',
+        };
+      }
+
+      const compliance = driftAnalyzer.generateComplianceReport(typedBody.report);
+
+      return {
+        success: true,
+        data: compliance,
+      };
+    } catch (error) {
+      logger.error('Error generating compliance report', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // ===== Rollback Routes =====
+
+  // Rollback a task
+  app.post('/api/tasks/:taskId/rollback', async ({ params, body }) => {
+    const typedParams = params as { taskId: string };
+    const typedBody = body as {
+      autoApprove?: boolean;
+      dryRun?: boolean;
+      force?: boolean;
+      targets?: string[];
+    };
+
+    try {
+      const checkResult = await rollbackManager.canRollback(typedParams.taskId);
+
+      if (!checkResult.available) {
+        return {
+          success: false,
+          error: checkResult.reason || 'Rollback not available for this execution',
+        };
+      }
+
+      const result = await rollbackManager.rollback({
+        state: checkResult.state!,
+        autoApprove: typedBody.autoApprove,
+        dryRun: typedBody.dryRun,
+        force: typedBody.force,
+        targets: typedBody.targets,
+      });
+
+      return {
+        success: result.success,
+        data: result,
+      };
+    } catch (error) {
+      logger.error('Error during rollback', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Check if rollback is available
+  app.get('/api/tasks/:taskId/rollback/check', async ({ params }) => {
+    const typedParams = params as { taskId: string };
+
+    try {
+      const result = await rollbackManager.canRollback(typedParams.taskId);
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      logger.error('Error checking rollback availability', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // List available rollback states
+  app.get('/api/rollback/states', async () => {
+    try {
+      const states = await rollbackManager.listRollbackStates();
+
+      return {
+        success: true,
+        data: states,
+      };
+    } catch (error) {
+      logger.error('Error listing rollback states', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+      };
+    }
+  });
+
+  // Clean up old rollback states
+  app.post('/api/rollback/cleanup', async ({ body }) => {
+    const typedBody = body as { maxAgeDays?: number };
+
+    try {
+      const maxAgeMs = (typedBody.maxAgeDays || 7) * 24 * 60 * 60 * 1000;
+      const cleaned = await rollbackManager.cleanupOldStates(maxAgeMs);
+
+      return {
+        success: true,
+        data: { cleaned },
+      };
+    } catch (error) {
+      logger.error('Error cleaning up rollback states', error);
       return {
         success: false,
         error: (error as Error).message,

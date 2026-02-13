@@ -13,6 +13,7 @@ export class ToolsClient {
   private k8sClient: RestClient;
   private helmClient: RestClient;
   private awsClient: RestClient;
+  private githubClient: RestClient;
 
   constructor(options: RestClientOptions = {}) {
     this.gitClient = new RestClient(ServiceURLs.GIT_TOOLS, options);
@@ -21,6 +22,7 @@ export class ToolsClient {
     this.k8sClient = new RestClient(ServiceURLs.K8S_TOOLS, options);
     this.helmClient = new RestClient(ServiceURLs.HELM_TOOLS, options);
     this.awsClient = new RestClient(ServiceURLs.AWS_TOOLS, options);
+    this.githubClient = new RestClient(ServiceURLs.GITHUB_TOOLS, options);
   }
 
   // ==================== Git Operations ====================
@@ -413,6 +415,131 @@ export class ToolsClient {
     template: async (name: string, chart: string, options?: { namespace?: string; values?: string; valuesFiles?: string[]; set?: Record<string, string>; version?: string; kubeconfig?: string; kubeContext?: string }) => {
       return this.helmClient.post('/api/helm/template', { name, chart, ...options });
     },
+
+    show: async (chart: string, options?: { subcommand?: 'all' | 'chart' | 'readme' | 'values' | 'crds'; version?: string }) => {
+      const params = new URLSearchParams();
+      params.set('chart', chart);
+      if (options?.subcommand) params.set('subcommand', options.subcommand);
+      if (options?.version) params.set('version', options.version);
+      return this.helmClient.get(`/api/helm/show?${params.toString()}`);
+    },
+  };
+
+  // ==================== GitHub Operations ====================
+
+  github = {
+    /**
+     * Set authorization token for GitHub API requests
+     */
+    setToken: (token: string) => {
+      this.githubClient = new RestClient(ServiceURLs.GITHUB_TOOLS, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+
+    // Pull Request Operations
+    prs: {
+      list: async (owner: string, repo: string, options?: { state?: 'open' | 'closed' | 'all'; perPage?: number }) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        if (options?.state) params.set('state', options.state);
+        if (options?.perPage) params.set('per_page', options.perPage.toString());
+        return this.githubClient.get(`/api/github/prs?${params.toString()}`);
+      },
+
+      get: async (owner: string, repo: string, prNumber: number) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        return this.githubClient.get(`/api/github/prs/${prNumber}?${params.toString()}`);
+      },
+
+      create: async (owner: string, repo: string, params: { title: string; head: string; base: string; body?: string; draft?: boolean }) => {
+        return this.githubClient.post('/api/github/prs', { owner, repo, ...params });
+      },
+
+      merge: async (owner: string, repo: string, prNumber: number, options?: { commitTitle?: string; commitMessage?: string; mergeMethod?: 'merge' | 'squash' | 'rebase' }) => {
+        return this.githubClient.post(`/api/github/prs/${prNumber}/merge`, {
+          owner,
+          repo,
+          commit_title: options?.commitTitle,
+          commit_message: options?.commitMessage,
+          merge_method: options?.mergeMethod,
+        });
+      },
+    },
+
+    // Issue Operations
+    issues: {
+      list: async (owner: string, repo: string, options?: { state?: 'open' | 'closed' | 'all'; perPage?: number }) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        if (options?.state) params.set('state', options.state);
+        if (options?.perPage) params.set('per_page', options.perPage.toString());
+        return this.githubClient.get(`/api/github/issues?${params.toString()}`);
+      },
+
+      get: async (owner: string, repo: string, issueNumber: number) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        return this.githubClient.get(`/api/github/issues/${issueNumber}?${params.toString()}`);
+      },
+
+      create: async (owner: string, repo: string, params: { title: string; body?: string; labels?: string[]; assignees?: string[] }) => {
+        return this.githubClient.post('/api/github/issues', { owner, repo, ...params });
+      },
+
+      close: async (owner: string, repo: string, issueNumber: number) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        return this.githubClient.put(`/api/github/issues/${issueNumber}/close?${params.toString()}`, {});
+      },
+
+      addComment: async (owner: string, repo: string, issueNumber: number, body: string) => {
+        return this.githubClient.post(`/api/github/issues/${issueNumber}/comments`, { owner, repo, body });
+      },
+    },
+
+    // Repository Operations
+    repos: {
+      get: async (owner: string, repo: string) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        return this.githubClient.get(`/api/github/repos?${params.toString()}`);
+      },
+
+      listBranches: async (owner: string, repo: string, options?: { perPage?: number }) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        if (options?.perPage) params.set('per_page', options.perPage.toString());
+        return this.githubClient.get(`/api/github/repos/branches?${params.toString()}`);
+      },
+
+      createBranch: async (owner: string, repo: string, branch: string, sha: string) => {
+        return this.githubClient.post('/api/github/repos/branches', { owner, repo, branch, sha });
+      },
+
+      deleteBranch: async (owner: string, repo: string, branch: string) => {
+        const params = new URLSearchParams();
+        params.set('owner', owner);
+        params.set('repo', repo);
+        params.set('branch', branch);
+        return this.githubClient.delete(`/api/github/repos/branches?${params.toString()}`);
+      },
+    },
+
+    // User Operations
+    user: {
+      get: async () => {
+        return this.githubClient.get('/api/github/user');
+      },
+    },
   };
 
   // ==================== AWS Operations ====================
@@ -600,22 +727,23 @@ export class ToolsClient {
    * Check health of all tool services
    */
   async healthCheck(): Promise<Record<string, boolean>> {
-    const [git, fs, terraform, k8s, helm, aws] = await Promise.all([
+    const [git, fs, terraform, k8s, helm, aws, github] = await Promise.all([
       this.gitClient.healthCheck(),
       this.fsClient.healthCheck(),
       this.terraformClient.healthCheck(),
       this.k8sClient.healthCheck(),
       this.helmClient.healthCheck(),
       this.awsClient.healthCheck(),
+      this.githubClient.healthCheck(),
     ]);
 
-    return { git, fs, terraform, k8s, helm, aws };
+    return { git, fs, terraform, k8s, helm, aws, github };
   }
 
   /**
    * Check health of a specific service
    */
-  async healthCheckService(service: 'git' | 'fs' | 'terraform' | 'k8s' | 'helm' | 'aws'): Promise<boolean> {
+  async healthCheckService(service: 'git' | 'fs' | 'terraform' | 'k8s' | 'helm' | 'aws' | 'github'): Promise<boolean> {
     const clients: Record<string, RestClient> = {
       git: this.gitClient,
       fs: this.fsClient,
@@ -623,6 +751,7 @@ export class ToolsClient {
       k8s: this.k8sClient,
       helm: this.helmClient,
       aws: this.awsClient,
+      github: this.githubClient,
     };
 
     return clients[service].healthCheck();

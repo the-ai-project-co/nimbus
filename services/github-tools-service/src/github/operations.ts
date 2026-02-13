@@ -353,4 +353,344 @@ export class GitHubOperations {
       email: data.email,
     };
   }
+
+  // ==========================================
+  // GitHub Actions Operations
+  // ==========================================
+
+  /**
+   * List workflow runs for a repository
+   */
+  async listWorkflowRuns(
+    owner: string,
+    repo: string,
+    options?: WorkflowRunOptions
+  ): Promise<WorkflowRun[]> {
+    logger.info(`Listing workflow runs for ${owner}/${repo}`);
+
+    const params: any = {
+      owner,
+      repo,
+      per_page: options?.perPage || 30,
+    };
+
+    if (options?.workflowId) {
+      params.workflow_id = options.workflowId;
+    }
+    if (options?.branch) {
+      params.branch = options.branch;
+    }
+    if (options?.event) {
+      params.event = options.event;
+    }
+    if (options?.status) {
+      params.status = options.status;
+    }
+
+    const { data } = await this.octokit.actions.listWorkflowRunsForRepo(params);
+
+    return data.workflow_runs as unknown as WorkflowRun[];
+  }
+
+  /**
+   * Get a specific workflow run
+   */
+  async getWorkflowRun(owner: string, repo: string, runId: number): Promise<WorkflowRun> {
+    logger.info(`Getting workflow run ${runId} for ${owner}/${repo}`);
+
+    const { data } = await this.octokit.actions.getWorkflowRun({
+      owner,
+      repo,
+      run_id: runId,
+    });
+
+    return data as unknown as WorkflowRun;
+  }
+
+  /**
+   * Trigger a workflow dispatch event
+   */
+  async triggerWorkflow(
+    owner: string,
+    repo: string,
+    workflowId: string | number,
+    ref: string,
+    inputs?: Record<string, string>
+  ): Promise<void> {
+    logger.info(`Triggering workflow ${workflowId} for ${owner}/${repo}`);
+
+    await this.octokit.actions.createWorkflowDispatch({
+      owner,
+      repo,
+      workflow_id: workflowId,
+      ref,
+      inputs,
+    });
+  }
+
+  /**
+   * List workflows for a repository
+   */
+  async listWorkflows(owner: string, repo: string, perPage = 30): Promise<Workflow[]> {
+    logger.info(`Listing workflows for ${owner}/${repo}`);
+
+    const { data } = await this.octokit.actions.listRepoWorkflows({
+      owner,
+      repo,
+      per_page: perPage,
+    });
+
+    return data.workflows as unknown as Workflow[];
+  }
+
+  /**
+   * Cancel a workflow run
+   */
+  async cancelWorkflowRun(owner: string, repo: string, runId: number): Promise<void> {
+    logger.info(`Cancelling workflow run ${runId} for ${owner}/${repo}`);
+
+    await this.octokit.actions.cancelWorkflowRun({
+      owner,
+      repo,
+      run_id: runId,
+    });
+  }
+
+  /**
+   * Re-run a workflow
+   */
+  async rerunWorkflow(owner: string, repo: string, runId: number): Promise<void> {
+    logger.info(`Re-running workflow ${runId} for ${owner}/${repo}`);
+
+    await this.octokit.actions.reRunWorkflow({
+      owner,
+      repo,
+      run_id: runId,
+    });
+  }
+
+  /**
+   * Get workflow run logs
+   */
+  async getWorkflowRunLogs(owner: string, repo: string, runId: number): Promise<string> {
+    logger.info(`Getting logs for workflow run ${runId}`);
+
+    const { url } = await this.octokit.actions.downloadWorkflowRunLogs({
+      owner,
+      repo,
+      run_id: runId,
+    });
+
+    return url;
+  }
+
+  // ==========================================
+  // Release Operations
+  // ==========================================
+
+  /**
+   * Create a release
+   */
+  async createRelease(
+    owner: string,
+    repo: string,
+    options: ReleaseOptions
+  ): Promise<Release> {
+    logger.info(`Creating release ${options.tagName} for ${owner}/${repo}`);
+
+    const { data } = await this.octokit.repos.createRelease({
+      owner,
+      repo,
+      tag_name: options.tagName,
+      target_commitish: options.targetCommitish,
+      name: options.name,
+      body: options.body,
+      draft: options.draft,
+      prerelease: options.prerelease,
+      generate_release_notes: options.generateReleaseNotes,
+    });
+
+    return data as unknown as Release;
+  }
+
+  /**
+   * List releases
+   */
+  async listReleases(owner: string, repo: string, perPage = 30): Promise<Release[]> {
+    logger.info(`Listing releases for ${owner}/${repo}`);
+
+    const { data } = await this.octokit.repos.listReleases({
+      owner,
+      repo,
+      per_page: perPage,
+    });
+
+    return data as unknown as Release[];
+  }
+
+  /**
+   * Get a release by tag
+   */
+  async getReleaseByTag(owner: string, repo: string, tag: string): Promise<Release> {
+    logger.info(`Getting release by tag ${tag} for ${owner}/${repo}`);
+
+    const { data } = await this.octokit.repos.getReleaseByTag({
+      owner,
+      repo,
+      tag,
+    });
+
+    return data as unknown as Release;
+  }
+
+  /**
+   * Get the latest release
+   */
+  async getLatestRelease(owner: string, repo: string): Promise<Release> {
+    logger.info(`Getting latest release for ${owner}/${repo}`);
+
+    const { data } = await this.octokit.repos.getLatestRelease({
+      owner,
+      repo,
+    });
+
+    return data as unknown as Release;
+  }
+
+  /**
+   * Update a release
+   */
+  async updateRelease(
+    owner: string,
+    repo: string,
+    releaseId: number,
+    options: Partial<ReleaseOptions>
+  ): Promise<Release> {
+    logger.info(`Updating release ${releaseId} for ${owner}/${repo}`);
+
+    const { data } = await this.octokit.repos.updateRelease({
+      owner,
+      repo,
+      release_id: releaseId,
+      tag_name: options.tagName,
+      target_commitish: options.targetCommitish,
+      name: options.name,
+      body: options.body,
+      draft: options.draft,
+      prerelease: options.prerelease,
+    });
+
+    return data as unknown as Release;
+  }
+
+  /**
+   * Delete a release
+   */
+  async deleteRelease(owner: string, repo: string, releaseId: number): Promise<void> {
+    logger.info(`Deleting release ${releaseId} for ${owner}/${repo}`);
+
+    await this.octokit.repos.deleteRelease({
+      owner,
+      repo,
+      release_id: releaseId,
+    });
+  }
+
+  /**
+   * Generate release notes
+   */
+  async generateReleaseNotes(
+    owner: string,
+    repo: string,
+    tagName: string,
+    options?: { previousTagName?: string; targetCommitish?: string }
+  ): Promise<{ name: string; body: string }> {
+    logger.info(`Generating release notes for ${tagName}`);
+
+    const { data } = await this.octokit.repos.generateReleaseNotes({
+      owner,
+      repo,
+      tag_name: tagName,
+      previous_tag_name: options?.previousTagName,
+      target_commitish: options?.targetCommitish,
+    });
+
+    return {
+      name: data.name,
+      body: data.body,
+    };
+  }
+}
+
+// ==========================================
+// Additional Types
+// ==========================================
+
+export interface WorkflowRunOptions {
+  workflowId?: string | number;
+  branch?: string;
+  event?: string;
+  status?: 'queued' | 'in_progress' | 'completed' | 'waiting';
+  perPage?: number;
+}
+
+export interface WorkflowRun {
+  id: number;
+  name: string;
+  head_branch: string;
+  head_sha: string;
+  status: string;
+  conclusion: string | null;
+  workflow_id: number;
+  url: string;
+  html_url: string;
+  created_at: string;
+  updated_at: string;
+  run_number: number;
+  event: string;
+}
+
+export interface Workflow {
+  id: number;
+  name: string;
+  path: string;
+  state: string;
+  url: string;
+  html_url: string;
+  badge_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReleaseOptions {
+  tagName: string;
+  targetCommitish?: string;
+  name?: string;
+  body?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  generateReleaseNotes?: boolean;
+}
+
+export interface Release {
+  id: number;
+  tag_name: string;
+  target_commitish: string;
+  name: string;
+  body: string;
+  draft: boolean;
+  prerelease: boolean;
+  created_at: string;
+  published_at: string;
+  html_url: string;
+  assets: ReleaseAsset[];
+}
+
+export interface ReleaseAsset {
+  id: number;
+  name: string;
+  content_type: string;
+  size: number;
+  download_count: number;
+  browser_download_url: string;
 }

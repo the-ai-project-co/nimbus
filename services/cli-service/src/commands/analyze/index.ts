@@ -24,6 +24,13 @@ export function parseAnalyzeOptions(args: string[]): AnalyzeOptions {
       options.path = args[++i];
     } else if (arg === '--json') {
       options.json = true;
+    } else if (arg === '--security') {
+      // Shortcut for --type security
+      options.type = 'security';
+    } else if (arg === '--compliance' && args[i + 1]) {
+      // Set compliance standard (soc2, hipaa, pci)
+      options.type = 'security';
+      (options as any).compliance = args[++i];
     } else if (!arg.startsWith('-') && !options.path) {
       options.path = arg;
     }
@@ -238,6 +245,12 @@ export async function analyzeCommand(options: AnalyzeOptions): Promise<void> {
   }
 
   ui.stopSpinnerSuccess(`Analyzed ${files.length} files`);
+
+  // Track analysis completion
+  try {
+    const { trackEvent } = await import('../../telemetry');
+    trackEvent('analysis_completed', { filesAnalyzed: files.length, suggestionsCount: allSuggestions.length });
+  } catch { /* telemetry failure is non-critical */ }
 
   // Build analysis result
   const byType: Record<string, number> = {};

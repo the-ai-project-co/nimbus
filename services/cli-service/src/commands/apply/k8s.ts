@@ -9,6 +9,13 @@
 import { logger } from '@nimbus/shared-utils';
 import { ui, confirm } from '../../wizard';
 import { k8sClient } from '../../clients';
+import {
+  loadSafetyPolicy,
+  evaluateSafety,
+  type SafetyContext,
+  type SafetyCheckResult,
+} from '../../config/safety-policy';
+import { promptForApproval, displaySafetySummary } from '../../wizard/approval';
 
 /**
  * Command options
@@ -22,6 +29,10 @@ export interface ApplyK8sOptions {
   force?: boolean;
   recursive?: boolean;
   selector?: string;
+  /** Skip safety checks */
+  skipSafety?: boolean;
+  /** Environment name (for safety policy) */
+  environment?: string;
 }
 
 /**
@@ -125,16 +136,66 @@ async function applyWithService(options: ApplyK8sOptions): Promise<void> {
     return;
   }
 
-  // Confirm apply
-  ui.newLine();
-  const proceed = await confirm({
-    message: `Apply ${resources.length} resource(s)?`,
-    defaultValue: true,
-  });
+  // Run safety checks if not skipped
+  if (!options.skipSafety) {
+    const resourceList = resources.map(r => `${r.kind}/${r.name}`);
+    const safetyResult = await runK8sSafetyChecks('apply', resourceList, options);
 
-  if (!proceed) {
-    ui.info('Apply cancelled');
-    return;
+    if (!safetyResult.passed) {
+      ui.newLine();
+      ui.error('Safety checks failed - operation blocked');
+      for (const blocker of safetyResult.blockers) {
+        ui.print(`  ${ui.color('✗', 'red')} ${blocker.message}`);
+      }
+      process.exit(1);
+    }
+
+    // If safety requires approval, prompt for it
+    if (safetyResult.requiresApproval) {
+      const approvalResult = await promptForApproval({
+        title: 'Kubernetes Apply',
+        operation: 'kubectl apply',
+        risks: safetyResult.risks,
+        environment: options.environment,
+        affectedResources: resourceList,
+      });
+
+      if (!approvalResult.approved) {
+        ui.newLine();
+        ui.info(`Apply cancelled: ${approvalResult.reason || 'User declined'}`);
+        return;
+      }
+    } else {
+      // Show safety summary and simple confirm
+      displaySafetySummary({
+        operation: 'kubectl apply',
+        risks: safetyResult.risks,
+        passed: safetyResult.passed,
+      });
+
+      ui.newLine();
+      const proceed = await confirm({
+        message: `Apply ${resources.length} resource(s)?`,
+        defaultValue: true,
+      });
+
+      if (!proceed) {
+        ui.info('Apply cancelled');
+        return;
+      }
+    }
+  } else {
+    // Simple confirmation when safety is skipped
+    ui.newLine();
+    const proceed = await confirm({
+      message: `Apply ${resources.length} resource(s)?`,
+      defaultValue: true,
+    });
+
+    if (!proceed) {
+      ui.info('Apply cancelled');
+      return;
+    }
   }
 
   // Apply manifests
@@ -152,6 +213,12 @@ async function applyWithService(options: ApplyK8sOptions): Promise<void> {
   }
 
   ui.stopSpinnerSuccess('Apply complete!');
+
+  // Track successful k8s apply
+  try {
+    const { trackGeneration } = await import('../../telemetry');
+    trackGeneration('k8s-apply', ['kubernetes']);
+  } catch { /* telemetry failure is non-critical */ }
 
   // Display results
   ui.newLine();
@@ -238,6 +305,13 @@ async function applyWithLocalCLI(options: ApplyK8sOptions): Promise<void> {
       if (code === 0) {
         ui.newLine();
         ui.success('kubectl apply completed successfully');
+
+        // Track successful k8s apply
+        try {
+          const { trackGeneration } = require('../../telemetry');
+          trackGeneration('k8s-apply', ['kubernetes']);
+        } catch { /* telemetry failure is non-critical */ }
+
         resolve();
       } else {
         ui.newLine();
@@ -246,6 +320,30 @@ async function applyWithLocalCLI(options: ApplyK8sOptions): Promise<void> {
       }
     });
   });
+}
+
+/**
+ * Run safety checks for the operation
+ */
+async function runK8sSafetyChecks(
+  operation: string,
+  resources: string[],
+  options: ApplyK8sOptions
+): Promise<SafetyCheckResult> {
+  const policy = loadSafetyPolicy();
+
+  const context: SafetyContext = {
+    operation,
+    type: 'kubernetes',
+    environment: options.environment,
+    resources,
+    metadata: {
+      manifests: options.manifests,
+      namespace: options.namespace,
+    },
+  };
+
+  return evaluateSafety(context, policy);
 }
 
 /**

@@ -9,6 +9,13 @@
 import { logger } from '@nimbus/shared-utils';
 import { ui, confirm, input } from '../../wizard';
 import { helmClient } from '../../clients';
+import {
+  loadSafetyPolicy,
+  evaluateSafety,
+  type SafetyContext,
+  type SafetyCheckResult,
+} from '../../config/safety-policy';
+import { promptForApproval, displaySafetySummary } from '../../wizard/approval';
 
 /**
  * Command options
@@ -28,6 +35,10 @@ export interface ApplyHelmOptions {
   install?: boolean;
   atomic?: boolean;
   force?: boolean;
+  /** Skip safety checks */
+  skipSafety?: boolean;
+  /** Environment name (for safety policy) */
+  environment?: string;
 }
 
 /**
@@ -168,17 +179,69 @@ async function applyWithService(
     return;
   }
 
-  // Confirm apply
-  const proceed = await confirm({
-    message: isUpgrade
-      ? `Upgrade release '${releaseName}'?`
-      : `Install release '${releaseName}'?`,
-    defaultValue: true,
-  });
+  // Run safety checks if not skipped
+  if (!options.skipSafety) {
+    const operation = isUpgrade ? 'upgrade' : 'install';
+    const safetyResult = await runHelmSafetyChecks(operation, releaseName, chart, options);
 
-  if (!proceed) {
-    ui.info('Apply cancelled');
-    return;
+    if (!safetyResult.passed) {
+      ui.newLine();
+      ui.error('Safety checks failed - operation blocked');
+      for (const blocker of safetyResult.blockers) {
+        ui.print(`  ${ui.color('✗', 'red')} ${blocker.message}`);
+      }
+      process.exit(1);
+    }
+
+    // If safety requires approval, prompt for it
+    if (safetyResult.requiresApproval) {
+      const approvalResult = await promptForApproval({
+        title: `Helm ${isUpgrade ? 'Upgrade' : 'Install'}`,
+        operation: `helm ${operation}`,
+        risks: safetyResult.risks,
+        environment: options.environment,
+        affectedResources: [`${releaseName} (${chart})`],
+      });
+
+      if (!approvalResult.approved) {
+        ui.newLine();
+        ui.info(`Apply cancelled: ${approvalResult.reason || 'User declined'}`);
+        return;
+      }
+    } else {
+      // Show safety summary and simple confirm
+      displaySafetySummary({
+        operation: `helm ${operation}`,
+        risks: safetyResult.risks,
+        passed: safetyResult.passed,
+      });
+
+      ui.newLine();
+      const proceed = await confirm({
+        message: isUpgrade
+          ? `Upgrade release '${releaseName}'?`
+          : `Install release '${releaseName}'?`,
+        defaultValue: true,
+      });
+
+      if (!proceed) {
+        ui.info('Apply cancelled');
+        return;
+      }
+    }
+  } else {
+    // Simple confirmation when safety is skipped
+    const proceed = await confirm({
+      message: isUpgrade
+        ? `Upgrade release '${releaseName}'?`
+        : `Install release '${releaseName}'?`,
+      defaultValue: true,
+    });
+
+    if (!proceed) {
+      ui.info('Apply cancelled');
+      return;
+    }
   }
 
   // Install or upgrade
@@ -215,6 +278,12 @@ async function applyWithService(
   }
 
   ui.stopSpinnerSuccess(isUpgrade ? 'Upgrade complete!' : 'Installation complete!');
+
+  // Track successful helm apply
+  try {
+    const { trackGeneration } = await import('../../telemetry');
+    trackGeneration('helm-apply', ['helm']);
+  } catch { /* telemetry failure is non-critical */ }
 
   // Display release info
   ui.newLine();
@@ -342,6 +411,13 @@ async function applyWithLocalCLI(
       if (code === 0) {
         ui.newLine();
         ui.success(`Helm ${isUpgrade ? 'upgrade' : 'install'} completed successfully`);
+
+        // Track successful helm apply
+        try {
+          const { trackGeneration } = require('../../telemetry');
+          trackGeneration('helm-apply', ['helm']);
+        } catch { /* telemetry failure is non-critical */ }
+
         resolve();
       } else {
         ui.newLine();
@@ -350,6 +426,33 @@ async function applyWithLocalCLI(
       }
     });
   });
+}
+
+/**
+ * Run safety checks for the operation
+ */
+async function runHelmSafetyChecks(
+  operation: string,
+  releaseName: string,
+  chart: string,
+  options: ApplyHelmOptions
+): Promise<SafetyCheckResult> {
+  const policy = loadSafetyPolicy();
+
+  const context: SafetyContext = {
+    operation,
+    type: 'helm',
+    environment: options.environment,
+    resources: [`${releaseName}:${chart}`],
+    metadata: {
+      releaseName,
+      chart,
+      namespace: options.namespace,
+      version: options.version,
+    },
+  };
+
+  return evaluateSafety(context, policy);
 }
 
 // Export as default

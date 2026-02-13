@@ -6,6 +6,7 @@
 
 import { k8sClient } from '../../clients';
 import { ui } from '../../wizard/ui';
+import { confirmWithResourceName } from '../../wizard/approval';
 
 export interface K8sCommandOptions {
   namespace?: string;
@@ -146,6 +147,14 @@ export async function k8sDeleteCommand(
 
   if (options.namespace) {
     ui.info(`Namespace: ${options.namespace}`);
+  }
+
+  // Require type-name-to-delete confirmation for destructive operations
+  if (!options.force && !options.dryRun) {
+    const confirmed = await confirmWithResourceName(name, resource);
+    if (!confirmed) {
+      return;
+    }
   }
 
   ui.startSpinner({ message: `Deleting ${resource}/${name}...` });
@@ -318,6 +327,161 @@ export async function k8sScaleCommand(
 }
 
 /**
+ * Execute a command in a pod
+ */
+export async function k8sExecCommand(
+  pod: string,
+  command: string[],
+  options: K8sCommandOptions = {}
+): Promise<void> {
+  ui.header(`Kubernetes Exec - ${pod}`);
+
+  if (options.namespace) {
+    ui.info(`Namespace: ${options.namespace}`);
+  }
+  if (options.container) {
+    ui.info(`Container: ${options.container}`);
+  }
+  ui.info(`Command: ${command.join(' ')}`);
+
+  ui.startSpinner({ message: `Executing in ${pod}...` });
+
+  try {
+    const available = await k8sClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Kubernetes Tools Service not available');
+      ui.error('Please ensure the Kubernetes Tools Service is running.');
+      return;
+    }
+
+    const result = await k8sClient.exec(pod, command, {
+      namespace: options.namespace,
+      container: options.container,
+    });
+
+    if (result.success) {
+      ui.stopSpinnerSuccess('Command executed');
+      if (result.output) {
+        console.log(result.output);
+      }
+    } else {
+      ui.stopSpinnerFail('Command failed');
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error executing command');
+    ui.error(error.message);
+  }
+}
+
+/**
+ * Manage rollouts for a resource
+ */
+export async function k8sRolloutCommand(
+  resource: string,
+  name: string,
+  action: 'status' | 'history' | 'restart' | 'undo' | 'pause' | 'resume',
+  options: K8sCommandOptions = {}
+): Promise<void> {
+  ui.header(`Kubernetes Rollout ${action} - ${resource}/${name}`);
+
+  if (options.namespace) {
+    ui.info(`Namespace: ${options.namespace}`);
+  }
+
+  ui.startSpinner({ message: `Running rollout ${action}...` });
+
+  try {
+    const available = await k8sClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Kubernetes Tools Service not available');
+      ui.error('Please ensure the Kubernetes Tools Service is running.');
+      return;
+    }
+
+    const result = await k8sClient.rollout(resource, name, action, {
+      namespace: options.namespace,
+    });
+
+    if (result.success) {
+      ui.stopSpinnerSuccess(`Rollout ${action} complete`);
+      if (result.output) {
+        console.log(result.output);
+      }
+    } else {
+      ui.stopSpinnerFail(`Rollout ${action} failed`);
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail(`Error during rollout ${action}`);
+    ui.error(error.message);
+  }
+}
+
+/**
+ * Get Kubernetes events
+ */
+export async function k8sEventsCommand(options: K8sCommandOptions = {}): Promise<void> {
+  ui.header('Kubernetes Events');
+
+  if (options.namespace) {
+    ui.info(`Namespace: ${options.namespace}`);
+  } else {
+    ui.info('Namespace: all');
+  }
+
+  ui.startSpinner({ message: 'Fetching events...' });
+
+  try {
+    const available = await k8sClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Kubernetes Tools Service not available');
+      ui.error('Please ensure the Kubernetes Tools Service is running.');
+      return;
+    }
+
+    const result = await k8sClient.events({
+      namespace: options.namespace,
+    });
+
+    if (result.success) {
+      ui.stopSpinnerSuccess(`Found ${result.events.length} events`);
+
+      if (result.events.length > 0) {
+        ui.table({
+          columns: [
+            { key: 'type', header: 'Type' },
+            { key: 'reason', header: 'Reason' },
+            { key: 'object', header: 'Object' },
+            { key: 'message', header: 'Message' },
+            { key: 'age', header: 'Age' },
+          ],
+          data: result.events.map((event) => ({
+            type: event.type || '-',
+            reason: event.reason || '-',
+            object: event.object || '-',
+            message: event.message || '-',
+            age: event.age || '-',
+          })),
+        });
+      }
+    } else {
+      ui.stopSpinnerFail('Failed to get events');
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error getting events');
+    ui.error(error.message);
+  }
+}
+
+/**
  * Main k8s command router
  */
 export async function k8sCommand(subcommand: string, args: string[]): Promise<void> {
@@ -401,8 +565,45 @@ export async function k8sCommand(subcommand: string, args: string[]): Promise<vo
         options
       );
       break;
+    case 'exec': {
+      if (positionalArgs.length < 1) {
+        ui.error('Usage: nimbus k8s exec <pod> -- <command...>');
+        return;
+      }
+      // Everything after '--' is the command
+      const dashIdx = args.indexOf('--');
+      const execCmd = dashIdx >= 0 ? args.slice(dashIdx + 1) : positionalArgs.slice(1);
+      if (execCmd.length === 0) {
+        ui.error('Usage: nimbus k8s exec <pod> -- <command...>');
+        return;
+      }
+      await k8sExecCommand(positionalArgs[0], execCmd, options);
+      break;
+    }
+    case 'rollout': {
+      if (positionalArgs.length < 2) {
+        ui.error('Usage: nimbus k8s rollout <action> <resource>/<name>');
+        ui.info('Actions: status, history, restart, undo, pause, resume');
+        return;
+      }
+      const rolloutAction = positionalArgs[0] as 'status' | 'history' | 'restart' | 'undo' | 'pause' | 'resume';
+      const resourceParts = positionalArgs[1].split('/');
+      const rolloutResource = resourceParts.length > 1 ? resourceParts[0] : 'deployment';
+      const rolloutName = resourceParts.length > 1 ? resourceParts[1] : resourceParts[0];
+      await k8sRolloutCommand(rolloutResource, rolloutName, rolloutAction, options);
+      break;
+    }
+    case 'events':
+      await k8sEventsCommand(options);
+      break;
+    case 'generate': {
+      const type = positionalArgs[0] as string | undefined;
+      const { generateK8sCommand } = await import('../generate-k8s');
+      await generateK8sCommand({ workloadType: type as any });
+      break;
+    }
     default:
       ui.error(`Unknown k8s subcommand: ${subcommand}`);
-      ui.info('Available commands: get, apply, delete, logs, describe, scale');
+      ui.info('Available commands: get, apply, delete, logs, describe, scale, exec, rollout, events, generate');
   }
 }

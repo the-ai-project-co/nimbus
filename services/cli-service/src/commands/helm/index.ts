@@ -494,6 +494,52 @@ export async function helmRepoUpdateCommand(): Promise<void> {
 }
 
 /**
+ * Show chart information
+ */
+export async function helmShowCommand(
+  chart: string,
+  options: HelmCommandOptions & { subcommand?: 'all' | 'chart' | 'readme' | 'values' | 'crds' } = {}
+): Promise<void> {
+  const sub = options.subcommand || 'all';
+  ui.header(`Helm Show ${sub} - ${chart}`);
+
+  if (options.version) {
+    ui.info(`Version: ${options.version}`);
+  }
+
+  ui.startSpinner({ message: `Fetching chart info for ${chart}...` });
+
+  try {
+    const available = await helmClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Helm Tools Service not available');
+      ui.error('Please ensure the Helm Tools Service is running.');
+      return;
+    }
+
+    const result = await helmClient.show(chart, {
+      subcommand: sub,
+      version: options.version,
+    });
+
+    if (result.success) {
+      ui.stopSpinnerSuccess(`Chart info retrieved`);
+      if (result.output) {
+        console.log(result.output);
+      }
+    } else {
+      ui.stopSpinnerFail('Failed to show chart info');
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error showing chart info');
+    ui.error(error.message);
+  }
+}
+
+/**
  * Main helm command router
  */
 export async function helmCommand(subcommand: string, args: string[]): Promise<void> {
@@ -583,6 +629,23 @@ export async function helmCommand(subcommand: string, args: string[]): Promise<v
       }
       await helmSearchCommand(positionalArgs[0], options);
       break;
+    case 'show':
+      if (positionalArgs.length < 1) {
+        ui.error('Usage: nimbus helm show <chart> [--subcommand all|chart|readme|values|crds]');
+        return;
+      }
+      {
+        // First positional arg might be the subcommand (all, chart, readme, values, crds)
+        const validSubs = ['all', 'chart', 'readme', 'values', 'crds'];
+        let showSub: 'all' | 'chart' | 'readme' | 'values' | 'crds' = 'all';
+        let chartName = positionalArgs[0];
+        if (validSubs.includes(positionalArgs[0]) && positionalArgs[1]) {
+          showSub = positionalArgs[0] as typeof showSub;
+          chartName = positionalArgs[1];
+        }
+        await helmShowCommand(chartName, { ...options, subcommand: showSub });
+      }
+      break;
     case 'repo':
       if (positionalArgs[0] === 'add' && positionalArgs.length >= 3) {
         await helmRepoAddCommand(positionalArgs[1], positionalArgs[2]);
@@ -594,6 +657,6 @@ export async function helmCommand(subcommand: string, args: string[]): Promise<v
       break;
     default:
       ui.error(`Unknown helm subcommand: ${subcommand}`);
-      ui.info('Available commands: list, install, upgrade, uninstall, rollback, history, search, repo');
+      ui.info('Available commands: list, install, upgrade, uninstall, rollback, history, search, show, repo');
   }
 }

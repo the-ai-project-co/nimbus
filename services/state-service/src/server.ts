@@ -6,6 +6,10 @@ import { conversationsRouter } from './routes/conversations';
 import { artifactsRouter } from './routes/artifacts';
 import { templatesRouter } from './routes/templates';
 import { credentialsRouter } from './routes/credentials';
+import projectsRouter from './routes/projects';
+import auditRouter from './routes/audit';
+import safetyRouter from './routes/safety';
+import checkpointsRouter from './routes/checkpoints';
 
 export async function startServer(port: number) {
   const server = Bun.serve({
@@ -63,6 +67,26 @@ export async function startServer(port: number) {
         return credentialsRouter(req, apiPath);
       }
 
+      // Projects routes
+      if (apiPath.startsWith('/projects')) {
+        return projectsRouter.fetch(req);
+      }
+
+      // Audit routes
+      if (apiPath.startsWith('/audit')) {
+        return auditRouter.fetch(req);
+      }
+
+      // Safety routes
+      if (apiPath.startsWith('/safety')) {
+        return safetyRouter.fetch(req);
+      }
+
+      // Checkpoints routes
+      if (apiPath.startsWith('/checkpoints')) {
+        return checkpointsRouter.fetch(req);
+      }
+
       // 404
       return Response.json(
         {
@@ -89,6 +113,22 @@ export async function startServer(port: number) {
   logger.info('  POST /api/state/templates');
   logger.info('  GET  /api/state/credentials/:provider');
   logger.info('  POST /api/state/credentials/validate/:provider');
+  logger.info('  GET  /api/state/projects');
+  logger.info('  POST /api/state/projects');
+  logger.info('  GET  /api/state/projects/:id');
+  logger.info('  PUT  /api/state/projects/:id');
+  logger.info('  DELETE /api/state/projects/:id');
+  logger.info('  GET  /api/state/audit');
+  logger.info('  POST /api/state/audit');
+  logger.info('  GET  /api/state/audit/export');
+  logger.info('  GET  /api/state/safety/:operationId');
+  logger.info('  POST /api/state/safety');
+  logger.info('  POST /api/state/safety/:checkId/approve');
+  logger.info('  POST /api/state/checkpoints');
+  logger.info('  GET  /api/state/checkpoints/latest/:operationId');
+  logger.info('  GET  /api/state/checkpoints/list/:operationId');
+  logger.info('  GET  /api/state/checkpoints/:id');
+  logger.info('  DELETE /api/state/checkpoints/:operationId');
 
   return server;
 }

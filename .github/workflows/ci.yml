@@ -22,11 +22,17 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Lint
+        run: bun run lint
+
+      - name: Format check
+        run: bun run format:check
+
       - name: Type check
         run: bun run type-check
 
-      - name: Run tests
-        run: bun test
+      - name: Run tests with coverage
+        run: bun test --coverage
 
       - name: Build all services
         run: bun run build
@@ -57,3 +63,45 @@ jobs:
       - name: Check health
         run: ./scripts/check-health.sh
         continue-on-error: true
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Start services
+        run: |
+          ./scripts/start-all.sh &
+          sleep 20
+
+      - name: Run E2E tests
+        run: bun test tests/e2e/ --timeout 60000
+        continue-on-error: true
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate docker-compose config
+        run: docker compose -f docker/docker-compose.yml config
+
+      - name: Build all Docker images
+        run: docker compose -f docker/docker-compose.yml build

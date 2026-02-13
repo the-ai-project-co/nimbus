@@ -5,9 +5,17 @@ import type {
   VerificationCheck,
 } from '../types/agent';
 
+/** Shape of a security group rule in context */
+interface SecurityGroupRule {
+  cidr?: string;
+  from_port?: number;
+  to_port?: number;
+}
+
 export class Verifier {
   /**
-   * Verify execution results
+   * Verify execution results against the provided context.
+   * Runs security, compliance, functionality, performance, and cost checks.
    */
   async verifyExecution(
     executionResults: ExecutionResult[],
@@ -56,71 +64,103 @@ export class Verifier {
   }
 
   /**
-   * Run security checks
+   * Run security checks against the execution context.
+   * Validates encryption, network isolation, IAM policies, security groups, and S3 access.
    */
   private async runSecurityChecks(
     results: ExecutionResult[],
     context: Record<string, unknown>
   ): Promise<VerificationCheck[]> {
     const checks: VerificationCheck[] = [];
+    const components = (context.components as string[]) || [];
 
     // Check: Encryption at rest enabled
+    const encryptionEnabled = context.encryption_at_rest !== false;
     checks.push({
       id: 'sec_check_001',
       type: 'security',
       name: 'Encryption at Rest',
       description: 'Verify that encryption at rest is enabled for data storage',
-      status: 'passed',
+      status: encryptionEnabled ? 'passed' : 'failed',
       expected: true,
-      actual: true,
+      actual: encryptionEnabled,
+      error: encryptionEnabled ? undefined : 'Encryption at rest is not enabled',
     });
 
     // Check: Network isolation
+    const hasVpc = Boolean(context.vpc_id);
+    const hasSubnets = Boolean(context.private_subnets);
+    const networkIsolated = hasVpc || hasSubnets;
     checks.push({
       id: 'sec_check_002',
       type: 'security',
       name: 'Network Isolation',
       description: 'Verify resources are deployed in private subnets',
-      status: 'passed',
+      status: networkIsolated ? 'passed' : 'warning',
       expected: 'private',
-      actual: 'private',
+      actual: networkIsolated ? 'private' : 'no_isolation',
+      error: networkIsolated
+        ? undefined
+        : 'No VPC or private subnets configured; resources may not be network-isolated',
     });
 
     // Check: IAM least privilege
+    const hasIamRole = Boolean(context.iam_role);
+    const iamPolicy = context.iam_policy as string | undefined;
+    const hasWildcardAction = typeof iamPolicy === 'string' && iamPolicy.includes('"*"');
+    const iamLeastPrivilege = hasIamRole && !hasWildcardAction;
     checks.push({
       id: 'sec_check_003',
       type: 'security',
       name: 'IAM Least Privilege',
       description: 'Verify IAM roles follow least privilege principle',
-      status: 'passed',
+      status: iamLeastPrivilege ? 'passed' : 'failed',
       expected: 'least_privilege',
-      actual: 'least_privilege',
+      actual: !hasIamRole
+        ? 'no_iam_role'
+        : hasWildcardAction
+          ? 'wildcard_action'
+          : 'least_privilege',
+      error: !hasIamRole
+        ? 'No IAM role is configured'
+        : hasWildcardAction
+          ? 'IAM policy contains wildcard ("*") action'
+          : undefined,
     });
 
-    // Check: Security groups
-    const components = context.components as string[] || [];
+    // Check: Security groups (for eks/rds)
     if (components.includes('eks') || components.includes('rds')) {
+      const securityGroups = (context.security_groups as SecurityGroupRule[] | undefined) || [];
+      const hasOverlyPermissive = securityGroups.some(
+        (rule) =>
+          rule.cidr === '0.0.0.0/0' && rule.from_port === 0 && rule.to_port === 65535
+      );
       checks.push({
         id: 'sec_check_004',
         type: 'security',
         name: 'Security Group Rules',
         description: 'Verify security groups are not too permissive',
-        status: 'passed',
+        status: hasOverlyPermissive ? 'failed' : 'passed',
         expected: 'restrictive',
-        actual: 'restrictive',
+        actual: hasOverlyPermissive ? 'overly_permissive' : 'restrictive',
+        error: hasOverlyPermissive
+          ? 'Security group rule allows all traffic (0.0.0.0/0 on all ports)'
+          : undefined,
       });
     }
 
-    // Check: Public access
+    // Check: S3 public access
     if (components.includes('s3')) {
+      const publicAccessBlocked = context.public_access_block !== false;
       checks.push({
         id: 'sec_check_005',
         type: 'security',
         name: 'S3 Public Access Block',
         description: 'Verify S3 buckets block public access',
-        status: 'passed',
+        status: publicAccessBlocked ? 'passed' : 'failed',
         expected: true,
-        actual: true,
+        actual: publicAccessBlocked,
+        error: publicAccessBlocked ? undefined : 'S3 public access block is not enabled',
       });
     }
 
@@ -128,60 +168,77 @@ export class Verifier {
   }
 
   /**
-   * Run compliance checks
+   * Run compliance checks against the execution context.
+   * Validates required tags, backup configuration, audit logging, and data retention.
    */
   private async runComplianceChecks(
     results: ExecutionResult[],
     context: Record<string, unknown>
   ): Promise<VerificationCheck[]> {
     const checks: VerificationCheck[] = [];
+    const components = (context.components as string[]) || [];
 
-    // Check: Required tags present
+    // Check: Required tags present (case-sensitive)
+    const requiredTags = ['Environment', 'Project', 'ManagedBy'] as const;
+    const tags = (context.tags as Record<string, unknown> | undefined) || {};
+    const presentTags = requiredTags.filter((tag) => tag in tags);
+    const missingTags = requiredTags.filter((tag) => !(tag in tags));
+    const allTagsPresent = missingTags.length === 0;
     checks.push({
       id: 'comp_check_001',
       type: 'compliance',
       name: 'Required Tags',
       description: 'Verify all resources have required tags',
-      status: 'passed',
-      expected: ['Environment', 'ManagedBy', 'Project'],
-      actual: ['Environment', 'ManagedBy', 'Project'],
+      status: allTagsPresent ? 'passed' : 'failed',
+      expected: [...requiredTags],
+      actual: [...presentTags],
+      error: allTagsPresent
+        ? undefined
+        : `Missing required tags: ${missingTags.join(', ')}`,
     });
 
-    // Check: Backup enabled
-    const components = context.components as string[] || [];
+    // Check: Backup enabled (for rds)
     if (components.includes('rds')) {
+      const backupEnabled = context.backup_enabled !== false;
       checks.push({
         id: 'comp_check_002',
         type: 'compliance',
         name: 'Database Backups',
         description: 'Verify automated backups are enabled',
-        status: 'passed',
+        status: backupEnabled ? 'passed' : 'failed',
         expected: true,
-        actual: true,
+        actual: backupEnabled,
+        error: backupEnabled ? undefined : 'Database backups are explicitly disabled',
       });
     }
 
-    // Check: Logging enabled
+    // Check: Audit logging
+    const auditLoggingEnabled = context.audit_logging !== false;
     checks.push({
       id: 'comp_check_003',
       type: 'compliance',
       name: 'Audit Logging',
       description: 'Verify audit logging is enabled',
-      status: 'passed',
+      status: auditLoggingEnabled ? 'passed' : 'failed',
       expected: true,
-      actual: true,
+      actual: auditLoggingEnabled,
+      error: auditLoggingEnabled ? undefined : 'Audit logging is explicitly disabled',
     });
 
-    // Check: Data retention policy
+    // Check: Data retention policy (for s3)
     if (components.includes('s3')) {
+      const hasLifecycleRules = Boolean(context.lifecycle_rules);
       checks.push({
         id: 'comp_check_004',
         type: 'compliance',
         name: 'Data Retention',
         description: 'Verify lifecycle policies are configured',
-        status: 'passed',
+        status: hasLifecycleRules ? 'passed' : 'warning',
         expected: 'configured',
-        actual: 'configured',
+        actual: hasLifecycleRules ? 'configured' : 'not_configured',
+        error: hasLifecycleRules
+          ? undefined
+          : 'No lifecycle rules configured for S3; consider adding a data retention policy',
       });
     }
 
@@ -189,7 +246,9 @@ export class Verifier {
   }
 
   /**
-   * Run functionality checks
+   * Run functionality checks against the execution results.
+   * Validates step completion, artifact generation, output availability,
+   * and component-specific functionality.
    */
   private async runFunctionalityChecks(
     results: ExecutionResult[],
@@ -235,7 +294,7 @@ export class Verifier {
     });
 
     // Check: Component-specific functionality
-    const components = context.components as string[] || [];
+    const components = (context.components as string[]) || [];
 
     if (components.includes('vpc')) {
       checks.push({
@@ -277,7 +336,8 @@ export class Verifier {
   }
 
   /**
-   * Run performance checks
+   * Run performance checks against the execution results and context.
+   * Validates execution duration, EKS provisioning time, and instance sizing.
    */
   private async runPerformanceChecks(
     results: ExecutionResult[],
@@ -298,36 +358,68 @@ export class Verifier {
       actual: `${totalDuration}ms`,
     });
 
-    // Check: Resource provisioning time
-    const components = context.components as string[] || [];
+    // Check: EKS provisioning time (compute from actual results if available)
+    const components = (context.components as string[]) || [];
     if (components.includes('eks')) {
-      checks.push({
-        id: 'perf_check_002',
-        type: 'performance',
-        name: 'EKS Provisioning Time',
-        description: 'Verify EKS cluster provisioned efficiently',
-        status: 'passed',
-        expected: '< 15 minutes',
-        actual: '12 minutes',
-      });
+      const eksResult = results.find(
+        (r) =>
+          r.step_id?.toLowerCase().includes('eks') ||
+          (r.outputs && 'cluster_name' in r.outputs)
+      );
+
+      if (eksResult) {
+        const eksMinutes = Math.round(eksResult.duration / 60000);
+        const eksWithinLimit = eksResult.duration < 900000; // 15 minutes
+        checks.push({
+          id: 'perf_check_002',
+          type: 'performance',
+          name: 'EKS Provisioning Time',
+          description: 'Verify EKS cluster provisioned efficiently',
+          status: eksWithinLimit ? 'passed' : 'warning',
+          expected: '< 15 minutes',
+          actual: `${eksMinutes} minutes`,
+        });
+      } else {
+        checks.push({
+          id: 'perf_check_002',
+          type: 'performance',
+          name: 'EKS Provisioning Time',
+          description: 'Verify EKS cluster provisioned efficiently',
+          status: 'passed',
+          expected: '< 15 minutes',
+          actual: 'N/A',
+        });
+      }
     }
 
-    // Check: Instance types appropriate
+    // Check: Instance sizing
+    const instanceType = context.instance_type as string | undefined;
+    const environment = context.environment as string | undefined;
+    const undersizedForProd =
+      environment === 'production' &&
+      typeof instanceType === 'string' &&
+      (instanceType === 't3.micro' || instanceType === 't3.small');
+
     checks.push({
       id: 'perf_check_003',
       type: 'performance',
       name: 'Instance Sizing',
       description: 'Verify instance types are appropriately sized',
-      status: 'passed',
+      status: undersizedForProd ? 'warning' : 'passed',
       expected: 'appropriate',
-      actual: 'appropriate',
+      actual: undersizedForProd ? `${instanceType} (undersized for production)` : 'appropriate',
+      error: undersizedForProd
+        ? `Instance type ${instanceType} may be undersized for production workloads`
+        : undefined,
     });
 
     return checks;
   }
 
   /**
-   * Run cost checks
+   * Run cost checks against the execution context.
+   * Validates budget limits, S3 lifecycle policies, NAT gateway configuration,
+   * and reserved instance considerations.
    */
   private async runCostChecks(
     results: ExecutionResult[],
@@ -353,32 +445,41 @@ export class Verifier {
           : undefined,
     });
 
-    // Check: Cost optimization features enabled
-    const components = context.components as string[] || [];
+    // Check: S3 lifecycle policies for cost optimization
+    const components = (context.components as string[]) || [];
 
     if (components.includes('s3')) {
+      const hasLifecycleRules = Boolean(context.lifecycle_rules);
       checks.push({
         id: 'cost_check_002',
         type: 'cost',
         name: 'S3 Lifecycle Policies',
         description: 'Verify lifecycle policies for cost optimization',
-        status: 'passed',
+        status: hasLifecycleRules ? 'passed' : 'warning',
         expected: 'enabled',
-        actual: 'enabled',
+        actual: hasLifecycleRules ? 'enabled' : 'not_configured',
+        error: hasLifecycleRules
+          ? undefined
+          : 'No S3 lifecycle policies configured; storage costs may increase over time',
       });
     }
 
+    // Check: NAT gateway for non-production
     if (components.includes('vpc')) {
       const environment = context.environment as string;
       if (environment !== 'production') {
+        const usesMultipleNatGateways = context.single_nat_gateway === false;
         checks.push({
           id: 'cost_check_003',
           type: 'cost',
           name: 'NAT Gateway Configuration',
           description: 'Verify NAT gateway usage for non-production',
-          status: 'passed',
+          status: usesMultipleNatGateways ? 'warning' : 'passed',
           expected: 'single_nat_gateway',
-          actual: 'single_nat_gateway',
+          actual: usesMultipleNatGateways ? 'multiple_nat_gateways' : 'single_nat_gateway',
+          error: usesMultipleNatGateways
+            ? 'Non-production environment uses multiple NAT gateways; consider using a single NAT gateway to reduce costs'
+            : undefined,
         });
       }
     }
@@ -401,7 +502,8 @@ export class Verifier {
   }
 
   /**
-   * Verify specific component
+   * Verify a specific component against its configuration.
+   * Dispatches to component-specific verification methods.
    */
   async verifyComponent(
     component: string,
@@ -432,18 +534,24 @@ export class Verifier {
   }
 
   /**
-   * Verify VPC configuration
+   * Verify VPC configuration.
+   * Validates CIDR block format and flow log enablement.
    */
   private verifyVpc(config: Record<string, unknown>): VerificationCheck[] {
+    const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+    const cidrValue = config.vpc_cidr as string | undefined;
+    const cidrValid = typeof cidrValue === 'string' && cidrRegex.test(cidrValue);
+
     return [
       {
         id: 'vpc_001',
         type: 'functionality',
         name: 'VPC CIDR Block',
         description: 'Verify VPC CIDR block is valid',
-        status: 'passed',
+        status: cidrValid ? 'passed' : 'failed',
         expected: 'valid_cidr',
-        actual: config.vpc_cidr || 'not_set',
+        actual: cidrValid ? cidrValue : (cidrValue || 'not_set'),
+        error: cidrValid ? undefined : `Invalid CIDR format: ${cidrValue || 'not_set'}`,
       },
       {
         id: 'vpc_002',
@@ -458,103 +566,130 @@ export class Verifier {
   }
 
   /**
-   * Verify EKS configuration
+   * Verify EKS configuration.
+   * Validates cluster encryption and private endpoint access.
    */
   private verifyEks(config: Record<string, unknown>): VerificationCheck[] {
+    const encryptionEnabled = config.cluster_encryption !== false;
+    const privateEndpoint = config.endpoint_private_access !== false;
+
     return [
       {
         id: 'eks_001',
         type: 'security',
         name: 'Cluster Encryption',
         description: 'Verify EKS cluster has secrets encryption enabled',
-        status: 'passed',
+        status: encryptionEnabled ? 'passed' : 'failed',
         expected: true,
-        actual: true,
+        actual: encryptionEnabled,
+        error: encryptionEnabled ? undefined : 'EKS cluster encryption is disabled',
       },
       {
         id: 'eks_002',
         type: 'security',
         name: 'Private Endpoint',
         description: 'Verify EKS API endpoint access is restricted',
-        status: 'passed',
+        status: privateEndpoint ? 'passed' : 'failed',
         expected: 'restricted',
-        actual: 'restricted',
+        actual: privateEndpoint ? 'restricted' : 'public',
+        error: privateEndpoint ? undefined : 'EKS API endpoint private access is disabled',
       },
     ];
   }
 
   /**
-   * Verify RDS configuration
+   * Verify RDS configuration.
+   * Validates storage encryption, backup retention, and public accessibility.
    */
   private verifyRds(config: Record<string, unknown>): VerificationCheck[] {
+    const storageEncrypted = config.storage_encrypted !== false;
+    const backupRetention = config.backup_retention_period;
+    const validBackup =
+      typeof backupRetention === 'number' && backupRetention > 0;
+    const publiclyAccessible = config.publicly_accessible === true;
+
     return [
       {
         id: 'rds_001',
         type: 'security',
         name: 'Encryption Enabled',
         description: 'Verify RDS encryption at rest is enabled',
-        status: 'passed',
+        status: storageEncrypted ? 'passed' : 'failed',
         expected: true,
-        actual: true,
+        actual: storageEncrypted,
+        error: storageEncrypted ? undefined : 'RDS storage encryption is disabled',
       },
       {
         id: 'rds_002',
         type: 'compliance',
         name: 'Automated Backups',
         description: 'Verify automated backups are configured',
-        status: 'passed',
-        expected: '>= 7 days',
-        actual: '7 days',
+        status: validBackup ? 'passed' : 'failed',
+        expected: '>= 1 day',
+        actual: validBackup ? `${backupRetention} days` : 'not_configured',
+        error: validBackup
+          ? undefined
+          : 'Backup retention period must be a number greater than 0',
       },
       {
         id: 'rds_003',
         type: 'security',
         name: 'Public Access',
         description: 'Verify database is not publicly accessible',
-        status: 'passed',
+        status: publiclyAccessible ? 'failed' : 'passed',
         expected: false,
-        actual: false,
+        actual: publiclyAccessible,
+        error: publiclyAccessible
+          ? 'RDS instance is publicly accessible'
+          : undefined,
       },
     ];
   }
 
   /**
-   * Verify S3 configuration
+   * Verify S3 configuration.
+   * Validates server-side encryption, public access blocking, and versioning.
    */
   private verifyS3(config: Record<string, unknown>): VerificationCheck[] {
+    const encryptionEnabled = config.server_side_encryption !== false;
+    const publicAccessBlocked = config.block_public_access !== false;
+    const versioningEnabled = Boolean(config.enable_versioning);
+
     return [
       {
         id: 's3_001',
         type: 'security',
         name: 'Bucket Encryption',
         description: 'Verify S3 bucket has default encryption',
-        status: 'passed',
+        status: encryptionEnabled ? 'passed' : 'failed',
         expected: 'enabled',
-        actual: 'enabled',
+        actual: encryptionEnabled ? 'enabled' : 'disabled',
+        error: encryptionEnabled ? undefined : 'S3 server-side encryption is disabled',
       },
       {
         id: 's3_002',
         type: 'security',
         name: 'Public Access Block',
         description: 'Verify S3 bucket blocks public access',
-        status: 'passed',
+        status: publicAccessBlocked ? 'passed' : 'failed',
         expected: true,
-        actual: true,
+        actual: publicAccessBlocked,
+        error: publicAccessBlocked ? undefined : 'S3 public access block is disabled',
       },
       {
         id: 's3_003',
         type: 'compliance',
         name: 'Versioning',
         description: 'Verify S3 versioning is enabled',
-        status: config.enable_versioning ? 'passed' : 'warning',
+        status: versioningEnabled ? 'passed' : 'warning',
         expected: true,
-        actual: config.enable_versioning || false,
+        actual: versioningEnabled,
       },
     ];
   }
 
   /**
-   * Estimate monthly cost
+   * Estimate monthly cost based on the components in context.
    */
   private estimateMonthlyCost(context: Record<string, unknown>): number {
     const components = (context.components as string[]) || [];
@@ -575,7 +710,7 @@ export class Verifier {
   }
 
   /**
-   * Generate verification ID
+   * Generate a unique verification ID.
    */
   private generateVerificationId(): string {
     return `verify_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;

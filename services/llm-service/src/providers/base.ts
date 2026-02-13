@@ -66,6 +66,12 @@ export interface StreamChunk {
   content?: string;
   done: boolean;
   toolCalls?: ToolCall[];
+  /** Token usage info, typically sent with the final (done) chunk */
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 }
 
 /**

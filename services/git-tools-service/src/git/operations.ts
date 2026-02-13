@@ -400,4 +400,301 @@ export class GitOperations {
     await this.git.init(bare);
     return { success: true };
   }
+
+  /**
+   * Cherry-pick a commit
+   */
+  async cherryPick(commit: string, options: CherryPickOptions = {}): Promise<{ success: boolean; result: string }> {
+    logger.info(`Cherry-picking commit: ${commit}`);
+
+    const cherryPickArgs: string[] = [commit];
+
+    if (options.noCommit) {
+      cherryPickArgs.unshift('--no-commit');
+    }
+
+    if (options.edit) {
+      cherryPickArgs.unshift('-e');
+    }
+
+    if (options.signoff) {
+      cherryPickArgs.unshift('-s');
+    }
+
+    if (options.strategy) {
+      cherryPickArgs.unshift('-X', options.strategy);
+    }
+
+    // Use raw to execute cherry-pick
+    const result = await this.git.raw(['cherry-pick', ...cherryPickArgs]);
+
+    return {
+      success: true,
+      result: result || 'Cherry-pick completed successfully',
+    };
+  }
+
+  /**
+   * Rebase onto a target branch
+   */
+  async rebase(target: string, options: RebaseOptions = {}): Promise<{ success: boolean; result: string }> {
+    logger.info(`Rebasing onto: ${target}`);
+
+    const rebaseArgs: string[] = [];
+
+    if (options.interactive) {
+      // Note: Interactive rebase requires a terminal, so we skip it in automation
+      logger.warn('Interactive rebase not supported in automation mode');
+    }
+
+    if (options.onto) {
+      rebaseArgs.push('--onto', options.onto);
+    }
+
+    if (options.preserveMerges) {
+      rebaseArgs.push('--preserve-merges');
+    }
+
+    if (options.strategy) {
+      rebaseArgs.push('-s', options.strategy);
+    }
+
+    if (options.strategyOption) {
+      rebaseArgs.push('-X', options.strategyOption);
+    }
+
+    rebaseArgs.push(target);
+
+    const result = await this.git.rebase(rebaseArgs);
+
+    return {
+      success: true,
+      result: result || 'Rebase completed successfully',
+    };
+  }
+
+  /**
+   * Continue a rebase after resolving conflicts
+   */
+  async rebaseContinue(): Promise<{ success: boolean; result: string }> {
+    logger.info('Continuing rebase');
+    const result = await this.git.rebase(['--continue']);
+    return {
+      success: true,
+      result: result || 'Rebase continued successfully',
+    };
+  }
+
+  /**
+   * Abort a rebase in progress
+   */
+  async rebaseAbort(): Promise<{ success: boolean }> {
+    logger.info('Aborting rebase');
+    await this.git.rebase(['--abort']);
+    return { success: true };
+  }
+
+  /**
+   * Skip a commit during rebase
+   */
+  async rebaseSkip(): Promise<{ success: boolean; result: string }> {
+    logger.info('Skipping commit during rebase');
+    const result = await this.git.rebase(['--skip']);
+    return {
+      success: true,
+      result: result || 'Commit skipped',
+    };
+  }
+
+  /**
+   * Create a tag
+   */
+  async tag(name: string, options: TagOptions = {}): Promise<{ success: boolean; tag: string }> {
+    logger.info(`Creating tag: ${name}`);
+
+    const tagArgs: string[] = [];
+
+    if (options.annotated || options.message) {
+      tagArgs.push('-a');
+    }
+
+    if (options.message) {
+      tagArgs.push('-m', options.message);
+    }
+
+    if (options.force) {
+      tagArgs.push('-f');
+    }
+
+    tagArgs.push(name);
+
+    if (options.commit) {
+      tagArgs.push(options.commit);
+    }
+
+    await this.git.tag(tagArgs);
+
+    return { success: true, tag: name };
+  }
+
+  /**
+   * Delete a tag
+   */
+  async deleteTag(name: string, remote?: string): Promise<{ success: boolean }> {
+    logger.info(`Deleting tag: ${name}`);
+
+    // Delete locally
+    await this.git.tag(['-d', name]);
+
+    // Delete from remote if specified
+    if (remote) {
+      await this.git.push(remote, `:refs/tags/${name}`);
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * List tags
+   */
+  async listTags(pattern?: string): Promise<string[]> {
+    logger.info('Listing tags');
+
+    const args = pattern ? ['-l', pattern] : [];
+    const result = await this.git.tags(args);
+
+    return result.all;
+  }
+
+  /**
+   * Push tags to remote
+   */
+  async pushTags(remote: string = 'origin', tagName?: string): Promise<{ success: boolean }> {
+    logger.info(`Pushing tags to ${remote}`);
+
+    if (tagName) {
+      await this.git.push(remote, 'refs/tags/' + tagName);
+    } else {
+      await this.git.pushTags(remote);
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Show information about a tag
+   */
+  async showTag(name: string): Promise<{ success: boolean; info: string }> {
+    logger.info(`Showing tag: ${name}`);
+
+    const result = await this.git.show(['--no-patch', name]);
+
+    return { success: true, info: result };
+  }
+
+  /**
+   * Check if there are conflicts
+   */
+  async hasConflicts(): Promise<boolean> {
+    const status = await this.status();
+    return status.conflicted.length > 0;
+  }
+
+  /**
+   * Get list of conflicted files
+   */
+  async getConflicts(): Promise<string[]> {
+    const status = await this.status();
+    return status.conflicted;
+  }
+
+  /**
+   * Abort cherry-pick in progress
+   */
+  async cherryPickAbort(): Promise<{ success: boolean }> {
+    logger.info('Aborting cherry-pick');
+    await this.git.raw(['cherry-pick', '--abort']);
+    return { success: true };
+  }
+
+  /**
+   * Continue cherry-pick after resolving conflicts
+   */
+  async cherryPickContinue(): Promise<{ success: boolean; result: string }> {
+    logger.info('Continuing cherry-pick');
+    const result = await this.git.raw(['cherry-pick', '--continue']);
+    return {
+      success: true,
+      result: result || 'Cherry-pick continued',
+    };
+  }
+
+  /**
+   * Show a specific commit
+   */
+  async showCommit(commit: string): Promise<string> {
+    logger.info(`Showing commit: ${commit}`);
+    return await this.git.show([commit]);
+  }
+
+  /**
+   * Get the short hash for a ref
+   */
+  async getShortHash(ref: string = 'HEAD'): Promise<string> {
+    const result = await this.git.revparse(['--short', ref]);
+    return result.trim();
+  }
+
+  /**
+   * Get the full hash for a ref
+   */
+  async getFullHash(ref: string = 'HEAD'): Promise<string> {
+    const result = await this.git.revparse([ref]);
+    return result.trim();
+  }
+
+  /**
+   * Get the commit count between two refs
+   */
+  async getCommitCount(from: string, to: string = 'HEAD'): Promise<number> {
+    const result = await this.git.raw(['rev-list', '--count', `${from}..${to}`]);
+    return parseInt(result.trim(), 10);
+  }
+
+  /**
+   * Blame a file
+   */
+  async blame(file: string, options?: { startLine?: number; endLine?: number }): Promise<string> {
+    logger.info(`Getting blame for: ${file}`);
+
+    const args = [];
+    if (options?.startLine && options?.endLine) {
+      args.push(`-L${options.startLine},${options.endLine}`);
+    }
+    args.push(file);
+
+    return await this.git.raw(['blame', ...args]);
+  }
+}
+
+export interface CherryPickOptions {
+  noCommit?: boolean;
+  edit?: boolean;
+  signoff?: boolean;
+  strategy?: string;
+}
+
+export interface RebaseOptions {
+  interactive?: boolean;
+  onto?: string;
+  preserveMerges?: boolean;
+  strategy?: string;
+  strategyOption?: string;
+}
+
+export interface TagOptions {
+  message?: string;
+  annotated?: boolean;
+  force?: boolean;
+  commit?: string;
 }

@@ -27,6 +27,15 @@ export { logoutCommand, type LogoutOptions } from './logout';
 export { authStatusCommand, type AuthStatusOptions } from './auth-status';
 export { authListCommand, type AuthListOptions } from './auth-list';
 
+// Cloud auth commands
+export {
+  authCloudCommand,
+  authAwsCommand,
+  authGcpCommand,
+  authAzureCommand,
+  type AuthCloudOptions,
+} from './auth-cloud';
+
 // Chat command
 export { chatCommand, type ChatOptions } from './chat';
 
@@ -68,6 +77,8 @@ export {
   k8sLogsCommand,
   k8sDescribeCommand,
   k8sScaleCommand,
+  k8sExecCommand,
+  k8sRolloutCommand,
   type K8sCommandOptions,
 } from './k8s';
 
@@ -80,6 +91,7 @@ export {
   helmRollbackCommand,
   helmHistoryCommand,
   helmSearchCommand,
+  helmShowCommand,
   helmRepoAddCommand,
   helmRepoUpdateCommand,
   type HelmCommandOptions,
@@ -97,6 +109,8 @@ export {
   gitBranchCommand,
   gitCheckoutCommand,
   gitDiffCommand,
+  gitMergeCommand,
+  gitStashCommand,
   type GitCommandOptions,
 } from './git';
 
@@ -228,3 +242,112 @@ export {
   type PlanType,
   type PlanResult,
 } from './plan';
+
+// Questionnaire command
+export {
+  questionnaireCommand,
+  type QuestionnaireOptions,
+} from './questionnaire';
+
+// Preview command
+export {
+  previewCommand,
+  type PreviewOptions,
+} from './preview';
+
+// Demo command
+export {
+  demoCommand,
+  parseDemoOptions,
+  runDemoScenario,
+  listDemoScenarios,
+  type DemoOptions,
+} from './demo';
+
+// AWS CLI commands
+export {
+  awsCommand,
+  parseAwsOptions,
+  type AwsCommandOptions,
+} from './aws';
+
+// GCP CLI commands
+export {
+  gcpCommand,
+  parseGcpOptions,
+  type GcpCommandOptions,
+} from './gcp';
+
+// Azure CLI commands
+export {
+  azureCommand,
+  parseAzureOptions,
+  type AzureCommandOptions,
+} from './azure';
+
+// Drift detection and remediation commands
+export {
+  driftCommand,
+  driftDetectCommand,
+  driftFixCommand,
+  parseDriftDetectOptions,
+  parseDriftFixOptions,
+  type DriftDetectOptions,
+  type DriftFixOptions,
+} from './drift';
+
+// Cost estimation and tracking commands
+export {
+  costCommand,
+  costEstimateCommand,
+  costHistoryCommand,
+  parseCostEstimateOptions,
+  parseCostHistoryOptions,
+  type CostEstimateOptions,
+  type CostHistoryOptions,
+} from './cost';
+
+// Import command
+export {
+  importCommand,
+  parseImportOptions,
+  type ImportOptions,
+} from './import';
+
+// Feedback command
+export {
+  feedbackCommand,
+  parseFeedbackOptions,
+  type FeedbackOptions,
+} from './feedback';
+
+// File system commands
+export {
+  fsCommand,
+  fsListCommand,
+  fsSearchCommand,
+  fsReadCommand,
+  type FsCommandOptions,
+} from './fs';
+
+// Resume command (checkpoint/resume system)
+export {
+  resumeCommand,
+  type ResumeOptions,
+} from './resume';
+
+// ===== Top-Level Aliases =====
+// These re-exports provide short-form access to common commands
+
+// GitHub aliases: nimbus pr -> nimbus gh pr
+export { ghPrListCommand as prListCommand } from './gh';
+export { ghPrCreateCommand as prCreateCommand } from './gh';
+export { ghPrViewCommand as prViewCommand } from './gh';
+export { ghPrMergeCommand as prMergeCommand } from './gh';
+export { ghIssueListCommand as issueListCommand } from './gh';
+export { ghIssueCreateCommand as issueCreateCommand } from './gh';
+export { ghIssueViewCommand as issueViewCommand } from './gh';
+
+// File system aliases: nimbus read -> nimbus fs read
+export { fsReadCommand as readCommand } from './fs';
+export { fsSearchCommand as searchCommand } from './fs';

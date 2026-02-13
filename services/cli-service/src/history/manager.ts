@@ -2,6 +2,7 @@
  * History Manager
  *
  * Manages command history persistence at ~/.nimbus/history.json
+ * with remote sync to the State Service for cross-session persistence.
  */
 
 import * as fs from 'fs';
@@ -34,13 +35,16 @@ function createEmptyHistoryFile(): HistoryFile {
 
 /**
  * HistoryManager class for command history persistence
+ * with optional remote sync to State Service.
  */
 export class HistoryManager {
   private historyPath: string;
   private historyFile: HistoryFile | null = null;
+  private stateServiceUrl: string;
 
   constructor(historyPath?: string) {
     this.historyPath = historyPath || path.join(os.homedir(), '.nimbus', 'history.json');
+    this.stateServiceUrl = process.env.STATE_SERVICE_URL || 'http://localhost:3004';
   }
 
   /**
@@ -115,6 +119,58 @@ export class HistoryManager {
   }
 
   /**
+   * Sync a history entry to the remote State Service.
+   * Fire-and-forget: never throws on network or parse errors.
+   */
+  private async syncToStateService(entry: HistoryEntry): Promise<void> {
+    try {
+      await fetch(`${this.stateServiceUrl}/api/state/history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      });
+    } catch {
+      // Fire-and-forget: swallow all errors silently
+      console.warn('[nimbus] Failed to sync history entry to State Service');
+    }
+  }
+
+  /**
+   * Load history entries from the remote State Service.
+   * Returns the entries array on success, or null on any failure
+   * so the caller can fall back to local storage.
+   */
+  private async loadFromStateService(
+    options: HistoryQueryOptions
+  ): Promise<HistoryEntry[] | null> {
+    try {
+      const params = new URLSearchParams();
+      if (options.limit !== undefined) params.set('limit', String(options.limit));
+      if (options.since) params.set('since', options.since);
+      if (options.until) params.set('until', options.until);
+      if (options.command) params.set('command', options.command);
+      if (options.status) params.set('status', options.status);
+
+      const queryString = params.toString();
+      const url = `${this.stateServiceUrl}/api/state/history${queryString ? `?${queryString}` : ''}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+
+      const body = await response.json() as { success?: boolean; data?: HistoryEntry[] };
+      if (body.success && Array.isArray(body.data)) {
+        return body.data;
+      }
+      return null;
+    } catch {
+      // Network error, parse error, etc. — fall back to local
+      return null;
+    }
+  }
+
+  /**
    * Add a new entry to history
    */
   addEntry(command: string, args: string[], metadata?: Record<string, any>): HistoryEntry {
@@ -137,6 +193,10 @@ export class HistoryManager {
     }
 
     this.save(historyFile);
+
+    // Fire-and-forget: sync to State Service without blocking
+    this.syncToStateService(entry).catch(() => {});
+
     return entry;
   }
 
@@ -176,9 +236,18 @@ export class HistoryManager {
   }
 
   /**
-   * Get history entries with optional filtering
+   * Get history entries with optional filtering.
+   * Attempts to load from the remote State Service first;
+   * falls back to local file storage on any failure.
    */
-  getEntries(options: HistoryQueryOptions = {}): HistoryEntry[] {
+  async getEntries(options: HistoryQueryOptions = {}): Promise<HistoryEntry[]> {
+    // Try remote State Service first
+    const remoteEntries = await this.loadFromStateService(options);
+    if (remoteEntries !== null) {
+      return remoteEntries;
+    }
+
+    // Fall back to local file
     const historyFile = this.load();
     let entries = [...historyFile.entries];
 

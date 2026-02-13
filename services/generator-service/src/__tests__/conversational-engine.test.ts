@@ -9,52 +9,52 @@ describe('ConversationalEngine', () => {
   });
 
   describe('processMessage', () => {
-    it('should process generate intent', () => {
+    it('should process generate intent', async () => {
       const sessionId = 'test-session-1';
       const message = 'Create a VPC on AWS';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.intent.type).toBe('generate');
       expect(response.intent.entities.some((e) => e.type === 'component')).toBe(true);
       expect(response.intent.entities.some((e) => e.type === 'provider')).toBe(true);
     });
 
-    it('should process modify intent', () => {
+    it('should process modify intent', async () => {
       const sessionId = 'test-session-2';
       const message = 'Change the VPC CIDR block';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.intent.type).toBe('modify');
       expect(response.intent.entities.some((e) => e.type === 'component')).toBe(true);
     });
 
-    it('should process explain intent', () => {
+    it('should process explain intent', async () => {
       const sessionId = 'test-session-3';
       const message = 'What is a VPC?';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.intent.type).toBe('explain');
       expect(response.message).toContain('VPC');
     });
 
-    it('should process help intent', () => {
+    it('should process help intent', async () => {
       const sessionId = 'test-session-4';
       const message = 'help';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.intent.type).toBe('help');
       expect(response.message).toContain('Nimbus');
     });
 
-    it('should handle unknown intent', () => {
+    it('should handle unknown intent', async () => {
       const sessionId = 'test-session-5';
       const message = 'gibberish nonsense random';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.intent.type).toBe('unknown');
       expect(response.suggested_actions).toBeDefined();
@@ -62,21 +62,21 @@ describe('ConversationalEngine', () => {
   });
 
   describe('context management', () => {
-    it('should create new session on first message', () => {
+    it('should create new session on first message', async () => {
       const sessionId = 'test-session-6';
       const message = 'Create a VPC';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.context).toBeDefined();
       expect(response.context.session_id).toBe(sessionId);
     });
 
-    it('should maintain context across messages', () => {
+    it('should maintain context across messages', async () => {
       const sessionId = 'test-session-7';
 
-      const response1 = engine.processMessage(sessionId, 'Create a VPC on AWS');
-      const response2 = engine.processMessage(sessionId, 'Add S3 bucket as well');
+      const response1 = await engine.processMessage(sessionId, 'Create a VPC on AWS');
+      const response2 = await engine.processMessage(sessionId, 'Add S3 bucket as well');
 
       expect(response2.context.infrastructure_stack?.provider).toBe('aws');
       expect(response2.context.infrastructure_stack?.components).toContain('vpc');
@@ -84,11 +84,11 @@ describe('ConversationalEngine', () => {
       expect(response2.context.infrastructure_stack?.components?.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('should track conversation history', () => {
+    it('should track conversation history', async () => {
       const sessionId = 'test-session-8';
 
-      engine.processMessage(sessionId, 'Create a VPC');
-      engine.processMessage(sessionId, 'What components are included?');
+      await engine.processMessage(sessionId, 'Create a VPC');
+      await engine.processMessage(sessionId, 'What components are included?');
 
       const history = engine.getHistory(sessionId);
 
@@ -99,20 +99,20 @@ describe('ConversationalEngine', () => {
   });
 
   describe('requirement extraction', () => {
-    it('should extract provider from message', () => {
+    it('should extract provider from message', async () => {
       const sessionId = 'test-session-9';
       const message = 'Setup infrastructure on GCP';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.extracted_requirements?.provider).toBe('gcp');
     });
 
-    it('should extract multiple components', () => {
+    it('should extract multiple components', async () => {
       const sessionId = 'test-session-10';
       const message = 'Create VPC, EKS, and RDS on AWS';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       const components = response.extracted_requirements?.components || [];
       expect(components).toContain('vpc');
@@ -120,20 +120,20 @@ describe('ConversationalEngine', () => {
       expect(components).toContain('rds');
     });
 
-    it('should extract environment', () => {
+    it('should extract environment', async () => {
       const sessionId = 'test-session-11';
       const message = 'Setup production environment with VPC';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.extracted_requirements?.environment).toBe('production');
     });
 
-    it('should identify missing requirements', () => {
+    it('should identify missing requirements', async () => {
       const sessionId = 'test-session-12';
       const message = 'Create infrastructure';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.needs_clarification).toBeDefined();
       expect(response.needs_clarification!.length).toBeGreaterThan(0);
@@ -141,11 +141,11 @@ describe('ConversationalEngine', () => {
   });
 
   describe('suggested actions', () => {
-    it('should suggest questionnaire when ready', () => {
+    it('should suggest questionnaire when ready', async () => {
       const sessionId = 'test-session-13';
       const message = 'Create a VPC on AWS for production in us-east-1';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       const hasQuestionnaireAction = response.suggested_actions?.some(
         (a) => a.type === 'start_questionnaire'
@@ -153,11 +153,11 @@ describe('ConversationalEngine', () => {
       expect(hasQuestionnaireAction).toBe(true);
     });
 
-    it('should suggest clarification when incomplete', () => {
+    it('should suggest clarification when incomplete', async () => {
       const sessionId = 'test-session-14';
       const message = 'Create infrastructure';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.needs_clarification).toBeDefined();
       expect(response.suggested_actions).toBeDefined();
@@ -165,9 +165,9 @@ describe('ConversationalEngine', () => {
   });
 
   describe('session management', () => {
-    it('should get session by id', () => {
+    it('should get session by id', async () => {
       const sessionId = 'test-session-15';
-      engine.processMessage(sessionId, 'Create VPC');
+      await engine.processMessage(sessionId, 'Create VPC');
 
       const session = engine.getSession(sessionId);
 
@@ -175,9 +175,9 @@ describe('ConversationalEngine', () => {
       expect(session?.session_id).toBe(sessionId);
     });
 
-    it('should delete session', () => {
+    it('should delete session', async () => {
       const sessionId = 'test-session-16';
-      engine.processMessage(sessionId, 'Create VPC');
+      await engine.processMessage(sessionId, 'Create VPC');
 
       engine.deleteSession(sessionId);
 
@@ -185,10 +185,10 @@ describe('ConversationalEngine', () => {
       expect(session).toBeUndefined();
     });
 
-    it('should clear history', () => {
+    it('should clear history', async () => {
       const sessionId = 'test-session-17';
-      engine.processMessage(sessionId, 'Create VPC');
-      engine.processMessage(sessionId, 'Add RDS');
+      await engine.processMessage(sessionId, 'Create VPC');
+      await engine.processMessage(sessionId, 'Add RDS');
 
       engine.clearHistory(sessionId);
 
@@ -198,20 +198,20 @@ describe('ConversationalEngine', () => {
   });
 
   describe('intent confidence', () => {
-    it('should have high confidence for clear intents', () => {
+    it('should have high confidence for clear intents', async () => {
       const sessionId = 'test-session-18';
       const message = 'Create a VPC on AWS';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.intent.confidence).toBeGreaterThan(0.5);
     });
 
-    it('should have low confidence for ambiguous messages', () => {
+    it('should have low confidence for ambiguous messages', async () => {
       const sessionId = 'test-session-19';
       const message = 'thing stuff maybe';
 
-      const response = engine.processMessage(sessionId, message);
+      const response = await engine.processMessage(sessionId, message);
 
       expect(response.intent.type).toBe('unknown');
       expect(response.intent.confidence).toBeLessThanOrEqual(0.5);

@@ -57,6 +57,8 @@ export class AnthropicProvider extends BaseProvider {
       stop_sequences: request.stopSequences,
     });
 
+    let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+
     for await (const event of stream) {
       if (event.type === 'content_block_delta') {
         if (event.delta.type === 'text_delta') {
@@ -65,8 +67,33 @@ export class AnthropicProvider extends BaseProvider {
             done: false,
           };
         }
+      } else if (event.type === 'message_delta') {
+        // Capture usage from the message_delta event (sent near end of stream)
+        const deltaEvent = event as any;
+        if (deltaEvent.usage) {
+          const inputTokens = deltaEvent.usage.input_tokens || 0;
+          const outputTokens = deltaEvent.usage.output_tokens || 0;
+          usage = {
+            promptTokens: inputTokens,
+            completionTokens: outputTokens,
+            totalTokens: inputTokens + outputTokens,
+          };
+        }
       } else if (event.type === 'message_stop') {
-        yield { done: true };
+        // If we didn't get usage from message_delta, try to get final message usage
+        if (!usage) {
+          try {
+            const finalMessage = await stream.finalMessage();
+            usage = {
+              promptTokens: finalMessage.usage.input_tokens,
+              completionTokens: finalMessage.usage.output_tokens,
+              totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
+            };
+          } catch {
+            // Non-critical: token count will be estimated
+          }
+        }
+        yield { done: true, usage };
       }
     }
   }

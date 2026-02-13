@@ -6,7 +6,7 @@ export interface ConversationalIntent {
 }
 
 export interface IntentEntity {
-  type: string; // 'provider', 'component', 'environment', 'region', etc.
+  type: string; // 'provider', 'component', 'environment', 'region', 'generation_type', etc.
   value: string;
   confidence: number;
   position?: { start: number; end: number };
@@ -21,6 +21,7 @@ export interface ConversationalContext {
     components?: string[];
     environment?: string;
     region?: string;
+    generation_type?: 'terraform' | 'kubernetes' | 'helm';
   };
   conversation_history: ConversationalTurn[];
   created_at: Date;
@@ -56,6 +57,21 @@ export interface InfrastructureRequirements {
   s3_config?: {
     versioning?: boolean;
     encryption?: boolean;
+  };
+  k8s_config?: {
+    workloadType?: string;
+    image?: string;
+    replicas?: number;
+    serviceType?: string;
+    containerPort?: number;
+    namespace?: string;
+  };
+  helm_config?: {
+    chartName?: string;
+    image?: string;
+    replicas?: number;
+    namespace?: string;
+    version?: string;
   };
   tags?: Record<string, string>;
 }

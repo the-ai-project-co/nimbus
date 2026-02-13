@@ -39,6 +39,22 @@ export interface HistoryConfig {
 }
 
 /**
+ * Auto-approve settings per operation type
+ */
+export interface AutoApproveConfig {
+  /** Auto-approve read operations (list, get, describe) */
+  read?: boolean;
+  /** Auto-approve generate operations (IaC generation) */
+  generate?: boolean;
+  /** Auto-approve create operations (apply, install) */
+  create?: boolean;
+  /** Auto-approve update operations (upgrade, scale) */
+  update?: boolean;
+  /** Auto-approve delete operations (delete, destroy, uninstall) */
+  delete?: boolean;
+}
+
+/**
  * Safety configuration
  */
 export interface SafetyConfig {
@@ -46,6 +62,8 @@ export interface SafetyConfig {
   requireConfirmation?: boolean;
   /** Enable dry-run by default */
   dryRunByDefault?: boolean;
+  /** Auto-approve settings per operation type */
+  auto_approve?: AutoApproveConfig;
 }
 
 /**
@@ -94,6 +112,11 @@ export type ConfigKey =
   | 'history.enabled'
   | 'safety.requireConfirmation'
   | 'safety.dryRunByDefault'
+  | 'safety.auto_approve.read'
+  | 'safety.auto_approve.generate'
+  | 'safety.auto_approve.create'
+  | 'safety.auto_approve.update'
+  | 'safety.auto_approve.delete'
   | 'ui.theme'
   | 'ui.colors'
   | 'ui.spinner';
@@ -167,6 +190,36 @@ export const CONFIG_KEYS: ConfigKeyInfo[] = [
   {
     key: 'safety.dryRunByDefault',
     description: 'Enable dry-run mode by default',
+    type: 'boolean',
+    defaultValue: false,
+  },
+  {
+    key: 'safety.auto_approve.read',
+    description: 'Auto-approve read operations (list, get, describe)',
+    type: 'boolean',
+    defaultValue: true,
+  },
+  {
+    key: 'safety.auto_approve.generate',
+    description: 'Auto-approve generate operations (IaC generation)',
+    type: 'boolean',
+    defaultValue: true,
+  },
+  {
+    key: 'safety.auto_approve.create',
+    description: 'Auto-approve create operations (apply, install)',
+    type: 'boolean',
+    defaultValue: false,
+  },
+  {
+    key: 'safety.auto_approve.update',
+    description: 'Auto-approve update operations (upgrade, scale)',
+    type: 'boolean',
+    defaultValue: false,
+  },
+  {
+    key: 'safety.auto_approve.delete',
+    description: 'Auto-approve delete operations (delete, destroy, uninstall)',
     type: 'boolean',
     defaultValue: false,
   },

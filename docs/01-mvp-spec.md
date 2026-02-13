@@ -1136,16 +1136,16 @@ This section tracks the implementation status of core capabilities in the MVP re
 
 | Category | Status | Coverage | Implementation Details |
 |----------|--------|----------|------------------------|
-| **CLI Interface** | ✅ Complete | 95% | All core commands, chat mode, config |
-| **Terraform Generation** | ✅ Complete | 90% | AWS VPC, EKS, RDS, S3; questionnaire + conversational |
-| **Kubernetes Operations** | ✅ Complete | 95% | kubectl wrapper, Helm, manifest generation |
-| **Cloud CLI Integration** | ✅ Complete | 85% | AWS, GCP, Azure basic operations |
-| **LLM Provider Support** | ✅ Complete | 90% | Anthropic, OpenAI, Google, Ollama |
-| **Human-in-the-Loop Safety** | ✅ Complete | 95% | Confirmations, dry-run, operation classification |
-| **Git Operations** | ✅ Complete | 95% | Clone, push, pull, commit, branch, merge, stash (See: `releases/mvp/mcp-tools-team/git-filesystem-tools.md`) |
+| **CLI Interface** | ✅ Complete | 98% | 40+ commands, chat mode with personas, config, auth, cost, drift |
+| **Terraform Generation** | ✅ Complete | 95% | AWS/GCP/Azure templates; questionnaire + conversational; environment separation (dev/staging/prod); post-gen validation |
+| **Kubernetes Operations** | ✅ Complete | 98% | kubectl wrapper, Helm, manifest generation, type-name-to-delete safety |
+| **Cloud CLI Integration** | ✅ Complete | 95% | AWS, GCP, Azure full subcommands + credential management (`nimbus auth aws/gcp/azure`) |
+| **LLM Provider Support** | ✅ Complete | 95% | Anthropic, OpenAI, Google, Ollama, OpenRouter (5 providers) |
+| **Human-in-the-Loop Safety** | ✅ Complete | 95% | Confirmations, dry-run, --yes, type-name-to-delete, safety policy evaluation, cost warnings |
+| **Git Operations** | ✅ Complete | 95% | Clone, push, pull, commit, branch, merge, stash + tag, remote, blame (See: `releases/mvp/mcp-tools-team/git-filesystem-tools.md`) |
 | **File System Tools** | ✅ Complete | 95% | Read, write, list, search, tree, diff (See: `releases/mvp/mcp-tools-team/git-filesystem-tools.md`) |
-| **GitHub Basic** | ✅ Complete | 85% | PR list/create, Issue list/create (See: `releases/mvp/mcp-tools-team/git-filesystem-tools.md`) |
-| **Enhanced Init** | ✅ Complete | 90% | Project scanning, framework detection, context persistence (See: `releases/mvp/cli-team/cli-interface-spec.md`) |
+| **GitHub Basic** | ✅ Complete | 90% | PR list/create/merge/review, Issue list/create/comment, Octokit integration (See: `releases/mvp/mcp-tools-team/git-filesystem-tools.md`) |
+| **Enhanced Init** | ✅ Complete | 95% | Project scanning, framework detection, context persistence with SQLite context.db (See: `releases/mvp/cli-team/cli-interface-spec.md`) |
 
 ### Key MVP Deliverables
 

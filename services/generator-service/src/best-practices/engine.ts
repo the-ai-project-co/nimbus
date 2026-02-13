@@ -27,7 +27,7 @@ export class BestPracticesEngine {
     component: string,
     config: Record<string, unknown>,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance'>;
+      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       includeInfo?: boolean;
     }
@@ -84,7 +84,7 @@ export class BestPracticesEngine {
   analyzeAll(
     configs: Array<{ component: string; config: Record<string, unknown> }>,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance'>;
+      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
     }
   ): BestPracticeReport {
@@ -115,7 +115,7 @@ export class BestPracticesEngine {
     component: string,
     config: Record<string, unknown>,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance'>;
+      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       ruleIds?: string[];
     }
@@ -216,7 +216,7 @@ export class BestPracticesEngine {
   private getApplicableRules(
     component: string,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance'>;
+      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       includeInfo?: boolean;
     }

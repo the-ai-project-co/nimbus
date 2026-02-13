@@ -15,3 +15,6 @@ export * from './config';
 
 // Enterprise types
 export * from './enterprise';
+
+// Drift types
+export * from './drift';

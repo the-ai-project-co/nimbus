@@ -58,7 +58,7 @@ export async function historyCommand(options: HistoryOptions = {}): Promise<void
     status: options.status,
   };
 
-  const entries = historyManager.getEntries(queryOptions);
+  const entries = await historyManager.getEntries(queryOptions);
 
   if (entries.length === 0) {
     ui.info('No history entries found');

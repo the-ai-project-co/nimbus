@@ -230,6 +230,28 @@ export class HelmClient {
   }
 
   /**
+   * Show chart information
+   */
+  async show(
+    chart: string,
+    options?: {
+      subcommand?: 'all' | 'chart' | 'readme' | 'values' | 'crds';
+      version?: string;
+    }
+  ): Promise<{ success: boolean; output: string; error?: string }> {
+    const params = new URLSearchParams();
+    params.set('chart', chart);
+    if (options?.subcommand) params.set('subcommand', options.subcommand);
+    if (options?.version) params.set('version', options.version);
+
+    const response = await this.client.get<{ success: boolean; output: string; error?: string }>(`/api/helm/show?${params.toString()}`);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
    * Show chart values
    */
   async showValues(

@@ -420,6 +420,157 @@ async function handleVersion(ctx: RouteContext): Promise<Response> {
   }
 }
 
+// POST /api/terraform/state/mv - Move resource in state
+async function handleStateMove(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      directory: string;
+      source: string;
+      destination: string;
+    }>(ctx.req);
+
+    if (!body.directory || !body.source || !body.destination) {
+      return error('Missing required fields: directory, source, destination', 400);
+    }
+
+    const terraform = new TerraformOperations(body.directory);
+    const result = await terraform.stateMove(body.source, body.destination);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform state mv failed', err);
+    return error(err.message);
+  }
+}
+
+// POST /api/terraform/taint - Taint a resource
+async function handleTaint(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      directory: string;
+      address: string;
+    }>(ctx.req);
+
+    if (!body.directory || !body.address) {
+      return error('Missing required fields: directory, address', 400);
+    }
+
+    const terraform = new TerraformOperations(body.directory);
+    const result = await terraform.taint(body.address);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform taint failed', err);
+    return error(err.message);
+  }
+}
+
+// POST /api/terraform/untaint - Untaint a resource
+async function handleUntaint(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      directory: string;
+      address: string;
+    }>(ctx.req);
+
+    if (!body.directory || !body.address) {
+      return error('Missing required fields: directory, address', 400);
+    }
+
+    const terraform = new TerraformOperations(body.directory);
+    const result = await terraform.untaint(body.address);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform untaint failed', err);
+    return error(err.message);
+  }
+}
+
+// GET /api/terraform/state/pull - Pull remote state
+async function handleStatePull(ctx: RouteContext): Promise<Response> {
+  try {
+    const directory = ctx.url.searchParams.get('directory');
+
+    if (!directory) {
+      return error('Missing required query param: directory', 400);
+    }
+
+    const terraform = new TerraformOperations(directory);
+    const result = await terraform.statePull();
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform state pull failed', err);
+    return error(err.message);
+  }
+}
+
+// POST /api/terraform/state/push - Push local state
+async function handleStatePush(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      directory: string;
+      stateFile?: string;
+      force?: boolean;
+    }>(ctx.req);
+
+    if (!body.directory) {
+      return error('Missing required field: directory', 400);
+    }
+
+    const terraform = new TerraformOperations(body.directory);
+    const result = await terraform.statePush(body.stateFile, body.force);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform state push failed', err);
+    return error(err.message);
+  }
+}
+
+// GET /api/terraform/graph - Get resource graph
+async function handleGraph(ctx: RouteContext): Promise<Response> {
+  try {
+    const directory = ctx.url.searchParams.get('directory');
+    const type = ctx.url.searchParams.get('type') as 'plan' | 'apply' | undefined;
+
+    if (!directory) {
+      return error('Missing required query param: directory', 400);
+    }
+
+    const terraform = new TerraformOperations(directory);
+    const result = await terraform.graph(type || undefined);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform graph failed', err);
+    return error(err.message);
+  }
+}
+
+// POST /api/terraform/force-unlock - Force unlock state
+async function handleForceUnlock(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      directory: string;
+      lockId: string;
+    }>(ctx.req);
+
+    if (!body.directory || !body.lockId) {
+      return error('Missing required fields: directory, lockId', 400);
+    }
+
+    const terraform = new TerraformOperations(body.directory);
+    const result = await terraform.forceUnlock(body.lockId);
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform force-unlock failed', err);
+    return error(err.message);
+  }
+}
+
 export async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
@@ -457,6 +608,16 @@ export async function router(req: Request): Promise<Response> {
           return handleImport(ctx);
         case '/refresh':
           return handleRefresh(ctx);
+        case '/state/mv':
+          return handleStateMove(ctx);
+        case '/state/push':
+          return handleStatePush(ctx);
+        case '/taint':
+          return handleTaint(ctx);
+        case '/untaint':
+          return handleUntaint(ctx);
+        case '/force-unlock':
+          return handleForceUnlock(ctx);
       }
     }
 
@@ -473,6 +634,10 @@ export async function router(req: Request): Promise<Response> {
           return handleStateList(ctx);
         case '/state/show':
           return handleStateShow(ctx);
+        case '/state/pull':
+          return handleStatePull(ctx);
+        case '/graph':
+          return handleGraph(ctx);
         case '/version':
           return handleVersion(ctx);
       }

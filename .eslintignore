@@ -1,0 +1,43 @@
+# Build outputs
+dist
+build
+out
+
+# Dependencies
+node_modules
+.bun-cache
+
+# Coverage
+coverage
+
+# Generated files
+*.d.ts
+*.js.map
+
+# Config files
+*.config.js
+*.config.mjs
+
+# Test fixtures
+**/__fixtures__/**
+**/fixtures/**
+
+# Logs
+logs
+*.log
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Docker
+docker
+
+# Documentation
+docs
+
+# Release artifacts
+releases

@@ -40,12 +40,13 @@ export function createWebSocketServer(router: LLMRouter, port: number) {
             messageCount: data.messages.length,
           });
 
-          let tokenCount = 0;
+          let contentLength = 0;
+          let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
           // Stream the response
           for await (const chunk of router.routeStream(data, data.taskType)) {
             if (chunk.content) {
-              tokenCount++;
+              contentLength += chunk.content.length;
               ws.send(
                 JSON.stringify({
                   type: 'content',
@@ -65,17 +66,32 @@ export function createWebSocketServer(router: LLMRouter, port: number) {
               );
             }
 
+            // Capture usage from the final chunk if the provider sends it
+            if (chunk.usage) {
+              finalUsage = chunk.usage;
+            }
+
             if (chunk.done) {
+              // Use actual token counts from provider if available,
+              // otherwise estimate based on content length (~4 chars per token)
+              const tokenCount = finalUsage?.totalTokens || Math.ceil(contentLength / 4);
+
               ws.send(
                 JSON.stringify({
                   type: 'done',
                   done: true,
                   tokenCount,
+                  usage: finalUsage || {
+                    promptTokens: 0,
+                    completionTokens: tokenCount,
+                    totalTokens: tokenCount,
+                  },
                 })
               );
 
               logger.info('WebSocket streaming completed', {
                 tokenCount,
+                hasRealUsage: !!finalUsage,
               });
             }
           }

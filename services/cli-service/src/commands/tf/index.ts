@@ -6,12 +6,14 @@
 
 import { terraformClient } from '../../clients';
 import { ui } from '../../wizard/ui';
+import { confirmWithResourceName } from '../../wizard/approval';
 
 export interface TfCommandOptions {
   directory?: string;
   varFile?: string;
   vars?: Record<string, string>;
   autoApprove?: boolean;
+  dryRun?: boolean;
   out?: string;
   planFile?: string;
 }
@@ -195,13 +197,19 @@ export async function tfValidateCommand(options: TfCommandOptions = {}): Promise
  */
 export async function tfDestroyCommand(options: TfCommandOptions = {}): Promise<void> {
   const directory = options.directory || process.cwd();
+  const path = await import('path');
+  const workspaceName = path.basename(path.resolve(directory));
 
   ui.header('Terraform Destroy');
   ui.info(`Directory: ${directory}`);
   ui.warning('This will destroy all managed infrastructure!');
 
   if (!options.autoApprove) {
-    ui.warning('Use -auto-approve flag to confirm destruction');
+    // Require type-name-to-delete confirmation
+    const confirmed = await confirmWithResourceName(workspaceName, 'terraform workspace');
+    if (!confirmed) {
+      return;
+    }
   }
 
   ui.startSpinner({ message: 'Destroying Terraform resources...' });
@@ -286,8 +294,10 @@ export async function tfCommand(subcommand: string, args: string[]): Promise<voi
       options.directory = args[++i];
     } else if (arg === '--var-file') {
       options.varFile = args[++i];
-    } else if (arg === '--auto-approve') {
+    } else if (arg === '--auto-approve' || arg === '--yes' || arg === '-y') {
       options.autoApprove = true;
+    } else if (arg === '--dry-run') {
+      options.dryRun = true;
     } else if (arg === '-o' || arg === '--out') {
       options.out = args[++i];
     } else if (arg === '-p' || arg === '--plan') {

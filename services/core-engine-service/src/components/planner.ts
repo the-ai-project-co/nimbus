@@ -1,7 +1,32 @@
 import { logger } from '@nimbus/shared-utils';
 import type { AgentTask, AgentPlan, PlanStep, Risk, PlanDependency } from '../types/agent';
 
+/** System prompt instructing the LLM to generate execution steps as JSON. */
+const PLANNING_PROMPT =
+  'You are an infrastructure planning agent. Given the task context, generate an ordered array of execution steps as JSON. ' +
+  'Each step has fields: id (string like step_1), name (string), description (string), type (one of: generate, validate, deploy, configure, verify), ' +
+  'order (number), estimatedDuration (number in seconds). Return ONLY the JSON array, no markdown.';
+
+/** System prompt instructing the LLM to assess risks as JSON. */
+const RISK_ASSESSMENT_PROMPT =
+  'You are an infrastructure risk assessor. Given the task and execution steps, identify risks. ' +
+  'Return a JSON array of risks with fields: id (string), severity (low|medium|high|critical), ' +
+  'category (security|cost|availability|performance|compliance), description (string), mitigation (string), ' +
+  'probability (0-1), impact (0-1). Return ONLY the JSON array.';
+
+/** Valid step types for plan steps. */
+const VALID_STEP_TYPES = new Set(['generate', 'validate', 'deploy', 'configure', 'verify']);
+
+/** Valid severity levels for risks. */
+const VALID_SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
+
+/** Valid risk categories. */
+const VALID_CATEGORIES = new Set(['security', 'cost', 'availability', 'performance', 'compliance']);
+
 export class Planner {
+  /** Base URL for the LLM service. */
+  private llmServiceUrl = process.env.LLM_SERVICE_URL || 'http://localhost:3002';
+
   /**
    * Generate an execution plan for a task
    */
@@ -36,9 +61,87 @@ export class Planner {
   }
 
   /**
-   * Generate execution steps for a task
+   * Generate execution steps for a task.
+   * Attempts LLM-based generation first, falls back to heuristic logic.
    */
   private async generateSteps(task: AgentTask): Promise<PlanStep[]> {
+    try {
+      const llmSteps = await this.generateStepsWithLLM(task);
+      if (llmSteps.length > 0) {
+        logger.info(`Using LLM-generated steps (${llmSteps.length} steps)`);
+        return llmSteps;
+      }
+    } catch (error) {
+      logger.debug(`LLM step generation failed, falling back to heuristics: ${(error as Error).message}`);
+    }
+
+    return this.generateStepsHeuristic(task);
+  }
+
+  /**
+   * Generate steps using the LLM service.
+   */
+  private async generateStepsWithLLM(task: AgentTask): Promise<PlanStep[]> {
+    const response = await fetch(`${this.llmServiceUrl}/api/llm/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: PLANNING_PROMPT },
+          { role: 'user', content: JSON.stringify(task.context) },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`LLM service returned status ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('LLM response missing content');
+    }
+
+    const parsed: unknown = JSON.parse(content);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error('LLM response is not a non-empty array');
+    }
+
+    const steps: PlanStep[] = [];
+    for (const item of parsed) {
+      if (
+        typeof item !== 'object' ||
+        item === null ||
+        typeof item.id !== 'string' ||
+        typeof item.description !== 'string' ||
+        !VALID_STEP_TYPES.has(item.type)
+      ) {
+        throw new Error('LLM response contains invalid step structure');
+      }
+
+      steps.push({
+        id: item.id,
+        order: typeof item.order === 'number' ? item.order : steps.length + 1,
+        type: item.type as PlanStep['type'],
+        description: item.description,
+        action: item.type as string,
+        parameters: {},
+        status: 'pending',
+      });
+    }
+
+    return steps;
+  }
+
+  /**
+   * Generate execution steps using heuristic logic (fallback).
+   */
+  private generateStepsHeuristic(task: AgentTask): PlanStep[] {
     const steps: PlanStep[] = [];
     let order = 1;
 
@@ -192,9 +295,96 @@ export class Planner {
   }
 
   /**
-   * Assess risks for the plan
+   * Assess risks for the plan.
+   * Attempts LLM-based assessment first, falls back to heuristic logic.
    */
   private async assessRisks(task: AgentTask, steps: PlanStep[]): Promise<Risk[]> {
+    try {
+      const llmRisks = await this.assessRisksWithLLM(task, steps);
+      if (llmRisks.length > 0) {
+        logger.info(`Using LLM-assessed risks (${llmRisks.length} risks)`);
+        return llmRisks;
+      }
+    } catch (error) {
+      logger.debug(`LLM risk assessment failed, falling back to heuristics: ${(error as Error).message}`);
+    }
+
+    return this.assessRisksHeuristic(task, steps);
+  }
+
+  /**
+   * Assess risks using the LLM service.
+   */
+  private async assessRisksWithLLM(task: AgentTask, steps: PlanStep[]): Promise<Risk[]> {
+    const response = await fetch(`${this.llmServiceUrl}/api/llm/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: RISK_ASSESSMENT_PROMPT },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              task: task.context,
+              steps: steps.map((s) => ({ id: s.id, type: s.type, description: s.description })),
+            }),
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`LLM service returned status ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('LLM response missing content');
+    }
+
+    const parsed: unknown = JSON.parse(content);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error('LLM response is not a non-empty array');
+    }
+
+    const risks: Risk[] = [];
+    for (const item of parsed) {
+      if (
+        typeof item !== 'object' ||
+        item === null ||
+        typeof item.id !== 'string' ||
+        typeof item.description !== 'string' ||
+        !VALID_SEVERITIES.has(item.severity) ||
+        !VALID_CATEGORIES.has(item.category) ||
+        typeof item.probability !== 'number' ||
+        typeof item.impact !== 'number'
+      ) {
+        throw new Error('LLM response contains invalid risk structure');
+      }
+
+      risks.push({
+        id: item.id,
+        severity: item.severity as Risk['severity'],
+        category: item.category as Risk['category'],
+        description: item.description,
+        mitigation: typeof item.mitigation === 'string' ? item.mitigation : undefined,
+        probability: item.probability,
+        impact: item.impact,
+      });
+    }
+
+    return risks;
+  }
+
+  /**
+   * Assess risks using heuristic logic (fallback).
+   */
+  private assessRisksHeuristic(task: AgentTask, steps: PlanStep[]): Risk[] {
     const risks: Risk[] = [];
 
     // Security risks

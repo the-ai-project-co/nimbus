@@ -531,6 +531,94 @@ export async function gitDiffCommand(options: GitCommandOptions = {}): Promise<v
 }
 
 /**
+ * Merge a branch
+ */
+export async function gitMergeCommand(
+  branch: string,
+  options: GitCommandOptions = {}
+): Promise<void> {
+  ui.header('Git Merge');
+
+  ui.info(`Merging branch: ${branch}`);
+
+  ui.startSpinner({ message: `Merging ${branch}...` });
+
+  try {
+    const available = await gitClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Git Tools Service not available');
+      ui.error('Please ensure the Git Tools Service is running.');
+      return;
+    }
+
+    const result = await gitClient.merge(branch, {
+      directory: options.directory,
+    });
+
+    if (result.success) {
+      ui.stopSpinnerSuccess(`Merged ${branch}`);
+      if (result.output) {
+        ui.info(result.output);
+      }
+    } else {
+      ui.stopSpinnerFail(`Failed to merge ${branch}`);
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail(`Error merging ${branch}`);
+    ui.error(error.message);
+  }
+}
+
+/**
+ * Stash operations
+ */
+export async function gitStashCommand(
+  stashAction: 'push' | 'pop' | 'list' | 'drop' | 'apply' | 'clear',
+  options: GitCommandOptions & { message?: string; index?: number } = {}
+): Promise<void> {
+  ui.header(`Git Stash ${stashAction}`);
+
+  if (options.message) {
+    ui.info(`Message: ${options.message}`);
+  }
+
+  ui.startSpinner({ message: `Running stash ${stashAction}...` });
+
+  try {
+    const available = await gitClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Git Tools Service not available');
+      ui.error('Please ensure the Git Tools Service is running.');
+      return;
+    }
+
+    const result = await gitClient.stash(stashAction, {
+      directory: options.directory,
+      message: options.message,
+      index: options.index,
+    });
+
+    if (result.success) {
+      ui.stopSpinnerSuccess(`Stash ${stashAction} complete`);
+      if (result.output) {
+        console.log(result.output);
+      }
+    } else {
+      ui.stopSpinnerFail(`Stash ${stashAction} failed`);
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail(`Error during stash ${stashAction}`);
+    ui.error(error.message);
+  }
+}
+
+/**
  * Main git command router
  */
 export async function gitCommand(subcommand: string, args: string[]): Promise<void> {
@@ -617,8 +705,31 @@ export async function gitCommand(subcommand: string, args: string[]): Promise<vo
     case 'diff':
       await gitDiffCommand(options);
       break;
+    case 'merge':
+      if (positionalArgs.length < 1) {
+        ui.error('Usage: nimbus git merge <branch>');
+        return;
+      }
+      await gitMergeCommand(positionalArgs[0], options);
+      break;
+    case 'stash': {
+      const validStashActions = ['push', 'pop', 'list', 'drop', 'apply', 'clear'];
+      const stashAction = (positionalArgs[0] || 'push') as 'push' | 'pop' | 'list' | 'drop' | 'apply' | 'clear';
+      if (!validStashActions.includes(stashAction)) {
+        ui.error(`Unknown stash action: ${stashAction}`);
+        ui.info('Actions: push, pop, list, drop, apply, clear');
+        return;
+      }
+      // Extract stash message from -m flag (already captured in positionalArgs if using -m)
+      const stashMessage = positionalArgs[1];
+      await gitStashCommand(stashAction, {
+        ...options,
+        message: stashMessage,
+      });
+      break;
+    }
     default:
       ui.error(`Unknown git subcommand: ${subcommand}`);
-      ui.info('Available commands: status, add, commit, push, pull, fetch, log, branch, checkout, diff');
+      ui.info('Available commands: status, add, commit, push, pull, fetch, log, branch, checkout, diff, merge, stash');
   }
 }

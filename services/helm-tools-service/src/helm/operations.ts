@@ -753,4 +753,165 @@ export class HelmOperations {
 
     return this.execute(args);
   }
+
+  /**
+   * Run tests for a release
+   */
+  async test(options: TestOptions): Promise<CommandResult> {
+    const args = ['test', options.name];
+
+    const namespace = options.namespace || this.defaultNamespace;
+    args.push('-n', namespace);
+
+    if (options.timeout) {
+      args.push('--timeout', options.timeout);
+    }
+
+    if (options.filter) {
+      args.push('--filter', options.filter);
+    }
+
+    if (options.logs) {
+      args.push('--logs');
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Package a chart
+   */
+  async package(chartPath: string, options?: PackageOptions): Promise<CommandResult> {
+    const args = ['package', chartPath];
+
+    if (options?.destination) {
+      args.push('-d', options.destination);
+    }
+
+    if (options?.version) {
+      args.push('--version', options.version);
+    }
+
+    if (options?.appVersion) {
+      args.push('--app-version', options.appVersion);
+    }
+
+    if (options?.dependencyUpdate) {
+      args.push('--dependency-update');
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Update chart dependencies
+   */
+  async dependencyUpdate(chartPath: string): Promise<CommandResult> {
+    return this.execute(['dependency', 'update', chartPath]);
+  }
+
+  /**
+   * Build chart dependencies
+   */
+  async dependencyBuild(chartPath: string): Promise<CommandResult> {
+    return this.execute(['dependency', 'build', chartPath]);
+  }
+
+  /**
+   * List chart dependencies
+   */
+  async dependencyList(chartPath: string): Promise<CommandResult> {
+    return this.execute(['dependency', 'list', chartPath]);
+  }
+
+  /**
+   * Verify a chart
+   */
+  async verify(chartPath: string, keyring?: string): Promise<CommandResult> {
+    const args = ['verify', chartPath];
+
+    if (keyring) {
+      args.push('--keyring', keyring);
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Get all release information
+   */
+  async getAll(name: string, namespace?: string, revision?: number): Promise<CommandResult> {
+    const args = ['get', 'all', name];
+
+    args.push('-n', namespace || this.defaultNamespace);
+
+    if (revision) {
+      args.push('--revision', revision.toString());
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Create a new chart
+   */
+  async create(name: string, starterChart?: string): Promise<CommandResult> {
+    const args = ['create', name];
+
+    if (starterChart) {
+      args.push('--starter', starterChart);
+    }
+
+    return this.execute(args);
+  }
+
+  /**
+   * Push a chart to a registry
+   */
+  async push(chartPath: string, remote: string): Promise<CommandResult> {
+    return this.execute(['push', chartPath, remote]);
+  }
+
+  /**
+   * Login to a registry
+   */
+  async registryLogin(host: string, username: string, password: string): Promise<CommandResult> {
+    return this.execute([
+      'registry',
+      'login',
+      host,
+      '--username',
+      username,
+      '--password',
+      password,
+    ]);
+  }
+
+  /**
+   * Logout from a registry
+   */
+  async registryLogout(host: string): Promise<CommandResult> {
+    return this.execute(['registry', 'logout', host]);
+  }
+}
+
+/**
+ * Test options for helm test
+ */
+export interface TestOptions {
+  name: string;
+  namespace?: string;
+  timeout?: string;
+  filter?: string;
+  logs?: boolean;
+}
+
+/**
+ * Package options for helm package
+ */
+export interface PackageOptions {
+  destination?: string;
+  version?: string;
+  appVersion?: string;
+  dependencyUpdate?: boolean;
 }

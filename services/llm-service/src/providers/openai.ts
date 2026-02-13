@@ -124,6 +124,19 @@ export class OpenAIProvider extends BaseProvider {
         };
       }
 
+      // Capture usage from streaming chunks if available
+      const chunkUsage = (chunk as any).usage;
+      if (chunkUsage) {
+        yield {
+          done: false,
+          usage: {
+            promptTokens: chunkUsage.prompt_tokens || 0,
+            completionTokens: chunkUsage.completion_tokens || 0,
+            totalTokens: chunkUsage.total_tokens || 0,
+          },
+        };
+      }
+
       if (finishReason) {
         yield { done: true };
       }
