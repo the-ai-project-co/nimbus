@@ -318,12 +318,95 @@ export class DriftDetector {
   private async compareKubernetesManifests(
     options: DriftDetectionOptions
   ): Promise<K8sResourceDiff[]> {
-    // This would be implemented using kubectl diff or kubernetes client
-    // For now, return empty array - actual implementation would:
-    // 1. Parse all YAML/JSON manifests in workDir
-    // 2. For each resource, fetch actual state from cluster
-    // 3. Deep compare and return differences
-    return [];
+    const diffs: K8sResourceDiff[] = [];
+    const k8sServiceUrl = process.env.K8S_TOOLS_URL || 'http://localhost:3007';
+
+    try {
+      // Read all YAML files from the work directory
+      const { readdir, readFile } = await import('fs/promises');
+      const { join } = await import('path');
+      const jsYaml = await import('js-yaml');
+
+      let files: string[];
+      try {
+        files = await readdir(options.workDir);
+      } catch {
+        return [];
+      }
+
+      const yamlFiles = files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
+
+      for (const file of yamlFiles) {
+        try {
+          const content = await readFile(join(options.workDir, file), 'utf-8');
+          const docs = jsYaml.loadAll(content) as any[];
+
+          for (const doc of docs) {
+            if (!doc || !doc.kind || !doc.metadata?.name) continue;
+
+            const namespace = doc.metadata.namespace || options.namespace || 'default';
+            try {
+              const resp = await fetch(`${k8sServiceUrl}/api/k8s/get`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  resource: doc.kind.toLowerCase() + 's',
+                  name: doc.metadata.name,
+                  namespace,
+                }),
+              });
+
+              if (resp.ok) {
+                const actual = await resp.json() as Record<string, unknown>;
+                const differences = this.deepCompare(doc.spec || {}, (actual as any).spec || {}, 'spec');
+                if (differences.length > 0) {
+                  diffs.push({
+                    kind: doc.kind,
+                    name: doc.metadata.name,
+                    namespace,
+                    differences,
+                  });
+                }
+              }
+            } catch {
+              // Individual resource fetch failed, skip
+            }
+          }
+        } catch {
+          // File parse failed, skip
+        }
+      }
+    } catch {
+      // K8s tools service unavailable, return empty array (graceful degradation)
+    }
+
+    return diffs;
+  }
+
+  /**
+   * Deep compare two objects and return differences
+   */
+  private deepCompare(
+    expected: Record<string, unknown>,
+    actual: Record<string, unknown>,
+    prefix: string
+  ): Array<{ path: string; expected: unknown; actual: unknown }> {
+    const differences: Array<{ path: string; expected: unknown; actual: unknown }> = [];
+    const allKeys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
+
+    for (const key of allKeys) {
+      const path = `${prefix}.${key}`;
+      const exp = expected[key];
+      const act = actual[key];
+
+      if (exp !== null && act !== null && typeof exp === 'object' && typeof act === 'object' && !Array.isArray(exp) && !Array.isArray(act)) {
+        differences.push(...this.deepCompare(exp as Record<string, unknown>, act as Record<string, unknown>, path));
+      } else if (JSON.stringify(exp) !== JSON.stringify(act)) {
+        differences.push({ path, expected: exp, actual: act });
+      }
+    }
+
+    return differences;
   }
 
   /**
@@ -363,9 +446,88 @@ export class DriftDetector {
   private async compareHelmReleases(
     options: DriftDetectionOptions
   ): Promise<HelmReleaseDiff[]> {
-    // This would be implemented using helm get values and comparing
-    // For now, return empty array
-    return [];
+    const diffs: HelmReleaseDiff[] = [];
+    const helmServiceUrl = process.env.HELM_TOOLS_URL || 'http://localhost:3008';
+
+    try {
+      // Get list of deployed releases
+      const listResp = await fetch(`${helmServiceUrl}/api/helm/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ namespace: options.namespace || 'default' }),
+      });
+
+      if (!listResp.ok) return [];
+
+      const releases = await listResp.json() as Array<{
+        name: string; namespace: string; chart: string; chart_version?: string; app_version?: string;
+      }>;
+
+      // Read local expected values from workDir
+      const { readdir, readFile } = await import('fs/promises');
+      const { join } = await import('path');
+      const jsYaml = await import('js-yaml');
+
+      let localFiles: string[];
+      try {
+        localFiles = await readdir(options.workDir);
+      } catch {
+        return [];
+      }
+
+      for (const release of releases) {
+        try {
+          // Get actual deployed values
+          const valuesResp = await fetch(`${helmServiceUrl}/api/helm/get-values`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: release.name,
+              namespace: release.namespace,
+            }),
+          });
+
+          if (!valuesResp.ok) continue;
+
+          const actualValues = await valuesResp.json() as Record<string, unknown>;
+
+          // Find matching local values file
+          const valuesFile = localFiles.find(
+            f => f === `${release.name}-values.yaml` || f === `${release.name}.values.yaml` || f === 'values.yaml'
+          );
+
+          if (valuesFile) {
+            const localContent = await readFile(join(options.workDir, valuesFile), 'utf-8');
+            const expectedValues = jsYaml.load(localContent) as Record<string, unknown>;
+
+            const valuesDiff: Array<{ path: string; expected: unknown; actual: unknown }> = [];
+            const allKeys = new Set([...Object.keys(expectedValues || {}), ...Object.keys(actualValues || {})]);
+
+            for (const key of allKeys) {
+              const exp = (expectedValues || {})[key];
+              const act = (actualValues || {})[key];
+              if (JSON.stringify(exp) !== JSON.stringify(act)) {
+                valuesDiff.push({ path: key, expected: exp, actual: act });
+              }
+            }
+
+            if (valuesDiff.length > 0) {
+              diffs.push({
+                name: release.name,
+                namespace: release.namespace,
+                valuesDiff,
+              });
+            }
+          }
+        } catch {
+          // Individual release comparison failed, skip
+        }
+      }
+    } catch {
+      // Helm tools service unavailable, return empty array (graceful degradation)
+    }
+
+    return diffs;
   }
 
   /**

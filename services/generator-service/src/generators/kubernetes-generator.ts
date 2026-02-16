@@ -62,6 +62,22 @@ export interface K8sGeneratorConfig {
     data: Record<string, string>;
     type?: string;
   };
+  rbac?: {
+    enabled?: boolean;
+    clusterWide?: boolean;
+    rules?: Array<{ apiGroups: string[]; resources: string[]; verbs: string[] }>;
+  };
+  networkPolicy?: {
+    enabled?: boolean;
+    ingressRules?: Array<{ from?: any[]; ports?: any[] }>;
+    egressRules?: Array<{ to?: any[]; ports?: any[] }>;
+  };
+  persistence?: {
+    enabled?: boolean;
+    storageClass?: string;
+    size?: string;
+    accessModes?: string[];
+  };
 }
 
 interface K8sVolume {
@@ -170,6 +186,26 @@ export class KubernetesGenerator {
     // PDB
     if (this.config.pdb?.enabled) {
       manifests.push(this.generatePDB());
+    }
+
+    // RBAC
+    if (this.config.rbac?.enabled) {
+      manifests.push(this.generateRole());
+      manifests.push(this.generateRoleBinding());
+      if (this.config.rbac?.clusterWide) {
+        manifests.push(this.generateClusterRole());
+        manifests.push(this.generateClusterRoleBinding());
+      }
+    }
+
+    // NetworkPolicy
+    if (this.config.networkPolicy?.enabled) {
+      manifests.push(this.generateNetworkPolicy());
+    }
+
+    // PersistentVolumeClaim
+    if (this.config.persistence?.enabled) {
+      manifests.push(this.generatePersistentVolumeClaim());
     }
 
     return manifests;
@@ -721,6 +757,192 @@ export class KubernetesGenerator {
     return {
       name: 'pdb',
       kind: 'PodDisruptionBudget',
+      content: yaml.dump(manifest),
+    };
+  }
+
+  private generateRole(): GeneratedManifest {
+    const rules = this.config.rbac?.rules || [
+      { apiGroups: [''], resources: ['pods', 'services', 'configmaps'], verbs: ['get', 'list', 'watch'] },
+    ];
+
+    const manifest = {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'Role',
+      metadata: {
+        name: `${this.config.appName}-role`,
+        namespace: this.config.namespace,
+        labels: this.getLabels(),
+      },
+      rules,
+    };
+
+    return {
+      name: 'role',
+      kind: 'Role',
+      content: yaml.dump(manifest),
+    };
+  }
+
+  private generateRoleBinding(): GeneratedManifest {
+    const manifest = {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'RoleBinding',
+      metadata: {
+        name: `${this.config.appName}-rolebinding`,
+        namespace: this.config.namespace,
+        labels: this.getLabels(),
+      },
+      subjects: [
+        {
+          kind: 'ServiceAccount',
+          name: this.config.serviceAccount?.name || this.config.appName,
+          namespace: this.config.namespace,
+        },
+      ],
+      roleRef: {
+        kind: 'Role',
+        name: `${this.config.appName}-role`,
+        apiGroup: 'rbac.authorization.k8s.io',
+      },
+    };
+
+    return {
+      name: 'rolebinding',
+      kind: 'RoleBinding',
+      content: yaml.dump(manifest),
+    };
+  }
+
+  private generateClusterRole(): GeneratedManifest {
+    const rules = this.config.rbac?.rules || [
+      { apiGroups: [''], resources: ['pods', 'services', 'configmaps'], verbs: ['get', 'list', 'watch'] },
+    ];
+
+    const manifest = {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'ClusterRole',
+      metadata: {
+        name: `${this.config.appName}-clusterrole`,
+        labels: this.getLabels(),
+      },
+      rules,
+    };
+
+    return {
+      name: 'clusterrole',
+      kind: 'ClusterRole',
+      content: yaml.dump(manifest),
+    };
+  }
+
+  private generateClusterRoleBinding(): GeneratedManifest {
+    const manifest = {
+      apiVersion: 'rbac.authorization.k8s.io/v1',
+      kind: 'ClusterRoleBinding',
+      metadata: {
+        name: `${this.config.appName}-clusterrolebinding`,
+        labels: this.getLabels(),
+      },
+      subjects: [
+        {
+          kind: 'ServiceAccount',
+          name: this.config.serviceAccount?.name || this.config.appName,
+          namespace: this.config.namespace,
+        },
+      ],
+      roleRef: {
+        kind: 'ClusterRole',
+        name: `${this.config.appName}-clusterrole`,
+        apiGroup: 'rbac.authorization.k8s.io',
+      },
+    };
+
+    return {
+      name: 'clusterrolebinding',
+      kind: 'ClusterRoleBinding',
+      content: yaml.dump(manifest),
+    };
+  }
+
+  private generateNetworkPolicy(): GeneratedManifest {
+    const spec: any = {
+      podSelector: {
+        matchLabels: this.getSelectorLabels(),
+      },
+      policyTypes: [] as string[],
+    };
+
+    if (this.config.networkPolicy?.ingressRules) {
+      spec.policyTypes.push('Ingress');
+      spec.ingress = this.config.networkPolicy.ingressRules;
+    } else {
+      spec.policyTypes.push('Ingress');
+      spec.ingress = [
+        {
+          from: [
+            {
+              podSelector: {
+                matchLabels: this.getSelectorLabels(),
+              },
+            },
+          ],
+          ports: [
+            {
+              protocol: 'TCP',
+              port: this.config.containerPort,
+            },
+          ],
+        },
+      ];
+    }
+
+    if (this.config.networkPolicy?.egressRules) {
+      spec.policyTypes.push('Egress');
+      spec.egress = this.config.networkPolicy.egressRules;
+    }
+
+    const manifest = {
+      apiVersion: 'networking.k8s.io/v1',
+      kind: 'NetworkPolicy',
+      metadata: {
+        name: `${this.config.appName}-netpol`,
+        namespace: this.config.namespace,
+        labels: this.getLabels(),
+      },
+      spec,
+    };
+
+    return {
+      name: 'networkpolicy',
+      kind: 'NetworkPolicy',
+      content: yaml.dump(manifest),
+    };
+  }
+
+  private generatePersistentVolumeClaim(): GeneratedManifest {
+    const manifest = {
+      apiVersion: 'v1',
+      kind: 'PersistentVolumeClaim',
+      metadata: {
+        name: `${this.config.appName}-pvc`,
+        namespace: this.config.namespace,
+        labels: this.getLabels(),
+      },
+      spec: {
+        accessModes: this.config.persistence?.accessModes || ['ReadWriteOnce'],
+        storageClassName: this.config.persistence?.storageClass || 'standard',
+        resources: {
+          requests: {
+            storage: this.config.persistence?.size || '10Gi',
+          },
+        },
+      },
+    };
+
+    return {
+      name: 'pvc',
+      kind: 'PersistentVolumeClaim',
       content: yaml.dump(manifest),
     };
   }

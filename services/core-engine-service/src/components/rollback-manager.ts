@@ -371,13 +371,31 @@ export class RollbackManager {
           }
 
           if (!dryRun) {
-            // Would call k8s-tools-service delete here
-            actions.push({
-              resource,
-              action: 'destroy',
-              success: true,
-              output: 'Resource deleted',
-            });
+            const k8sServiceUrl = process.env.K8S_TOOLS_URL || 'http://localhost:3007';
+            try {
+              await fetch(`${k8sServiceUrl}/api/k8s/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  resource,
+                  namespace: state.namespace,
+                  workDir: state.workDir,
+                }),
+              });
+              actions.push({
+                resource,
+                action: 'destroy',
+                success: true,
+                output: 'Resource deleted',
+              });
+            } catch (error: any) {
+              actions.push({
+                resource,
+                action: 'destroy',
+                success: false,
+                output: error.message,
+              });
+            }
           } else {
             actions.push({
               resource,
@@ -434,19 +452,31 @@ export class RollbackManager {
       const revision = state.previousRevision || 0;
 
       if (!dryRun) {
-        // Would call helm-tools-service rollback here
-        // await this.helmClient.rollback({
-        //   name: state.releaseName,
-        //   revision,
-        //   namespace: state.namespace,
-        // });
-
-        actions.push({
-          resource: state.releaseName,
-          action: 'revert',
-          success: true,
-          output: `Rolled back to revision ${revision}`,
-        });
+        const helmServiceUrl = process.env.HELM_TOOLS_URL || 'http://localhost:3008';
+        try {
+          await fetch(`${helmServiceUrl}/api/helm/rollback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: state.releaseName,
+              revision,
+              namespace: state.namespace,
+            }),
+          });
+          actions.push({
+            resource: state.releaseName,
+            action: 'revert',
+            success: true,
+            output: `Rolled back to revision ${revision}`,
+          });
+        } catch (error: any) {
+          actions.push({
+            resource: state.releaseName,
+            action: 'revert',
+            success: false,
+            output: error.message,
+          });
+        }
       } else {
         actions.push({
           resource: state.releaseName,

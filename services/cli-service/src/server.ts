@@ -205,10 +205,37 @@ export async function startServer(port: number, wsPort: number) {
       try {
         socket.emit('llm:stream', { type: 'start', sessionId: data.sessionId });
 
-        // Simulate streaming chunks — in production, this connects to the LLM service
-        const chunks = [`Processing request: "${data.prompt.substring(0, 50)}..."`, '\n', 'Response generated successfully.'];
-        for (const chunk of chunks) {
-          socket.emit('llm:stream', { type: 'chunk', content: chunk, sessionId: data.sessionId });
+        const llmServiceUrl = process.env.LLM_SERVICE_URL || 'http://localhost:3002';
+        try {
+          const response = await fetch(`${llmServiceUrl}/api/llm/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: data.prompt }],
+              model: data.model,
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json() as { content?: string; response?: string };
+            const content = result.content || result.response || '';
+            const chunkSize = 20;
+            for (let i = 0; i < content.length; i += chunkSize) {
+              socket.emit('llm:stream', {
+                type: 'chunk',
+                content: content.slice(i, i + chunkSize),
+                sessionId: data.sessionId,
+              });
+            }
+          } else {
+            throw new Error(`LLM service returned ${response.status}`);
+          }
+        } catch {
+          socket.emit('llm:stream', {
+            type: 'chunk',
+            content: `Processing: "${data.prompt.substring(0, 100)}..."\n\nLLM service is not currently running. Start it with: bun run services/llm-service/src/index.ts`,
+            sessionId: data.sessionId,
+          });
         }
 
         socket.emit('llm:stream', { type: 'end', sessionId: data.sessionId });
