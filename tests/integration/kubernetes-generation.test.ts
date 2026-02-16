@@ -130,9 +130,10 @@ describe('Kubernetes Generation Integration', () => {
         // If we get here, kubectl validated the manifest
         expect(true).toBe(true);
       } catch (error: any) {
-        if (error.message.includes('command not found') || error.message.includes('ENOENT')) {
+        const errorStr = String(error) + (error.stdout || '') + (error.stderr || '');
+        if (errorStr.includes('command not found') || errorStr.includes('ENOENT')) {
           console.log('kubectl not available, skipping validation');
-        } else if (error.message.includes('Unable to connect')) {
+        } else if (errorStr.includes('Unable to connect') || errorStr.includes('connection refused') || errorStr.includes('connect:')) {
           console.log('Kubernetes cluster not available, skipping validation');
         } else {
           // Real validation error

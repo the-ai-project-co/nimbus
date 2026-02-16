@@ -3,14 +3,15 @@ import { startServer } from '../src/server';
 
 describe('CLI Service', () => {
   let server: any;
-  const PORT = 3000;
+  const PORT = 30000 + Math.floor(Math.random() * 10000);
+  const WS_PORT = PORT + 100;
 
   beforeAll(async () => {
-    server = await startServer(PORT, 3100);
+    server = await startServer(PORT, WS_PORT);
   });
 
   afterAll(() => {
-    server.stop();
+    try { server?.stop(); } catch { /* ignore */ }
   });
 
   test('health endpoint returns healthy status', async () => {
