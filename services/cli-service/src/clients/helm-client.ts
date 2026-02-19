@@ -252,6 +252,45 @@ export class HelmClient {
   }
 
   /**
+   * Lint a Helm chart
+   */
+  async lint(
+    chartPath: string,
+    options?: {
+      strict?: boolean;
+      valuesFiles?: string[];
+      namespace?: string;
+    }
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    const response = await this.client.post<{ success: boolean; data?: any; error?: string }>('/api/helm/lint', {
+      chartPath,
+      ...options,
+    });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
+   * Get status of a Helm release
+   */
+  async status(
+    releaseName: string,
+    options?: { namespace?: string }
+  ): Promise<{ success: boolean; release?: HelmRelease; error?: string }> {
+    const params = new URLSearchParams();
+    params.set('release', releaseName);
+    if (options?.namespace) params.set('namespace', options.namespace);
+
+    const response = await this.client.get<{ success: boolean; release?: HelmRelease; error?: string }>(`/api/helm/status?${params.toString()}`);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
    * Show chart values
    */
   async showValues(

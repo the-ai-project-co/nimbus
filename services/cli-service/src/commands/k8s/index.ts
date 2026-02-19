@@ -7,6 +7,8 @@
 import { k8sClient } from '../../clients';
 import { ui } from '../../wizard/ui';
 import { confirmWithResourceName } from '../../wizard/approval';
+import { showDestructionCostWarning } from '../../utils/cost-warning';
+import { historyManager } from '../../history';
 
 export interface K8sCommandOptions {
   namespace?: string;
@@ -148,6 +150,18 @@ export async function k8sDeleteCommand(
   if (options.namespace) {
     ui.info(`Namespace: ${options.namespace}`);
   }
+
+  // Show destructive operation warning with resource count and estimated impact
+  ui.newLine();
+  ui.warning(`Destructive operation: deleting ${resource}/${name}`);
+  ui.print(`  ${ui.color('Resource:', 'yellow')} ${resource}`);
+  ui.print(`  ${ui.color('Name:', 'yellow')} ${name}`);
+  ui.print(`  ${ui.color('Namespace:', 'yellow')} ${options.namespace || 'default'}`);
+  ui.print(`  ${ui.color('Resources affected:', 'yellow')} 1 ${resource}`);
+  ui.print(`  ${ui.color('Impact:', 'red')} This will permanently remove the ${resource} and any dependent resources.`);
+
+  // Show cost warning before destructive operation
+  await showDestructionCostWarning(process.cwd());
 
   // Require type-name-to-delete confirmation for destructive operations
   if (!options.force && !options.dryRun) {
@@ -516,94 +530,104 @@ export async function k8sCommand(subcommand: string, args: string[]): Promise<vo
     }
   }
 
-  switch (subcommand) {
-    case 'get':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus k8s get <resource> [name]');
-        return;
+  const startTime = Date.now();
+  const entry = historyManager.addEntry('k8s', [subcommand, ...args]);
+
+  try {
+    switch (subcommand) {
+      case 'get':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus k8s get <resource> [name]');
+          return;
+        }
+        options.name = positionalArgs[1];
+        await k8sGetCommand(positionalArgs[0], options);
+        break;
+      case 'apply':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus k8s apply <manifest-file-or-yaml>');
+          return;
+        }
+        await k8sApplyCommand(positionalArgs[0], options);
+        break;
+      case 'delete':
+        if (positionalArgs.length < 2) {
+          ui.error('Usage: nimbus k8s delete <resource> <name>');
+          return;
+        }
+        await k8sDeleteCommand(positionalArgs[0], positionalArgs[1], options);
+        break;
+      case 'logs':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus k8s logs <pod-name>');
+          return;
+        }
+        await k8sLogsCommand(positionalArgs[0], options);
+        break;
+      case 'describe':
+        if (positionalArgs.length < 2) {
+          ui.error('Usage: nimbus k8s describe <resource> <name>');
+          return;
+        }
+        await k8sDescribeCommand(positionalArgs[0], positionalArgs[1], options);
+        break;
+      case 'scale':
+        if (positionalArgs.length < 3) {
+          ui.error('Usage: nimbus k8s scale <resource> <name> <replicas>');
+          return;
+        }
+        await k8sScaleCommand(
+          positionalArgs[0],
+          positionalArgs[1],
+          parseInt(positionalArgs[2], 10),
+          options
+        );
+        break;
+      case 'exec': {
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus k8s exec <pod> -- <command...>');
+          return;
+        }
+        // Everything after '--' is the command
+        const dashIdx = args.indexOf('--');
+        const execCmd = dashIdx >= 0 ? args.slice(dashIdx + 1) : positionalArgs.slice(1);
+        if (execCmd.length === 0) {
+          ui.error('Usage: nimbus k8s exec <pod> -- <command...>');
+          return;
+        }
+        await k8sExecCommand(positionalArgs[0], execCmd, options);
+        break;
       }
-      options.name = positionalArgs[1];
-      await k8sGetCommand(positionalArgs[0], options);
-      break;
-    case 'apply':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus k8s apply <manifest-file-or-yaml>');
-        return;
+      case 'rollout': {
+        if (positionalArgs.length < 2) {
+          ui.error('Usage: nimbus k8s rollout <action> <resource>/<name>');
+          ui.info('Actions: status, history, restart, undo, pause, resume');
+          return;
+        }
+        const rolloutAction = positionalArgs[0] as 'status' | 'history' | 'restart' | 'undo' | 'pause' | 'resume';
+        const resourceParts = positionalArgs[1].split('/');
+        const rolloutResource = resourceParts.length > 1 ? resourceParts[0] : 'deployment';
+        const rolloutName = resourceParts.length > 1 ? resourceParts[1] : resourceParts[0];
+        await k8sRolloutCommand(rolloutResource, rolloutName, rolloutAction, options);
+        break;
       }
-      await k8sApplyCommand(positionalArgs[0], options);
-      break;
-    case 'delete':
-      if (positionalArgs.length < 2) {
-        ui.error('Usage: nimbus k8s delete <resource> <name>');
-        return;
+      case 'events':
+        await k8sEventsCommand(options);
+        break;
+      case 'generate': {
+        const type = positionalArgs[0] as string | undefined;
+        const { generateK8sCommand } = await import('../generate-k8s');
+        await generateK8sCommand({ workloadType: type as any });
+        break;
       }
-      await k8sDeleteCommand(positionalArgs[0], positionalArgs[1], options);
-      break;
-    case 'logs':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus k8s logs <pod-name>');
-        return;
-      }
-      await k8sLogsCommand(positionalArgs[0], options);
-      break;
-    case 'describe':
-      if (positionalArgs.length < 2) {
-        ui.error('Usage: nimbus k8s describe <resource> <name>');
-        return;
-      }
-      await k8sDescribeCommand(positionalArgs[0], positionalArgs[1], options);
-      break;
-    case 'scale':
-      if (positionalArgs.length < 3) {
-        ui.error('Usage: nimbus k8s scale <resource> <name> <replicas>');
-        return;
-      }
-      await k8sScaleCommand(
-        positionalArgs[0],
-        positionalArgs[1],
-        parseInt(positionalArgs[2], 10),
-        options
-      );
-      break;
-    case 'exec': {
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus k8s exec <pod> -- <command...>');
-        return;
-      }
-      // Everything after '--' is the command
-      const dashIdx = args.indexOf('--');
-      const execCmd = dashIdx >= 0 ? args.slice(dashIdx + 1) : positionalArgs.slice(1);
-      if (execCmd.length === 0) {
-        ui.error('Usage: nimbus k8s exec <pod> -- <command...>');
-        return;
-      }
-      await k8sExecCommand(positionalArgs[0], execCmd, options);
-      break;
+      default:
+        ui.error(`Unknown k8s subcommand: ${subcommand}`);
+        ui.info('Available commands: get, apply, delete, logs, describe, scale, exec, rollout, events, generate');
     }
-    case 'rollout': {
-      if (positionalArgs.length < 2) {
-        ui.error('Usage: nimbus k8s rollout <action> <resource>/<name>');
-        ui.info('Actions: status, history, restart, undo, pause, resume');
-        return;
-      }
-      const rolloutAction = positionalArgs[0] as 'status' | 'history' | 'restart' | 'undo' | 'pause' | 'resume';
-      const resourceParts = positionalArgs[1].split('/');
-      const rolloutResource = resourceParts.length > 1 ? resourceParts[0] : 'deployment';
-      const rolloutName = resourceParts.length > 1 ? resourceParts[1] : resourceParts[0];
-      await k8sRolloutCommand(rolloutResource, rolloutName, rolloutAction, options);
-      break;
-    }
-    case 'events':
-      await k8sEventsCommand(options);
-      break;
-    case 'generate': {
-      const type = positionalArgs[0] as string | undefined;
-      const { generateK8sCommand } = await import('../generate-k8s');
-      await generateK8sCommand({ workloadType: type as any });
-      break;
-    }
-    default:
-      ui.error(`Unknown k8s subcommand: ${subcommand}`);
-      ui.info('Available commands: get, apply, delete, logs, describe, scale, exec, rollout, events, generate');
+
+    historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
+  } catch (error: any) {
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    throw error;
   }
 }

@@ -1,7 +1,7 @@
 /**
  * AWS RDS Commands
  *
- * RDS database operations
+ * RDS database operations with cost warnings before billable actions
  *
  * Usage:
  *   nimbus aws rds list
@@ -20,6 +20,10 @@ import {
   type SafetyCheckResult,
 } from '../../config/safety-policy';
 import { promptForApproval } from '../../wizard/approval';
+import {
+  estimateCloudCost,
+  formatCostWarning,
+} from '../cost/cloud-cost-estimator';
 import type { AwsCommandOptions } from './index';
 
 interface RDSInstance {
@@ -83,6 +87,24 @@ export async function rdsCommand(
     default:
       showRdsHelp();
       break;
+  }
+}
+
+/**
+ * Display a cost warning for an RDS instance class using the cloud cost estimator.
+ */
+function displayRdsCostWarning(instanceClass: string, multiAz: boolean): void {
+  const estimate = estimateCloudCost('rds:StartDBInstance', {
+    instanceClass,
+    multiAz,
+  });
+  if (estimate) {
+    const color = estimate.monthly > 200 ? 'red' : estimate.monthly > 50 ? 'yellow' : 'green';
+    ui.newLine();
+    ui.print(ui.bold('  Estimated Cost:'));
+    ui.print(`    Hourly:  ${ui.color(`$${estimate.hourly.toFixed(4)}/hr`, color)}`);
+    ui.print(`    Monthly: ${ui.color(`$${estimate.monthly.toFixed(2)}/mo`, color)} (on-demand${multiAz ? ', Multi-AZ' : ''}, approximate)`);
+    ui.newLine();
   }
 }
 
@@ -161,6 +183,9 @@ async function describeInstance(identifier: string, options: AwsCommandOptions):
       ui.print(`  Address:         ${instance.Endpoint.Address}`);
       ui.print(`  Port:            ${instance.Endpoint.Port}`);
     }
+
+    // Show cost estimate
+    displayRdsCostWarning(instance.DBInstanceClass, instance.MultiAZ);
   } catch (error) {
     ui.stopSpinnerFail('Failed to describe instance');
     ui.error((error as Error).message);
@@ -172,6 +197,29 @@ async function describeInstance(identifier: string, options: AwsCommandOptions):
  */
 async function startInstance(identifier: string, options: AwsCommandOptions): Promise<void> {
   ui.header(`Start RDS Instance: ${identifier}`);
+
+  // Try to get instance class for cost estimate
+  try {
+    const result = await runAwsCommand<{ DBInstances: RDSInstance[] }>(
+      `rds describe-db-instances --db-instance-identifier ${identifier}`,
+      options
+    );
+    const instances = result.DBInstances || [];
+    if (instances.length > 0) {
+      const instance = instances[0];
+      const estimate = estimateCloudCost('rds:StartDBInstance', {
+        instanceClass: instance.DBInstanceClass,
+        multiAz: instance.MultiAZ,
+      });
+      if (estimate) {
+        ui.newLine();
+        ui.warning(formatCostWarning(estimate));
+        ui.newLine();
+      }
+    }
+  } catch {
+    // Non-critical, continue without cost estimate
+  }
 
   const proceed = await confirm({
     message: `Start instance ${identifier}?`,
@@ -204,6 +252,23 @@ async function startInstance(identifier: string, options: AwsCommandOptions): Pr
  */
 async function stopInstance(identifier: string, options: AwsCommandOptions): Promise<void> {
   ui.header(`Stop RDS Instance: ${identifier}`);
+
+  // Show cost estimate for the instance being stopped
+  try {
+    const result = await runAwsCommand<{ DBInstances: RDSInstance[] }>(
+      `rds describe-db-instances --db-instance-identifier ${identifier}`,
+      options
+    );
+    const instances = result.DBInstances || [];
+    if (instances.length > 0) {
+      const instance = instances[0];
+      displayRdsCostWarning(instance.DBInstanceClass, instance.MultiAZ);
+      ui.info('Stopping this instance will stop incurring compute charges.');
+      ui.newLine();
+    }
+  } catch {
+    // Non-critical, continue without cost estimate
+  }
 
   // Run safety checks
   const safetyResult = await runSafetyCheck('stop', identifier, options);

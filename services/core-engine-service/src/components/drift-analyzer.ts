@@ -15,6 +15,9 @@ import type {
   DriftItem,
 } from '../types/drift';
 
+const k8sServiceUrl = process.env.K8S_TOOLS_URL || 'http://localhost:3007';
+const helmServiceUrl = process.env.HELM_TOOLS_URL || 'http://localhost:3008';
+
 export interface RemediationPlan {
   /** Resources that will be updated */
   update: string[];
@@ -306,31 +309,72 @@ export class DriftAnalyzer {
     let failed = 0;
     let skipped = 0;
 
-    // For Kubernetes, we would:
-    // 1. Re-apply manifests using kubectl apply
-    // 2. Track success/failure for each resource
+    const { report, dryRun, targets } = options;
 
-    // Placeholder implementation
-    for (const resource of options.report.resources) {
-      if (options.dryRun) {
+    // Filter resources based on targets
+    const resourcesToFix = report.resources.filter((resource) => {
+      if (targets && targets.length > 0) {
+        return targets.includes(resource.address);
+      }
+      return true;
+    });
+
+    if (resourcesToFix.length === 0) {
+      logger.info('No Kubernetes resources to remediate');
+      return {
+        success: true,
+        fixed: 0,
+        failed: 0,
+        skipped: report.resources.length,
+        actions: [],
+        duration: Date.now() - startTime,
+      };
+    }
+
+    for (const resource of resourcesToFix) {
+      try {
+        const response = await fetch(`${k8sServiceUrl}/api/k8s/apply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            manifest: resource.expected,
+            namespace: (resource as any).namespace,
+            dryRun: dryRun,
+          }),
+        });
+
+        const data = await response.json() as { success: boolean; output?: string; error?: string };
+
+        if (data.success) {
+          actions.push({
+            address: resource.address,
+            action: 'apply',
+            success: true,
+            output: dryRun ? 'Would apply manifest' : (data.output || 'Applied manifest'),
+          });
+          fixed++;
+        } else {
+          actions.push({
+            address: resource.address,
+            action: 'apply',
+            success: false,
+            error: data.error || 'Apply failed',
+          });
+          failed++;
+        }
+      } catch (error: any) {
+        logger.error(`Failed to remediate K8s resource ${resource.address}`, error);
         actions.push({
           address: resource.address,
           action: 'apply',
-          success: true,
-          output: 'Would apply manifest',
+          success: false,
+          error: `K8s tools service unreachable: ${error.message}`,
         });
-        fixed++;
-      } else {
-        // Would call k8s-tools-service here
-        actions.push({
-          address: resource.address,
-          action: 'apply',
-          success: true,
-          output: 'Applied manifest',
-        });
-        fixed++;
+        failed++;
       }
     }
+
+    skipped = report.resources.length - resourcesToFix.length;
 
     return {
       success: failed === 0,
@@ -354,31 +398,79 @@ export class DriftAnalyzer {
     let failed = 0;
     let skipped = 0;
 
-    // For Helm, we would:
-    // 1. Run helm upgrade for each drifted release
-    // 2. Use values from the expected state
+    const { report, dryRun, targets } = options;
 
-    // Placeholder implementation
-    for (const resource of options.report.resources) {
-      if (options.dryRun) {
+    // Filter resources based on targets
+    const resourcesToFix = report.resources.filter((resource) => {
+      if (targets && targets.length > 0) {
+        return targets.includes(resource.address);
+      }
+      return true;
+    });
+
+    if (resourcesToFix.length === 0) {
+      logger.info('No Helm releases to remediate');
+      return {
+        success: true,
+        fixed: 0,
+        failed: 0,
+        skipped: report.resources.length,
+        actions: [],
+        duration: Date.now() - startTime,
+      };
+    }
+
+    for (const resource of resourcesToFix) {
+      try {
+        // Extract release name and namespace from the resource address
+        // Address format is typically "release/name" or just "name"
+        const parts = resource.address.split('/');
+        const name = parts.length > 1 ? parts[1] : parts[0];
+        const namespace = (resource as any).namespace || 'default';
+
+        const response = await fetch(`${helmServiceUrl}/api/helm/upgrade`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            namespace,
+            dryRun: dryRun,
+            reuseValues: true,
+          }),
+        });
+
+        const data = await response.json() as { success: boolean; output?: string; error?: string };
+
+        if (data.success) {
+          actions.push({
+            address: resource.address,
+            action: 'apply',
+            success: true,
+            output: dryRun ? 'Would upgrade release' : (data.output || 'Upgraded release'),
+          });
+          fixed++;
+        } else {
+          actions.push({
+            address: resource.address,
+            action: 'apply',
+            success: false,
+            error: data.error || 'Upgrade failed',
+          });
+          failed++;
+        }
+      } catch (error: any) {
+        logger.error(`Failed to remediate Helm release ${resource.address}`, error);
         actions.push({
           address: resource.address,
           action: 'apply',
-          success: true,
-          output: 'Would upgrade release',
+          success: false,
+          error: `Helm tools service unreachable: ${error.message}`,
         });
-        fixed++;
-      } else {
-        // Would call helm-tools-service here
-        actions.push({
-          address: resource.address,
-          action: 'apply',
-          success: true,
-          output: 'Upgraded release',
-        });
-        fixed++;
+        failed++;
       }
     }
+
+    skipped = report.resources.length - resourcesToFix.length;
 
     return {
       success: failed === 0,

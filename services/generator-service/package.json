@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/swagger": "^1.0.0",
     "@nimbus/shared-clients": "workspace:*",
     "@nimbus/shared-types": "workspace:*",
     "@nimbus/shared-utils": "workspace:*",

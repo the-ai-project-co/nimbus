@@ -55,6 +55,19 @@ jobs:
       - name: Build binaries for all platforms
         run: ./scripts/build-binary.sh all
 
+      - name: Verify checksums file
+        run: |
+          echo "Generated checksums:"
+          cat dist/checksums.txt
+          echo ""
+          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            if ! grep -q "nimbus-${platform}.tar.gz" dist/checksums.txt; then
+              echo "Error: Missing checksum for nimbus-${platform}.tar.gz"
+              exit 1
+            fi
+          done
+          echo "All platform checksums verified."
+
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -137,12 +150,30 @@ jobs:
           name: binaries
           path: dist/
 
+      - name: List release assets
+        run: |
+          echo "Release assets:"
+          ls -la dist/
+          echo ""
+          echo "Checksums:"
+          cat dist/checksums.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            dist/*
+            dist/nimbus-darwin-arm64.tar.gz
+            dist/nimbus-darwin-x64.tar.gz
+            dist/nimbus-linux-x64.tar.gz
+            dist/nimbus-linux-arm64.tar.gz
+            dist/nimbus-windows-x64.exe.zip
+            dist/nimbus-darwin-arm64
+            dist/nimbus-darwin-x64
+            dist/nimbus-linux-x64
+            dist/nimbus-linux-arm64
+            dist/nimbus-windows-x64.exe
+            dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -168,10 +199,77 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build
-        run: bun run build
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Copy LICENSE to cli-service
+        run: cp LICENSE services/cli-service/LICENSE 2>/dev/null || true
+
+      - name: Build CLI for npm
+        working-directory: services/cli-service
+        run: bun run build:npm
+
+      - name: Verify build output
+        working-directory: services/cli-service
+        run: |
+          echo "Checking dist/index.js exists..."
+          test -f dist/index.js || (echo "ERROR: dist/index.js not found" && exit 1)
+
+          echo "Checking bin/nimbus.mjs exists..."
+          test -f bin/nimbus.mjs || (echo "ERROR: bin/nimbus.mjs not found" && exit 1)
+
+          echo "Checking bin/nimbus.mjs is executable..."
+          test -x bin/nimbus.mjs || (echo "ERROR: bin/nimbus.mjs not executable" && exit 1)
+
+          echo "Checking bin/nimbus.mjs has node shebang..."
+          head -1 bin/nimbus.mjs | grep -q '#!/usr/bin/env node' || (echo "ERROR: bin/nimbus.mjs missing shebang" && exit 1)
+
+          echo "Previewing package contents..."
+          npm pack --dry-run
+
+          echo "Build verification passed."
+
+      - name: Prepare package.json for npm publish
+        working-directory: services/cli-service
+        run: |
+          # Sync version from the git tag into package.json.
+          # Remove workspace:* devDependencies and internal metadata fields
+          # that npm does not understand. The workspace packages are bundled
+          # into dist/index.js by bun build, so they are not needed as
+          # runtime or dev dependencies in the published package.
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
+            // Set version from tag
+            const version = '${{ steps.version.outputs.version }}';
+            if (version) {
+              pkg.version = version;
+              console.log('Set version to ' + version);
+            }
+
+            // Strip workspace protocol entries from devDependencies
+            if (pkg.devDependencies) {
+              for (const [k, v] of Object.entries(pkg.devDependencies)) {
+                if (typeof v === 'string' && v.startsWith('workspace:')) {
+                  delete pkg.devDependencies[k];
+                }
+              }
+              if (Object.keys(pkg.devDependencies).length === 0) {
+                delete pkg.devDependencies;
+              }
+            }
+
+            // Remove internal-only metadata
+            delete pkg.bundledWorkspaceDependencies;
+
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Cleaned package.json for npm publish');
+          "
 
       - name: Publish to npm
+        working-directory: services/cli-service
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -181,10 +279,43 @@ jobs:
     needs: github-release
 
     steps:
-      - name: Checkout code
+      - name: Checkout nimbus repo
         uses: actions/checkout@v4
 
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: the-ai-project-co/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
       - name: Update Homebrew formula
-        run: ./scripts/update-formula.sh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The build step already wrote dist/checksums.txt with SHA256 hashes
+          # for all platform tarballs. The update script reads from there
+          # (local mode) instead of downloading from the GitHub release.
+          ./scripts/update-formula.sh \
+            "v${{ steps.version.outputs.version }}" \
+            "homebrew-tap/Formula/nimbus.rb"
+
+      - name: Validate formula syntax
+        run: ruby -c homebrew-tap/Formula/nimbus.rb
+
+      - name: Commit and push formula update
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/nimbus.rb
+          git diff --cached --quiet || git commit -m "Update nimbus to v${{ steps.version.outputs.version }}"
+          git push

@@ -1,4 +1,5 @@
 import { logger } from '@nimbus/shared-utils';
+import { TerraformToolsClient } from '../clients/terraform-client';
 import type {
   ExecutionResult,
   VerificationResult,
@@ -13,6 +14,12 @@ interface SecurityGroupRule {
 }
 
 export class Verifier {
+  private terraformClient: TerraformToolsClient;
+
+  constructor() {
+    this.terraformClient = new TerraformToolsClient();
+  }
+
   /**
    * Verify execution results against the provided context.
    * Runs security, compliance, functionality, performance, and cost checks.
@@ -34,6 +41,7 @@ export class Verifier {
     checks.push(...(await this.runFunctionalityChecks(executionResults, context)));
     checks.push(...(await this.runPerformanceChecks(executionResults, context)));
     checks.push(...(await this.runCostChecks(executionResults, context)));
+    checks.push(...(await this.runDomainValidationChecks(executionResults, context)));
 
     const completedAt = new Date();
 
@@ -495,6 +503,62 @@ export class Verifier {
         expected: 'considered',
         actual: 'on_demand',
         remediation: 'Evaluate reserved instances for 30-40% cost savings',
+      });
+    }
+
+    return checks;
+  }
+
+  /**
+   * Run domain-specific validation checks using actual tool validators.
+   * For terraform: calls terraform validate via TerraformToolsClient.
+   * For kubernetes: adds advisory check for kubectl dry-run.
+   */
+  private async runDomainValidationChecks(
+    results: ExecutionResult[],
+    context: Record<string, unknown>
+  ): Promise<VerificationCheck[]> {
+    const checks: VerificationCheck[] = [];
+    const domain = context.domain as string | undefined;
+    const workDir = context.workDir as string | undefined;
+
+    if (domain === 'terraform' && workDir) {
+      try {
+        const validateResult = await this.terraformClient.validate(workDir);
+        checks.push({
+          id: 'domain_tf_validate',
+          type: 'functionality',
+          name: 'Terraform Validate',
+          description: 'Run terraform validate against generated configuration',
+          status: validateResult.valid ? 'passed' : 'failed',
+          expected: 'valid',
+          actual: validateResult.valid ? 'valid' : 'invalid',
+          error: validateResult.valid
+            ? undefined
+            : `Terraform validation failed: ${validateResult.diagnostics?.map((d: any) => d.summary).join('; ') || 'unknown errors'}`,
+        });
+      } catch (err: any) {
+        checks.push({
+          id: 'domain_tf_validate',
+          type: 'functionality',
+          name: 'Terraform Validate',
+          description: 'Run terraform validate against generated configuration',
+          status: 'warning',
+          expected: 'valid',
+          actual: 'unavailable',
+          error: `Terraform tools service unavailable: ${err.message}`,
+        });
+      }
+    } else if (domain === 'kubernetes' && workDir) {
+      checks.push({
+        id: 'domain_k8s_dryrun',
+        type: 'functionality',
+        name: 'Kubernetes Dry Run',
+        description: 'Advisory: kubectl apply --dry-run=client should be run to validate manifests',
+        status: 'warning',
+        expected: 'validated',
+        actual: 'not_run',
+        error: 'Run kubectl apply --dry-run=client to validate Kubernetes manifests before applying',
       });
     }
 

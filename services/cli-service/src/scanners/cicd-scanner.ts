@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Scanner, ScanResult, CICDInfo, ConfidenceLevel } from './types';
+import type { Scanner, ScanResult, ScanOptions, CICDInfo, ConfidenceLevel } from './types';
 
 interface CICDPattern {
   name: string;
@@ -127,7 +127,7 @@ const CICD_PATTERNS: CICDPattern[] = [
 export class CICDScanner implements Scanner {
   name = 'cicd';
 
-  async scan(cwd: string): Promise<ScanResult> {
+  async scan(cwd: string, _options?: ScanOptions): Promise<ScanResult> {
     const cicd = await this.detectCICD(cwd);
 
     return {

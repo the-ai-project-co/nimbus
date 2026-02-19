@@ -1,7 +1,7 @@
 /**
  * AWS EC2 Commands
  *
- * EC2 instance operations
+ * EC2 instance operations with cost warnings before billable actions
  *
  * Usage:
  *   nimbus aws ec2 list
@@ -21,6 +21,10 @@ import {
   type SafetyCheckResult,
 } from '../../config/safety-policy';
 import { promptForApproval } from '../../wizard/approval';
+import {
+  estimateCloudCost,
+  formatCostWarning,
+} from '../cost/cloud-cost-estimator';
 import type { AwsCommandOptions } from './index';
 
 interface EC2Instance {
@@ -162,6 +166,9 @@ async function describeInstance(instanceId: string, options: AwsCommandOptions):
         ui.print(`  ${tag.Key}: ${tag.Value}`);
       }
     }
+
+    // Show cost estimate for running instances
+    displayCostWarning(instance.InstanceType);
   } catch (error) {
     ui.stopSpinnerFail('Failed to describe instance');
     ui.error((error as Error).message);
@@ -169,36 +176,16 @@ async function describeInstance(instanceId: string, options: AwsCommandOptions):
 }
 
 /**
- * Estimated monthly cost by EC2 instance type (approximate on-demand US prices)
+ * Display a cost warning for an EC2 instance type using the cloud cost estimator.
  */
-const EC2_COST_TABLE: Record<string, { hourly: number; monthly: number }> = {
-  't3.nano':    { hourly: 0.0052, monthly: 3.80 },
-  't3.micro':   { hourly: 0.0104, monthly: 7.59 },
-  't3.small':   { hourly: 0.0208, monthly: 15.18 },
-  't3.medium':  { hourly: 0.0416, monthly: 30.37 },
-  't3.large':   { hourly: 0.0832, monthly: 60.74 },
-  't3.xlarge':  { hourly: 0.1664, monthly: 121.47 },
-  't3.2xlarge': { hourly: 0.3328, monthly: 242.94 },
-  'm5.large':   { hourly: 0.096,  monthly: 70.08 },
-  'm5.xlarge':  { hourly: 0.192,  monthly: 140.16 },
-  'm5.2xlarge': { hourly: 0.384,  monthly: 280.32 },
-  'c5.large':   { hourly: 0.085,  monthly: 62.05 },
-  'c5.xlarge':  { hourly: 0.170,  monthly: 124.10 },
-  'r5.large':   { hourly: 0.126,  monthly: 91.98 },
-  'r5.xlarge':  { hourly: 0.252,  monthly: 183.96 },
-};
-
-/**
- * Display cost estimate for an instance type
- */
-function displayCostEstimate(instanceType: string): void {
-  const cost = EC2_COST_TABLE[instanceType];
-  if (cost) {
-    const color = cost.monthly > 200 ? 'red' : cost.monthly > 50 ? 'yellow' : 'green';
+function displayCostWarning(instanceType: string): void {
+  const estimate = estimateCloudCost('ec2:StartInstances', { instanceType });
+  if (estimate) {
+    const color = estimate.monthly > 200 ? 'red' : estimate.monthly > 50 ? 'yellow' : 'green';
     ui.newLine();
     ui.print(ui.bold('  Estimated Cost:'));
-    ui.print(`    Hourly:  ${ui.color(`$${cost.hourly.toFixed(4)}/hr`, color)}`);
-    ui.print(`    Monthly: ${ui.color(`$${cost.monthly.toFixed(2)}/mo`, color)} (on-demand, approximate)`);
+    ui.print(`    Hourly:  ${ui.color(`$${estimate.hourly.toFixed(4)}/hr`, color)}`);
+    ui.print(`    Monthly: ${ui.color(`$${estimate.monthly.toFixed(2)}/mo`, color)} (on-demand, approximate)`);
     ui.newLine();
   }
 }
@@ -216,7 +203,13 @@ async function startInstance(instanceId: string, options: AwsCommandOptions): Pr
       options
     );
     if (instances.length > 0) {
-      displayCostEstimate(instances[0].InstanceType);
+      const instanceType = instances[0].InstanceType;
+      const estimate = estimateCloudCost('ec2:StartInstances', { instanceType });
+      if (estimate) {
+        ui.newLine();
+        ui.warning(formatCostWarning(estimate));
+        ui.newLine();
+      }
     }
   } catch {
     // Non-critical, continue without cost estimate
@@ -262,7 +255,7 @@ async function stopInstance(instanceId: string, options: AwsCommandOptions): Pro
       options
     );
     if (instances.length > 0) {
-      displayCostEstimate(instances[0].InstanceType);
+      displayCostWarning(instances[0].InstanceType);
       ui.info('Stopping this instance will stop incurring compute charges.');
       ui.newLine();
     }
@@ -332,7 +325,7 @@ async function terminateInstance(instanceId: string, options: AwsCommandOptions)
       options
     );
     if (instances.length > 0) {
-      displayCostEstimate(instances[0].InstanceType);
+      displayCostWarning(instances[0].InstanceType);
       ui.info('Terminating this instance will permanently stop all charges.');
       ui.newLine();
     }

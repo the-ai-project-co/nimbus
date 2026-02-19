@@ -766,6 +766,43 @@ async function handleGetConflicts(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * GET /api/git/blame - Get blame information for a file
+ */
+async function handleBlame(ctx: RouteContext): Promise<Response> {
+  try {
+    const repoPath = ctx.url.searchParams.get('path') || process.cwd();
+    const file = ctx.url.searchParams.get('file');
+    const startLineParam = ctx.url.searchParams.get('startLine');
+    const endLineParam = ctx.url.searchParams.get('endLine');
+
+    if (!file) {
+      return error('Missing required query parameter: file', 400);
+    }
+
+    const options: { startLine?: number; endLine?: number } = {};
+    if (startLineParam) {
+      options.startLine = parseInt(startLineParam, 10);
+    }
+    if (endLineParam) {
+      options.endLine = parseInt(endLineParam, 10);
+    }
+
+    const git = new GitOperations(repoPath);
+    const blameOutput = await git.blame(file, options);
+
+    // Parse the raw blame output into structured lines
+    const blameLines = blameOutput
+      .split('\n')
+      .filter(line => line.trim() !== '');
+
+    return success({ blame: blameLines });
+  } catch (err: any) {
+    logger.error('Blame failed', err);
+    return error(err.message);
+  }
+}
+
+/**
  * Main router function
  */
 export async function router(req: Request): Promise<Response> {
@@ -855,6 +892,8 @@ export async function router(req: Request): Promise<Response> {
           return handleShowTag(ctx);
         case '/conflicts':
           return handleGetConflicts(ctx);
+        case '/blame':
+          return handleBlame(ctx);
       }
     }
 

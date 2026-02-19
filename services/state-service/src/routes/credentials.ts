@@ -51,6 +51,52 @@ export async function credentialsRouter(req: Request, path: string): Promise<Res
   try {
     const manager = getCredentialsManager();
 
+    // POST /credentials/:provider - Store credentials for provider
+    if (req.method === 'POST' && path.match(/^\/credentials\/[a-z]+$/) && !path.startsWith('/credentials/validate/')) {
+      const parts = path.split('/');
+      const provider = parts[2];
+
+      if (!provider) {
+        return Response.json(
+          {
+            success: false,
+            error: 'Provider is required',
+          },
+          { status: 400 }
+        );
+      }
+
+      let body: { data?: Record<string, string> };
+      try {
+        body = await req.json();
+      } catch {
+        return Response.json(
+          {
+            success: false,
+            error: 'Invalid JSON body',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!body.data || typeof body.data !== 'object') {
+        return Response.json(
+          {
+            success: false,
+            error: 'Request body must contain a "data" object with string key-value pairs',
+          },
+          { status: 400 }
+        );
+      }
+
+      await manager.storeCredential(provider, body.data);
+
+      return Response.json({
+        success: true,
+        message: `Credentials stored for ${provider}`,
+      });
+    }
+
     // GET /credentials/:provider - Get credentials for provider
     if (req.method === 'GET' && path.startsWith('/credentials/')) {
       const parts = path.split('/');

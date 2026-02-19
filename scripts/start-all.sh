@@ -27,6 +27,8 @@ services=(
   "helm-tools-service:3008"
   "aws-tools-service:3009"
   "github-tools-service:3010"
+  "gcp-tools-service:3016"
+  "azure-tools-service:3017"
   "cli-service:3000"
 )
 

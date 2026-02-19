@@ -131,8 +131,14 @@ export class GoogleProvider extends BaseProvider {
   }
 
   async countTokens(text: string): Promise<number> {
-    // Approximate: ~4 characters per token (similar to other models)
-    return Math.ceil(text.length / 4);
+    try {
+      const model = this.getModel(this.defaultModel);
+      const result = await model.countTokens(text);
+      return result.totalTokens;
+    } catch {
+      // Fallback to approximation if API call fails
+      return Math.ceil(text.length / 4);
+    }
   }
 
   getMaxTokens(model: string): number {
@@ -143,6 +149,10 @@ export class GoogleProvider extends BaseProvider {
       'gemini-pro': 2048,
     };
     return limits[model] || 8192;
+  }
+
+  async listModels(): Promise<string[]> {
+    return ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'];
   }
 
   /**

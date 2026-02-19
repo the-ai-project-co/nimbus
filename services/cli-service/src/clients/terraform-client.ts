@@ -32,6 +32,35 @@ export interface TerraformValidateResult {
   error?: string;
 }
 
+export interface TerraformFmtResult {
+  success: boolean;
+  output: string;
+  changed?: boolean;
+  files?: string[];
+  error?: string;
+}
+
+export interface TerraformOutputResult {
+  success: boolean;
+  output: string;
+  outputs?: Record<string, { value: unknown; type: string; sensitive?: boolean }>;
+  error?: string;
+}
+
+export interface TerraformWorkspaceResult {
+  success: boolean;
+  output: string;
+  workspaces?: string[];
+  current?: string;
+  error?: string;
+}
+
+export interface TerraformImportResult {
+  success: boolean;
+  output: string;
+  error?: string;
+}
+
 /**
  * Client for Terraform Tools Service
  */
@@ -118,6 +147,86 @@ export class TerraformClient {
       return response.data;
     }
     return { success: false, output: '' };
+  }
+
+  /**
+   * Format Terraform configuration files
+   */
+  async fmt(directory: string, options?: {
+    check?: boolean;
+    recursive?: boolean;
+    diff?: boolean;
+  }): Promise<TerraformFmtResult> {
+    const response = await this.client.post<TerraformFmtResult>('/api/terraform/fmt', { workingDir: directory, ...options });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
+   * Manage Terraform workspaces
+   */
+  workspace = {
+    list: async (directory: string): Promise<TerraformWorkspaceResult> => {
+      const params = new URLSearchParams();
+      params.set('workingDir', directory);
+      const response = await this.client.get<TerraformWorkspaceResult>(`/api/terraform/workspace/list?${params.toString()}`);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+    },
+
+    select: async (name: string, directory: string): Promise<TerraformWorkspaceResult> => {
+      const response = await this.client.post<TerraformWorkspaceResult>('/api/terraform/workspace/select', { name, workingDir: directory });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+    },
+
+    new: async (name: string, directory: string): Promise<TerraformWorkspaceResult> => {
+      const response = await this.client.post<TerraformWorkspaceResult>('/api/terraform/workspace/new', { name, workingDir: directory });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+    },
+
+    delete: async (name: string, directory: string): Promise<TerraformWorkspaceResult> => {
+      const response = await this.client.post<TerraformWorkspaceResult>('/api/terraform/workspace/delete', { name, workingDir: directory });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+    },
+  };
+
+  /**
+   * Import existing infrastructure into Terraform state
+   */
+  async import(directory: string, address: string, id: string): Promise<TerraformImportResult> {
+    const response = await this.client.post<TerraformImportResult>('/api/terraform/import', { workingDir: directory, address, id });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
+   * Show Terraform output values
+   */
+  async output(directory: string, name?: string): Promise<TerraformOutputResult> {
+    const params = new URLSearchParams();
+    params.set('workingDir', directory);
+    if (name) params.set('name', name);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.client.get<TerraformOutputResult>(`/api/terraform/output${query}`);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
   }
 
   /**

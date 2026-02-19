@@ -553,6 +553,159 @@ export class SafetyManager {
       },
     });
 
+    // Check: No production delete without backup
+    this.registerCheck({
+      id: 'no_production_delete_without_backup',
+      type: 'pre_execution',
+      category: 'availability',
+      name: 'No Production Delete Without Backup',
+      description: 'Blocks destroy/delete operations in production when backup is not enabled',
+      severity: 'critical',
+      check: async (context) => {
+        const task = context.task as AgentTask;
+        const plan = context.plan as AgentPlan;
+
+        if (task.context.environment !== 'production') {
+          return {
+            passed: true,
+            severity: 'low',
+            message: 'Non-production environment, policy not applicable',
+            can_proceed: true,
+            requires_approval: false,
+          };
+        }
+
+        const hasDestructiveAction = plan.steps.some(
+          (step) => step.action === 'apply_deployment' && step.parameters?.destroy ||
+            step.action === 'apply_deployment' && step.description?.toLowerCase().includes('delete') ||
+            step.description?.toLowerCase().includes('destroy')
+        );
+
+        if (!hasDestructiveAction) {
+          return {
+            passed: true,
+            severity: 'low',
+            message: 'No destructive actions found in plan',
+            can_proceed: true,
+            requires_approval: false,
+          };
+        }
+
+        const backupEnabled = task.context.requirements?.backup_enabled === true;
+
+        if (!backupEnabled) {
+          return {
+            passed: false,
+            severity: 'critical',
+            message: 'Production destroy/delete operations require backup_enabled in requirements. Create a backup first or use a staging environment.',
+            can_proceed: false,
+            requires_approval: true,
+          };
+        }
+
+        return {
+          passed: true,
+          severity: 'low',
+          message: 'Backup enabled for production destructive operation',
+          can_proceed: true,
+          requires_approval: false,
+        };
+      },
+    });
+
+    // Check: Require dry-run before apply
+    this.registerCheck({
+      id: 'require_dry_run_first',
+      type: 'pre_execution',
+      category: 'compliance',
+      name: 'Require Dry Run First',
+      description: 'Blocks apply_deployment if no plan_deployment step precedes it',
+      severity: 'high',
+      check: async (context) => {
+        const plan = context.plan as AgentPlan;
+
+        const hasApply = plan.steps.some((step) => step.action === 'apply_deployment');
+
+        if (!hasApply) {
+          return {
+            passed: true,
+            severity: 'low',
+            message: 'No apply_deployment steps in plan',
+            can_proceed: true,
+            requires_approval: false,
+          };
+        }
+
+        const hasPlan = plan.steps.some((step) => step.action === 'plan_deployment');
+
+        if (!hasPlan) {
+          return {
+            passed: false,
+            severity: 'high',
+            message: 'Plan contains apply_deployment without a preceding plan_deployment step. Run with --dry-run first to preview changes.',
+            can_proceed: false,
+            requires_approval: true,
+          };
+        }
+
+        return {
+          passed: true,
+          severity: 'low',
+          message: 'Dry-run (plan_deployment) step precedes apply',
+          can_proceed: true,
+          requires_approval: false,
+        };
+      },
+    });
+
+    // Check: Token budget guardrail
+    this.registerCheck({
+      id: 'pre_token_budget',
+      type: 'pre_execution',
+      category: 'cost',
+      name: 'Token Budget Check',
+      description: 'Verify estimated token usage does not exceed budget',
+      severity: 'high',
+      check: async (context) => {
+        const plan = context.plan as AgentPlan & { estimated_tokens?: number };
+        const maxTokensPerTask = parseInt(process.env.MAX_TOKENS_PER_TASK || '0', 10);
+
+        if (!maxTokensPerTask || maxTokensPerTask <= 0) {
+          return {
+            passed: true,
+            severity: 'low',
+            message: 'No token budget configured',
+            can_proceed: true,
+            requires_approval: false,
+          };
+        }
+
+        const estimatedTokens = plan.estimated_tokens ?? plan.estimated_cost ?? 0;
+
+        if (estimatedTokens > maxTokensPerTask) {
+          return {
+            passed: false,
+            severity: 'high',
+            message: `Estimated token usage (${estimatedTokens}) exceeds budget (${maxTokensPerTask})`,
+            details: {
+              estimated: estimatedTokens,
+              budget: maxTokensPerTask,
+            },
+            can_proceed: false,
+            requires_approval: true,
+          };
+        }
+
+        return {
+          passed: true,
+          severity: 'low',
+          message: `Estimated tokens (${estimatedTokens}) within budget (${maxTokensPerTask})`,
+          can_proceed: true,
+          requires_approval: false,
+        };
+      },
+    });
+
     logger.info(`Initialized ${this.checks.size} default safety checks`);
   }
 }

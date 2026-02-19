@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Scanner, ScanResult, LanguageInfo, ConfidenceLevel } from './types';
+import type { Scanner, ScanResult, ScanOptions, LanguageInfo, ConfidenceLevel } from './types';
 
 interface LanguagePattern {
   name: string;
@@ -175,7 +175,7 @@ const LANGUAGE_PATTERNS: LanguagePattern[] = [
 export class LanguageScanner implements Scanner {
   name = 'language';
 
-  async scan(cwd: string): Promise<ScanResult> {
+  async scan(cwd: string, _options?: ScanOptions): Promise<ScanResult> {
     const languages = await this.detectLanguages(cwd);
 
     return {

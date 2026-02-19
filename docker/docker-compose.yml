@@ -16,6 +16,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - LLM_SERVICE_URL=http://llm:3002
       - GENERATOR_SERVICE_URL=http://generator:3003
       - STATE_SERVICE_URL=http://state:3004
@@ -46,6 +47,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3002
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     networks:
@@ -67,6 +69,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3003
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - LLM_SERVICE_URL=http://llm:3002
     depends_on:
       - llm
@@ -89,6 +92,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3004
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - DATABASE_PATH=/app/data/nimbus.db
     volumes:
       - nimbus-data:/app/data
@@ -112,6 +116,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3005
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
     volumes:
       - terraform-cache:/root/.terraform.d
       - ./workspaces:/app/workspaces
@@ -134,6 +139,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3006
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - KUBECONFIG=/app/.kube/config
     volumes:
       - ${HOME}/.kube:/app/.kube:ro
@@ -156,6 +162,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3007
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - KUBECONFIG=/app/.kube/config
     volumes:
       - ${HOME}/.kube:/app/.kube:ro
@@ -179,6 +186,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3008
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
     volumes:
       - ${HOME}/.ssh:/home/nimbus/.ssh:ro
       - ./workspaces:/app/workspaces
@@ -201,6 +209,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3009
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
     networks:
       - nimbus-network
@@ -221,6 +230,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3010
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
@@ -245,6 +255,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3011
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
     volumes:
       - ./workspaces:/app/workspaces
     networks:
@@ -266,6 +277,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3012
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - STATE_SERVICE_URL=http://state:3004
     depends_on:
       - state
@@ -289,6 +301,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3013
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - STATE_SERVICE_URL=http://state:3004
     depends_on:
       - state
@@ -311,6 +324,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3014
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - STATE_SERVICE_URL=http://state:3004
       - AUTH_SERVICE_URL=http://auth:3013
     depends_on:
@@ -335,6 +349,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3015
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
       - STATE_SERVICE_URL=http://state:3004
       - AUTH_SERVICE_URL=http://auth:3013
     depends_on:
@@ -344,6 +359,56 @@ services:
       - nimbus-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3015/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  gcp-tools-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gcp-tools
+    container_name: nimbus-gcp
+    restart: unless-stopped
+    ports:
+      - "3016:3016"
+    environment:
+      - NODE_ENV=production
+      - PORT=3016
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=/home/nimbus/.config/gcloud/application_default_credentials.json
+    volumes:
+      - ${HOME}/.config/gcloud:/home/nimbus/.config/gcloud:ro
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3016/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  azure-tools-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.azure-tools
+    container_name: nimbus-azure
+    restart: unless-stopped
+    ports:
+      - "3017:3017"
+    environment:
+      - NODE_ENV=production
+      - PORT=3017
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-nimbus-internal-dev-token}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID:-}
+    volumes:
+      - ${HOME}/.azure:/home/nimbus/.azure:ro
+    networks:
+      - nimbus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3017/health"]
       interval: 30s
       timeout: 10s
       retries: 3

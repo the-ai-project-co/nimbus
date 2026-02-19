@@ -13,6 +13,7 @@
 import { logger } from '@nimbus/shared-utils';
 import { ui } from '../wizard/ui';
 import { select, input, confirm, multiSelect } from '../wizard/prompts';
+import { generatorClient } from '../clients/generator-client';
 
 export interface QuestionnaireOptions {
   /** Questionnaire type */
@@ -68,9 +69,106 @@ export async function questionnaireCommand(options: QuestionnaireOptions): Promi
   ui.newLine();
   ui.header(`${capitalize(options.type)} Configuration Wizard`);
 
-  // TODO: Add generatorClient integration when available
-  // For now, always use local questionnaire
+  // Try to use generator service if available
+  const serviceAvailable = await generatorClient.isAvailable();
+
+  if (serviceAvailable) {
+    try {
+      await runWithGeneratorService(options);
+      return;
+    } catch (error: any) {
+      logger.warn('Generator service failed, falling back to local', { error: error.message });
+      ui.warning(`Generator service error: ${error.message}. Falling back to local questionnaire.`);
+    }
+  }
+
   await runLocal(options);
+}
+
+/**
+ * Run questionnaire via generator service
+ */
+async function runWithGeneratorService(options: QuestionnaireOptions): Promise<void> {
+  ui.info('Connected to Generator Service');
+  ui.newLine();
+
+  // Start questionnaire session
+  let session = await generatorClient.startQuestionnaire(options.type as 'terraform' | 'kubernetes');
+  const sessionId = session.sessionId;
+
+  const answers: Record<string, unknown> = {};
+
+  // Loop through questions until complete
+  while (!session.completed && session.currentQuestion) {
+    const question = session.currentQuestion;
+
+    // Build a Question object compatible with askQuestion()
+    const questionObj: Question = {
+      id: question.id,
+      type: (question.type || 'text') as Question['type'],
+      label: question.text,
+      options: question.options?.map(opt => ({
+        value: opt,
+        label: opt,
+      })),
+    };
+
+    const answer = await askQuestion(questionObj, answers);
+    answers[question.id] = answer;
+
+    // Submit answer to generator service
+    session = await generatorClient.submitQuestionnaireAnswer(
+      sessionId,
+      question.id,
+      answer
+    );
+
+    // Display progress
+    if (session.progress !== undefined) {
+      const percentage = typeof session.progress === 'number' ? session.progress : 0;
+      ui.print(ui.dim(`  Progress: ${percentage}%`));
+    }
+  }
+
+  ui.newLine();
+  ui.success('Questionnaire completed!');
+
+  if (!options.dryRun) {
+    ui.newLine();
+    ui.startSpinner({ message: 'Generating code via Generator Service...' });
+
+    const result = await generatorClient.generateFromQuestionnaire(sessionId);
+
+    ui.stopSpinnerSuccess('Code generated successfully');
+
+    // Write generated files to output directory
+    const outputDir = options.outputDir || `./${options.type}`;
+    const fs = await import('fs/promises');
+    const path = await import('path');
+
+    await fs.mkdir(outputDir, { recursive: true });
+
+    const fileNames: string[] = [];
+    for (const [fileName, content] of Object.entries(result.files)) {
+      const filePath = path.join(outputDir, fileName);
+      // Ensure parent directory exists for nested paths
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, content);
+      fileNames.push(fileName);
+    }
+
+    ui.newLine();
+    ui.print(ui.bold('Generated files:'));
+    for (const file of fileNames) {
+      ui.print(`  ${ui.color('●', 'green')} ${file}`);
+    }
+    ui.newLine();
+    ui.print(`Output directory: ${outputDir}`);
+  } else {
+    ui.newLine();
+    ui.print(ui.bold('Collected answers:'));
+    ui.print(JSON.stringify(answers, null, 2));
+  }
 }
 
 /**

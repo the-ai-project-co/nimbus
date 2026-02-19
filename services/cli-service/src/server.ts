@@ -1,4 +1,4 @@
-import { logger } from '@nimbus/shared-utils';
+import { logger, analytics } from '@nimbus/shared-utils';
 import { Server as SocketIOServer } from 'socket.io';
 import { createServer } from 'http';
 import { healthHandler } from './routes/health';
@@ -109,6 +109,10 @@ import {
   parsePlanOptions,
   // Resume command
   resumeCommand,
+  // Template commands
+  templateCommand,
+  // Auth profile commands
+  authProfileCommand,
 } from './commands';
 import { requiresAuth, type LLMProviderName } from './auth';
 
@@ -289,6 +293,12 @@ export async function runCommand(args: string[]): Promise<void> {
     'read': ['fs', 'read'],
     'tree': ['fs', 'tree'],
     'search': ['fs', 'search'],
+    'write': ['fs', 'write'],
+    // Short command aliases
+    'terraform': ['tf'],
+    'k': ['k8s'],
+    'g': ['generate'],
+    'h': ['helm'],
   };
 
   if (COMMAND_ALIASES[args[0]]) {
@@ -297,6 +307,13 @@ export async function runCommand(args: string[]): Promise<void> {
 
   const command = args[0];
   const subcommand = args[1];
+
+  // Fire-and-forget analytics tracking for every CLI command invocation.
+  // This is a no-op when POSTHOG_API_KEY is not set.
+  const commandName = subcommand && !subcommand.startsWith('-')
+    ? `${command} ${subcommand}`
+    : command;
+  analytics.trackEvent('command_executed', { command: commandName }).catch(() => {});
 
   // ==========================================
   // Auth commands (always available, no guard)
@@ -1020,6 +1037,10 @@ export async function runCommand(args: string[]): Promise<void> {
       console.log('  validate  - Validate configuration');
       console.log('  destroy   - Destroy infrastructure');
       console.log('  show      - Show state');
+      console.log('  fmt       - Format configuration files');
+      console.log('  workspace - Manage workspaces (list, select, new, delete)');
+      console.log('  import    - Import existing infrastructure');
+      console.log('  output    - Show output values');
       process.exit(1);
     }
 
@@ -1201,6 +1222,8 @@ export async function runCommand(args: string[]): Promise<void> {
       console.log('  tree [path]               - List directory contents recursively');
       console.log('  search <pattern> [path]   - Search for files');
       console.log('  read <file>               - Read file contents');
+      console.log('  write <path> <content>    - Write content to a file');
+      console.log('  diff <file1> <file2>      - Show diff between two files');
       process.exit(1);
     }
 
@@ -1301,6 +1324,39 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus template <subcommand>
+  if (command === 'template') {
+    if (!subcommand) {
+      console.error('Usage: nimbus template <subcommand>');
+      console.log('');
+      console.log('Available subcommands:');
+      console.log('  list                      - List all templates');
+      console.log('  get <id>                  - Get template details');
+      console.log('  save --name <n> [--file]  - Save a new template');
+      console.log('  delete <id>               - Delete a template');
+      process.exit(1);
+    }
+
+    await templateCommand(subcommand, args.slice(2));
+    return;
+  }
+
+  // nimbus auth-profile <subcommand>
+  if (command === 'auth-profile') {
+    if (!subcommand) {
+      console.error('Usage: nimbus auth-profile <subcommand>');
+      console.log('');
+      console.log('Available subcommands:');
+      console.log('  list                      - List configured providers');
+      console.log('  show                      - Show current default provider');
+      console.log('  switch <provider>         - Switch default provider');
+      process.exit(1);
+    }
+
+    await authProfileCommand(subcommand, args.slice(2));
+    return;
+  }
+
   // Unknown command
   console.error(`Unknown command: ${command} ${subcommand || ''}`);
   console.log('');
@@ -1354,11 +1410,11 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus plan              - Preview infrastructure changes');
   console.log('    nimbus apply <type>      - Apply infrastructure (terraform, k8s, helm)');
   console.log('    nimbus resume <task-id>  - Resume a task from its last checkpoint');
-  console.log('    nimbus tf <cmd>          - Terraform operations (init, plan, apply, validate, destroy, show)');
+  console.log('    nimbus tf <cmd>          - Terraform operations (init, plan, apply, validate, destroy, show, fmt, workspace, import, output)');
   console.log('    nimbus k8s <cmd>         - Kubernetes operations (get, apply, delete, logs, describe, scale, exec, rollout)');
   console.log('    nimbus helm <cmd>        - Helm operations (list, install, upgrade, uninstall, rollback, show)');
   console.log('    nimbus git <cmd>         - Git operations (status, add, commit, push, pull, fetch, log, merge, stash)');
-  console.log('    nimbus fs <cmd>          - File system operations (list, search, read)');
+  console.log('    nimbus fs <cmd>          - File system operations (list, search, read, write, diff)');
   console.log('');
   console.log('  Wizards & Tools:');
   console.log('    nimbus questionnaire <type> - Interactive infrastructure questionnaire');
@@ -1371,11 +1427,16 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus gh repo <cmd>     - Repo operations (info, branches)');
   console.log('');
   console.log('  Aliases:');
+  console.log('    nimbus terraform <cmd>   - Alias for nimbus tf <cmd>');
+  console.log('    nimbus k <cmd>           - Alias for nimbus k8s <cmd>');
+  console.log('    nimbus g <type>          - Alias for nimbus generate <type>');
+  console.log('    nimbus h <cmd>           - Alias for nimbus helm <cmd>');
   console.log('    nimbus pr <cmd>          - Alias for nimbus gh pr <cmd>');
   console.log('    nimbus issue <cmd>       - Alias for nimbus gh issue <cmd>');
   console.log('    nimbus read <file>       - Alias for nimbus fs read <file>');
   console.log('    nimbus tree [path]       - Alias for nimbus fs tree [path]');
   console.log('    nimbus search <pattern>  - Alias for nimbus fs search <pattern>');
+  console.log('    nimbus write <path> <c>  - Alias for nimbus fs write <path> <content>');
   console.log('');
   console.log('  History:');
   console.log('    nimbus history           - View command history');

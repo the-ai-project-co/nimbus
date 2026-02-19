@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Scanner, ScanResult, IaCInfo, ConfidenceLevel } from './types';
+import type { Scanner, ScanResult, ScanOptions, IaCInfo, ConfidenceLevel } from './types';
 
 interface IaCPattern {
   name: string;
@@ -127,7 +127,7 @@ const IAC_PATTERNS: IaCPattern[] = [
 export class IaCScanner implements Scanner {
   name = 'iac';
 
-  async scan(cwd: string): Promise<ScanResult> {
+  async scan(cwd: string, _options?: ScanOptions): Promise<ScanResult> {
     const iac = await this.detectIaC(cwd);
 
     return {

@@ -13,6 +13,10 @@ export {
   type TerraformPlanResult,
   type TerraformApplyResult,
   type TerraformValidateResult,
+  type TerraformFmtResult,
+  type TerraformOutputResult,
+  type TerraformWorkspaceResult,
+  type TerraformImportResult,
 } from './terraform-client';
 
 export {

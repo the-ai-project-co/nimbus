@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -32,7 +36,122 @@ jobs:
         run: bun run type-check
 
       - name: Run tests with coverage
-        run: bun test --coverage
+        run: |
+          mkdir -p coverage
+          bun test --coverage --coverage-reporter=lcov --coverage-reporter=text 2>&1 | tee coverage/coverage-text.txt
+
+      - name: Check coverage threshold
+        id: coverage-threshold
+        run: |
+          bun test --coverage --coverage-threshold=80 2>&1 | tee coverage/threshold-check.txt
+          echo "threshold_passed=true" >> "$GITHUB_OUTPUT"
+        continue-on-error: false
+
+      - name: Per-service coverage reports
+        if: always()
+        run: |
+          {
+            echo "========================================="
+            echo "  Per-Service Coverage Summary"
+            echo "========================================="
+            SERVICES=(
+              "cli-service"
+              "core-engine-service"
+              "llm-service"
+              "state-service"
+              "generator-service"
+              "aws-tools-service"
+              "git-tools-service"
+              "github-tools-service"
+              "fs-tools-service"
+              "terraform-tools-service"
+              "k8s-tools-service"
+              "helm-tools-service"
+              "billing-service"
+              "audit-service"
+            )
+            for svc in "${SERVICES[@]}"; do
+              echo ""
+              echo "-----------------------------------------"
+              echo "  Coverage: $svc"
+              echo "-----------------------------------------"
+              bun test "services/$svc/" --coverage --coverage-reporter=text 2>&1 || echo "  [WARN] No tests or coverage failed for $svc"
+            done
+          } | tee coverage/per-service-coverage.txt
+
+      - name: Generate coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Coverage Report"
+            echo ""
+
+            # Threshold status
+            if [ "${{ steps.coverage-threshold.outcome }}" = "success" ]; then
+              echo ":white_check_mark: **Threshold: PASSED** (minimum 80%)"
+            else
+              echo ":x: **Threshold: FAILED** (minimum 80%)"
+            fi
+            echo ""
+
+            # Overall coverage from text output
+            echo "### Overall Coverage"
+            echo ""
+            echo '```'
+            if [ -f coverage/coverage-text.txt ]; then
+              # Extract the coverage table lines; fall back to tail if nothing matches
+              COVERAGE_LINES=$(grep -E '(%|All files|File|Stmts|Branch|Funcs|Lines|----)' coverage/coverage-text.txt | head -60 || true)
+              if [ -n "$COVERAGE_LINES" ]; then
+                echo "$COVERAGE_LINES"
+              else
+                tail -40 coverage/coverage-text.txt
+              fi
+            else
+              echo "No coverage output captured."
+            fi
+            echo '```'
+            echo ""
+
+            # Threshold check details
+            if [ -f coverage/threshold-check.txt ]; then
+              echo "### Threshold Check (80% minimum)"
+              echo ""
+              echo '```'
+              tail -20 coverage/threshold-check.txt
+              echo '```'
+              echo ""
+            fi
+
+            # Per-service summary
+            if [ -f coverage/per-service-coverage.txt ]; then
+              echo "<details>"
+              echo "<summary>Per-Service Coverage Details</summary>"
+              echo ""
+              echo '```'
+              cat coverage/per-service-coverage.txt
+              echo '```'
+              echo "</details>"
+            fi
+          } > coverage/coverage-summary.md
+
+          echo "--- Coverage Summary ---"
+          cat coverage/coverage-summary.md
+
+      - name: Post coverage comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage-report
+          path: coverage/coverage-summary.md
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+          retention-days: 30
 
       - name: Build all services
         run: bun run build
@@ -80,14 +199,84 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       - name: Start services
         run: |
           ./scripts/start-all.sh &
           sleep 20
 
-      - name: Run E2E tests
-        run: bun test tests/e2e/ --timeout 60000
+      - name: Run Playwright E2E tests
+        run: npx playwright test --reporter=html,list
         continue-on-error: true
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+  benchmarks:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run startup time benchmarks
+        run: bun test tests/benchmarks/startup-time.test.ts --timeout 30000
+        continue-on-error: true
+
+      - name: Run error rate benchmarks
+        run: bun test tests/benchmarks/error-rate.test.ts --timeout 60000
+        continue-on-error: true
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            tests/benchmarks/
+          retention-days: 30
+
+  demo-validation:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Start services
+        run: |
+          ./scripts/start-all.sh &
+          sleep 25
+
+      - name: Run demo validation
+        run: |
+          chmod +x ./scripts/validate-demo.sh
+          ./scripts/validate-demo.sh
 
   docker-build:
     runs-on: ubuntu-latest

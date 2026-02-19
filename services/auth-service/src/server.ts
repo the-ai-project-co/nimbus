@@ -3,7 +3,7 @@
  * HTTP server for authentication endpoints
  */
 
-import { logger } from '@nimbus/shared-utils';
+import { logger, serviceAuthMiddleware, SimpleRateLimiter, rateLimitMiddleware } from '@nimbus/shared-utils';
 import {
   initiateDeviceFlow,
   pollDeviceCode,
@@ -15,6 +15,10 @@ import { initDatabase } from './db/adapter';
 export async function startServer(port: number) {
   // Initialize database
   await initDatabase();
+
+  // Rate limiter: 120 requests/min for auth service
+  const limiter = new SimpleRateLimiter({ requestsPerMinute: 120 });
+  const checkRateLimit = rateLimitMiddleware(limiter);
 
   const server = Bun.serve({
     port,
@@ -31,6 +35,14 @@ export async function startServer(port: number) {
           timestamp: new Date().toISOString(),
         });
       }
+
+      // Service-to-service authentication
+      const authResponse = serviceAuthMiddleware(req);
+      if (authResponse) return authResponse;
+
+      // Rate limiting
+      const rateLimitResponse = checkRateLimit(req);
+      if (rateLimitResponse) return rateLimitResponse;
 
       // Device code flow - Initiate
       if (path === '/api/auth/device/initiate' && method === 'POST') {
@@ -109,6 +121,18 @@ export async function startServer(port: number) {
   logger.info('  - GET  /api/auth/device/poll/:code');
   logger.info('  - POST /api/auth/device/verify');
   logger.info('  - POST /api/auth/token/validate');
+
+  // Graceful shutdown handlers
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully...');
+    server.stop();
+    process.exit(0);
+  });
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down...');
+    server.stop();
+    process.exit(0);
+  });
 
   return server;
 }

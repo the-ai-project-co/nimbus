@@ -9,13 +9,14 @@
 import { logger } from '@nimbus/shared-utils';
 import { ui, confirm } from '../../wizard';
 import { terraformClient } from '../../clients';
+import { CostEstimator } from '../cost/estimator';
 import {
   loadSafetyPolicy,
   evaluateSafety,
   type SafetyContext,
   type SafetyCheckResult,
 } from '../../config/safety-policy';
-import { promptForApproval, displaySafetySummary } from '../../wizard/approval';
+import { promptForApproval, displaySafetySummary, confirmWithResourceName } from '../../wizard/approval';
 
 /**
  * Command options
@@ -37,18 +38,28 @@ export interface ApplyTerraformOptions {
 }
 
 /**
- * Display cost estimation hint after plan
+ * Display inline cost estimate for a terraform directory
  */
-function displayCostHint(): void {
+async function displayCostEstimate(directory: string): Promise<void> {
   try {
-    const { execFileSync } = require('child_process');
-    execFileSync('infracost', ['--version'], { stdio: 'pipe', timeout: 3000 });
-    // infracost is available — user can run it themselves
-    ui.newLine();
-    ui.print(ui.dim('  Cost estimation available: run "nimbus cost estimate" or "infracost breakdown"'));
+    const estimate = await CostEstimator.estimateDirectory(directory);
+    if (estimate.totalMonthlyCost > 0) {
+      ui.newLine();
+      ui.print(`  ${ui.color('$', 'yellow')} Estimated monthly cost: ${ui.bold(`$${estimate.totalMonthlyCost.toFixed(2)}/mo`)}`);
+      const projects = estimate.projects || [];
+      const costResources = projects.length > 0 ? (projects[0].resources || []) : [];
+      if (costResources.length > 0) {
+        for (const resource of costResources.slice(0, 5)) {
+          ui.print(`    ${resource.name}: $${resource.monthlyCost.toFixed(2)}/mo`);
+        }
+        if (costResources.length > 5) {
+          ui.print(ui.dim(`    ... and ${costResources.length - 5} more resources`));
+        }
+      }
+    }
   } catch {
-    ui.newLine();
-    ui.print(ui.dim('  Cost estimation available with infracost. Install: https://infracost.io'));
+    // Silently skip if cost estimation fails — don't block the apply
+    ui.print(ui.dim('  Cost estimation available: run "nimbus cost estimate"'));
   }
 }
 
@@ -108,9 +119,9 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
       return;
     }
 
-    // Show cost estimation hint if resources are being created
+    // Show inline cost estimate if resources are being created
     if (planResult.hasChanges) {
-      displayCostHint();
+      await displayCostEstimate(directory);
     }
 
     // Dry run - don't apply
@@ -119,6 +130,10 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
       ui.info('Dry run mode - no changes applied');
       return;
     }
+
+    // Parse destroy count to determine confirmation type
+    const destroyCountMatch = planResult.output.match(/(\d+) to destroy/);
+    const destroyCount = parseInt(destroyCountMatch?.[1] || '0', 10);
 
     // Run safety checks if not skipped
     if (!options.skipSafety) {
@@ -135,6 +150,16 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
 
       // If safety requires approval, prompt for it
       if (safetyResult.requiresApproval) {
+        // Destructive plans require type-name confirmation first
+        if (destroyCount > 0) {
+          const confirmed = await confirmWithResourceName(directory, 'terraform directory');
+          if (!confirmed) {
+            ui.newLine();
+            ui.info('Apply cancelled');
+            return;
+          }
+        }
+
         const approvalResult = await promptForApproval({
           title: 'Terraform Apply',
           operation: 'terraform apply',
@@ -150,7 +175,7 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
           return;
         }
       } else {
-        // Show safety summary and simple confirm
+        // Show safety summary and simple confirm (or type-name confirm for destroys)
         displaySafetySummary({
           operation: 'terraform apply',
           risks: safetyResult.risks,
@@ -158,6 +183,38 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
         });
 
         ui.newLine();
+
+        if (destroyCount > 0) {
+          const confirmed = await confirmWithResourceName(directory, 'terraform directory');
+          if (!confirmed) {
+            ui.newLine();
+            ui.info('Apply cancelled');
+            return;
+          }
+        } else {
+          const proceed = await confirm({
+            message: 'Do you want to apply these changes?',
+            defaultValue: false,
+          });
+
+          if (!proceed) {
+            ui.info('Apply cancelled');
+            return;
+          }
+        }
+      }
+    } else {
+      // Simple confirmation when safety is skipped, but still enforce type-name for destroys
+      ui.newLine();
+
+      if (destroyCount > 0) {
+        const confirmed = await confirmWithResourceName(directory, 'terraform directory');
+        if (!confirmed) {
+          ui.newLine();
+          ui.info('Apply cancelled');
+          return;
+        }
+      } else {
         const proceed = await confirm({
           message: 'Do you want to apply these changes?',
           defaultValue: false,
@@ -167,18 +224,6 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
           ui.info('Apply cancelled');
           return;
         }
-      }
-    } else {
-      // Simple confirmation when safety is skipped
-      ui.newLine();
-      const proceed = await confirm({
-        message: 'Do you want to apply these changes?',
-        defaultValue: false,
-      });
-
-      if (!proceed) {
-        ui.info('Apply cancelled');
-        return;
       }
     }
   }
@@ -260,6 +305,10 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
       return;
     }
 
+    // Parse destroy count to determine confirmation type
+    const destroyCountMatch = planOutput.match(/(\d+) to destroy/);
+    const destroyCount = parseInt(destroyCountMatch?.[1] || '0', 10);
+
     // Run safety checks
     const safetyResult = await runSafetyChecks('apply', planOutput, options);
 
@@ -274,6 +323,16 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
 
     // If safety requires approval, prompt for it
     if (safetyResult.requiresApproval) {
+      // Destructive plans require type-name confirmation first
+      if (destroyCount > 0) {
+        const confirmed = await confirmWithResourceName(directory, 'terraform directory');
+        if (!confirmed) {
+          ui.newLine();
+          ui.info('Apply cancelled');
+          return;
+        }
+      }
+
       const approvalResult = await promptForApproval({
         title: 'Terraform Apply',
         operation: 'terraform apply',
@@ -289,7 +348,7 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
         return;
       }
     } else {
-      // Show safety summary and simple confirm
+      // Show safety summary and simple confirm (or type-name confirm for destroys)
       displaySafetySummary({
         operation: 'terraform apply',
         risks: safetyResult.risks,
@@ -297,14 +356,24 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
       });
 
       ui.newLine();
-      const proceed = await confirm({
-        message: 'Do you want to apply these changes?',
-        defaultValue: false,
-      });
 
-      if (!proceed) {
-        ui.info('Apply cancelled');
-        return;
+      if (destroyCount > 0) {
+        const confirmed = await confirmWithResourceName(directory, 'terraform directory');
+        if (!confirmed) {
+          ui.newLine();
+          ui.info('Apply cancelled');
+          return;
+        }
+      } else {
+        const proceed = await confirm({
+          message: 'Do you want to apply these changes?',
+          defaultValue: false,
+        });
+
+        if (!proceed) {
+          ui.info('Apply cancelled');
+          return;
+        }
       }
     }
   }

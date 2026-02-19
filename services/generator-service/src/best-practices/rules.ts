@@ -179,7 +179,7 @@ export const taggingRules: BestPracticeRule[] = [
     title: 'Mandatory Tags Present',
     description: 'All resources should have mandatory tags',
     recommendation: 'Include Environment, ManagedBy, Project, and Owner tags on all resources',
-    applies_to: ['vpc', 'eks', 'rds', 's3'],
+    applies_to: ['vpc', 'eks', 'rds', 's3', 'ecs', 'kms'],
     check: (config) => {
       const tags = config.tags as Record<string, string> | undefined;
       if (!tags) return false;
@@ -204,11 +204,25 @@ export const taggingRules: BestPracticeRule[] = [
     title: 'Cost Allocation Tags',
     description: 'Resources should include cost allocation tags',
     recommendation: 'Add CostCenter and Team tags for cost tracking',
-    applies_to: ['vpc', 'eks', 'rds', 's3'],
+    applies_to: ['vpc', 'eks', 'rds', 's3', 'ecs', 'kms'],
     check: (config) => {
       const tags = config.tags as Record<string, string> | undefined;
       if (!tags) return false;
       return 'CostCenter' in tags || 'Team' in tags;
+    },
+  },
+  {
+    id: 'tag-003',
+    category: 'tagging',
+    severity: 'low',
+    title: 'Use Consistent Naming Convention',
+    description: 'Resources should follow a consistent naming convention',
+    recommendation: 'Use format: {project}-{environment}-{component}-{resource_type}',
+    applies_to: ['vpc', 'eks', 'rds', 's3', 'ec2', 'ecs', 'kms'],
+    check: (config) => {
+      const name = config.name || config.resource_name;
+      if (!name) return true;
+      return /^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+/.test(name as string);
     },
   },
 ];
@@ -423,6 +437,16 @@ export const performanceRules: BestPracticeRule[] = [
     applies_to: ['s3'],
     check: () => true, // Informational only
   },
+  {
+    id: 'perf-004',
+    category: 'performance',
+    severity: 'medium',
+    title: 'Enable CloudFront for Static Assets',
+    description: 'Use CloudFront CDN for serving static assets to reduce latency',
+    recommendation: 'Configure CloudFront distribution for S3 static content delivery',
+    applies_to: ['s3', 'cloudfront'],
+    check: (config) => config.enable_cdn === true || config.is_private_bucket === true,
+  },
 ];
 
 /**
@@ -451,7 +475,7 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     title: 'Use HTTPS-Only for ALB Listeners',
     description: 'Application Load Balancers should only use HTTPS listeners',
     recommendation: 'Configure ALB listeners to use HTTPS with valid SSL certificates',
-    applies_to: ['alb', 'elb'],
+    applies_to: ['alb', 'elb', 'ecs'],
     check: (config) => config.listener_protocol === 'HTTPS' || config.redirect_http_to_https === true,
     autofix: (config) => ({
       ...config,
@@ -479,7 +503,7 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     title: 'Enable WAF for Public-Facing ALBs',
     description: 'Public-facing ALBs should have WAF enabled',
     recommendation: 'Attach AWS WAF to public-facing Application Load Balancers',
-    applies_to: ['alb'],
+    applies_to: ['alb', 'ecs'],
     check: (config) => config.enable_waf === true || config.internal === true,
     autofix: (config) => {
       if (!config.internal) {
@@ -555,7 +579,7 @@ export const networkingRules: BestPracticeRule[] = [
     title: 'Use Private Subnets for Application Workloads',
     description: 'Application workloads should be deployed in private subnets',
     recommendation: 'Deploy application servers, databases, and backend services in private subnets',
-    applies_to: ['vpc', 'subnet', 'eks', 'rds'],
+    applies_to: ['vpc', 'subnet', 'eks', 'rds', 'ecs'],
     check: (config) => config.use_private_subnets === true || config.publicly_accessible === false,
     autofix: (config) => ({
       ...config,
@@ -657,7 +681,7 @@ export const complianceRules: BestPracticeRule[] = [
     title: 'Retain CloudWatch Logs for 90+ Days',
     description: 'CloudWatch log groups should retain logs for at least 90 days',
     recommendation: 'Set CloudWatch log retention to at least 90 days for compliance',
-    applies_to: ['cloudwatch', 'eks', 'rds', 'vpc'],
+    applies_to: ['cloudwatch', 'eks', 'rds', 'vpc', 'ecs'],
     check: (config) => {
       const retention = Number(config.log_retention_days || 0);
       return retention >= 90;
@@ -674,7 +698,7 @@ export const complianceRules: BestPracticeRule[] = [
     title: 'Tag Resources with Compliance Framework',
     description: 'All resources should be tagged with compliance framework identifier',
     recommendation: 'Add a ComplianceFramework tag (e.g., SOC2, HIPAA, PCI-DSS) to all resources',
-    applies_to: ['vpc', 'eks', 'rds', 's3', 'ec2'],
+    applies_to: ['vpc', 'eks', 'rds', 's3', 'ec2', 'ecs', 'kms'],
     check: (config) => {
       const tags = config.tags as Record<string, string> | undefined;
       return tags !== undefined && 'ComplianceFramework' in tags;
@@ -694,6 +718,20 @@ export const complianceRules: BestPracticeRule[] = [
       enable_config_recording: true,
     }),
   },
+  {
+    id: 'comp-006',
+    category: 'compliance',
+    severity: 'high',
+    title: 'Enable SSE-KMS for Sensitive Data Buckets',
+    description: 'S3 buckets containing sensitive data should use SSE-KMS encryption',
+    recommendation: 'Use SSE-KMS instead of SSE-S3 for buckets with sensitive or regulated data',
+    applies_to: ['s3'],
+    check: (config) => config.sse_algorithm === 'aws:kms' || config.kms_key_id !== undefined,
+    autofix: (config) => ({
+      ...config,
+      sse_algorithm: 'aws:kms',
+    }),
+  },
 ];
 
 /**
@@ -707,7 +745,7 @@ export const additionalReliabilityRules: BestPracticeRule[] = [
     title: 'Configure Health Checks for ALB Target Groups',
     description: 'ALB target groups should have health checks configured',
     recommendation: 'Configure health check path, interval, and thresholds for target groups',
-    applies_to: ['alb', 'target_group'],
+    applies_to: ['alb', 'target_group', 'ecs'],
     check: (config) => config.health_check_path !== undefined,
     autofix: (config) => ({
       ...config,
@@ -829,6 +867,195 @@ export const additionalCostRules: BestPracticeRule[] = [
 ];
 
 /**
+ * ECS Best Practice Rules
+ */
+export const ecsRules: BestPracticeRule[] = [
+  {
+    id: 'ecs-001',
+    category: 'security',
+    severity: 'high',
+    title: 'Use Fargate for Serverless Containers',
+    description: 'Prefer Fargate launch type for serverless container management',
+    recommendation: 'Use Fargate to eliminate the need to manage EC2 instances for container workloads',
+    applies_to: ['ecs'],
+    check: (config) => config.launch_type === 'FARGATE' || config.launch_type === undefined,
+  },
+  {
+    id: 'ecs-002',
+    category: 'security',
+    severity: 'high',
+    title: 'Deploy ECS Tasks in Private Subnets',
+    description: 'ECS tasks should run in private subnets behind a load balancer',
+    recommendation: 'Configure ECS service networking to use private subnets with assign_public_ip = false',
+    applies_to: ['ecs'],
+    check: (config) => config.assign_public_ip === false || config.assign_public_ip === undefined,
+    autofix: (config) => ({
+      ...config,
+      assign_public_ip: false,
+    }),
+  },
+  {
+    id: 'ecs-003',
+    category: 'reliability',
+    severity: 'high',
+    title: 'Enable ECS Deployment Circuit Breaker',
+    description: 'ECS services should have deployment circuit breaker enabled',
+    recommendation: 'Enable deployment circuit breaker with rollback to prevent failed deployments from impacting availability',
+    applies_to: ['ecs'],
+    check: (config) => config.enable_circuit_breaker === true,
+    autofix: (config) => ({
+      ...config,
+      enable_circuit_breaker: true,
+    }),
+  },
+  {
+    id: 'ecs-004',
+    category: 'security',
+    severity: 'medium',
+    title: 'Enable Container Insights',
+    description: 'ECS clusters should have Container Insights enabled for monitoring',
+    recommendation: 'Enable CloudWatch Container Insights for detailed container-level metrics',
+    applies_to: ['ecs'],
+    check: (config) => config.enable_container_insights === true,
+    autofix: (config) => ({
+      ...config,
+      enable_container_insights: true,
+    }),
+  },
+  {
+    id: 'ecs-005',
+    category: 'reliability',
+    severity: 'medium',
+    title: 'Configure ECS Auto Scaling',
+    description: 'ECS services should have auto scaling configured for production workloads',
+    recommendation: 'Enable target tracking scaling on CPU and memory utilization',
+    applies_to: ['ecs'],
+    check: (config) => {
+      if (config.environment === 'production') {
+        return config.enable_autoscaling === true;
+      }
+      return true;
+    },
+    autofix: (config) => {
+      if (config.environment === 'production') {
+        return {
+          ...config,
+          enable_autoscaling: true,
+          autoscaling_min_capacity: config.desired_count || 2,
+          autoscaling_max_capacity: Math.max(Number(config.desired_count || 2) * 3, 6),
+          cpu_scaling_target: 70,
+          memory_scaling_target: 70,
+        };
+      }
+      return config;
+    },
+  },
+  {
+    id: 'ecs-006',
+    category: 'cost',
+    severity: 'low',
+    title: 'Use Fargate Spot for Non-Production ECS',
+    description: 'Non-production ECS workloads can use Fargate Spot for cost savings',
+    recommendation: 'Configure FARGATE_SPOT capacity provider for development and staging environments',
+    applies_to: ['ecs'],
+    check: (config) => {
+      if (config.environment === 'production') return true;
+      return config.use_fargate_spot === true;
+    },
+  },
+  {
+    id: 'ecs-007',
+    category: 'security',
+    severity: 'medium',
+    title: 'Set Read-Only Root Filesystem',
+    description: 'ECS task containers should use read-only root filesystems where possible',
+    recommendation: 'Set readonlyRootFilesystem = true in container definitions to prevent filesystem modifications',
+    applies_to: ['ecs'],
+    check: (config) => config.readonly_root_filesystem === true,
+  },
+];
+
+/**
+ * KMS Best Practice Rules
+ */
+export const kmsRules: BestPracticeRule[] = [
+  {
+    id: 'kms-001',
+    category: 'security',
+    severity: 'critical',
+    title: 'Enable KMS Key Rotation',
+    description: 'KMS keys should have automatic key rotation enabled',
+    recommendation: 'Enable automatic annual key rotation for all customer-managed KMS keys',
+    applies_to: ['kms'],
+    check: (config) => config.enable_key_rotation === true,
+    autofix: (config) => ({
+      ...config,
+      enable_key_rotation: true,
+    }),
+  },
+  {
+    id: 'kms-002',
+    category: 'security',
+    severity: 'high',
+    title: 'Set Appropriate KMS Deletion Window',
+    description: 'KMS keys should have a sufficient deletion waiting period',
+    recommendation: 'Set deletion_window_in_days to at least 14 days (30 for production) to allow recovery from accidental deletion',
+    applies_to: ['kms'],
+    check: (config) => {
+      const window = Number(config.deletion_window_in_days || 0);
+      if (config.environment === 'production') {
+        return window >= 30;
+      }
+      return window >= 7;
+    },
+    autofix: (config) => ({
+      ...config,
+      deletion_window_in_days: config.environment === 'production' ? 30 : 14,
+    }),
+  },
+  {
+    id: 'kms-003',
+    category: 'security',
+    severity: 'high',
+    title: 'Restrict KMS Key Policy',
+    description: 'KMS key policies should follow the principle of least privilege',
+    recommendation: 'Define explicit key admins and key users instead of granting broad access',
+    applies_to: ['kms'],
+    check: (config) => {
+      return (
+        (Array.isArray(config.key_admins) && config.key_admins.length > 0) ||
+        (Array.isArray(config.key_users) && config.key_users.length > 0)
+      );
+    },
+  },
+  {
+    id: 'kms-004',
+    category: 'compliance',
+    severity: 'medium',
+    title: 'Use KMS Key Aliases',
+    description: 'KMS keys should have descriptive aliases for identification',
+    recommendation: 'Create meaningful aliases for all KMS keys to improve manageability',
+    applies_to: ['kms'],
+    check: (config) => config.key_alias !== undefined && config.key_alias !== '',
+  },
+  {
+    id: 'kms-005',
+    category: 'reliability',
+    severity: 'medium',
+    title: 'Consider Multi-Region KMS Keys for DR',
+    description: 'Production KMS keys should consider multi-region replication',
+    recommendation: 'Enable multi-region for KMS keys used by services that need cross-region disaster recovery',
+    applies_to: ['kms'],
+    check: (config) => {
+      if (config.environment === 'production') {
+        return config.multi_region === true || config.cross_region_not_needed === true;
+      }
+      return true;
+    },
+  },
+];
+
+/**
  * All Rules Combined
  */
 export const allRules: BestPracticeRule[] = [
@@ -842,4 +1069,6 @@ export const allRules: BestPracticeRule[] = [
   ...performanceRules,
   ...networkingRules,
   ...complianceRules,
+  ...ecsRules,
+  ...kmsRules,
 ];

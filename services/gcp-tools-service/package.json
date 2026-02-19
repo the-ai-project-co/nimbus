@@ -1,0 +1,30 @@
+{
+  "name": "@nimbus/gcp-tools-service",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "GCP Tools Service for Nimbus",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "lint": "echo 'Lint not configured yet'",
+    "type-check": "tsc --noEmit",
+    "build": "bun build src/index.ts --outdir=dist --target=bun"
+  },
+  "dependencies": {
+    "@google-cloud/compute": "^6.7.0",
+    "@google-cloud/storage": "^7.19.0",
+    "@google-cloud/container": "^6.7.0",
+    "@google-cloud/iam": "^2.3.0",
+    "@google-cloud/functions": "^4.2.0",
+    "@nimbus/shared-clients": "workspace:*",
+    "@nimbus/shared-types": "workspace:*",
+    "@nimbus/shared-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.3.3"
+  }
+}

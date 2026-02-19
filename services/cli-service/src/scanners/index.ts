@@ -65,6 +65,7 @@ const DEFAULT_SCAN_OPTIONS: ScanOptions = {
   maxFiles: 1000,
   includeHidden: false,
   instructions: '',
+  maxDepth: 10,
 };
 
 /**
@@ -105,12 +106,12 @@ export class ProjectScanner {
       cloudResult,
       gitInfo,
     ] = await Promise.all([
-      this.languageScanner.scan(cwd),
-      this.frameworkScanner.scan(cwd),
-      this.packageManagerScanner.scan(cwd),
-      this.iacScanner.scan(cwd),
-      this.cicdScanner.scan(cwd),
-      this.cloudScanner.scan(cwd),
+      this.languageScanner.scan(cwd, opts),
+      this.frameworkScanner.scan(cwd, opts),
+      this.packageManagerScanner.scan(cwd, opts),
+      this.iacScanner.scan(cwd, opts),
+      this.cicdScanner.scan(cwd, opts),
+      this.cloudScanner.scan(cwd, opts),
       this.getGitInfo(cwd),
     ]);
 

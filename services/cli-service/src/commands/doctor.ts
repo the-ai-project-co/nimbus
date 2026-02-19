@@ -229,6 +229,105 @@ async function checkCloudCredentials(options: DoctorOptions): Promise<CheckResul
 }
 
 /**
+ * Check cloud connectivity (real API calls)
+ */
+async function checkCloudConnectivity(options: DoctorOptions): Promise<CheckResult> {
+  const { execFileSync } = await import('child_process');
+
+  const results: Array<{ provider: string; status: string; details?: string }> = [];
+
+  // AWS: try sts get-caller-identity
+  try {
+    const output = execFileSync('aws', ['sts', 'get-caller-identity', '--output', 'json'], {
+      encoding: 'utf-8',
+      timeout: 10000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const identity = JSON.parse(output);
+    results.push({
+      provider: 'AWS',
+      status: 'connected',
+      details: `Account: ${identity.Account}, User: ${identity.UserId}`,
+    });
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      results.push({ provider: 'AWS', status: 'not installed', details: 'Install AWS CLI: https://aws.amazon.com/cli/' });
+    } else {
+      results.push({ provider: 'AWS', status: 'failed', details: 'Run "aws configure" or check credentials' });
+    }
+  }
+
+  // GCP: try gcloud auth print-access-token
+  try {
+    const output = execFileSync('gcloud', ['auth', 'print-access-token'], {
+      encoding: 'utf-8',
+      timeout: 10000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    if (output.trim().length > 0) {
+      results.push({ provider: 'GCP', status: 'connected', details: 'Access token valid' });
+    } else {
+      results.push({ provider: 'GCP', status: 'failed', details: 'Run "gcloud auth login"' });
+    }
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      results.push({ provider: 'GCP', status: 'not installed', details: 'Install gcloud: https://cloud.google.com/sdk/docs/install' });
+    } else {
+      results.push({ provider: 'GCP', status: 'failed', details: 'Run "gcloud auth login"' });
+    }
+  }
+
+  // Azure: try az account show
+  try {
+    const output = execFileSync('az', ['account', 'show', '--output', 'json'], {
+      encoding: 'utf-8',
+      timeout: 10000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const account = JSON.parse(output);
+    results.push({
+      provider: 'Azure',
+      status: 'connected',
+      details: `Subscription: ${account.name || account.id}`,
+    });
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      results.push({ provider: 'Azure', status: 'not installed', details: 'Install Azure CLI: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli' });
+    } else {
+      results.push({ provider: 'Azure', status: 'failed', details: 'Run "az login"' });
+    }
+  }
+
+  const connected = results.filter(r => r.status === 'connected');
+
+  if (connected.length === 0) {
+    const installed = results.filter(r => r.status !== 'not installed');
+    if (installed.length === 0) {
+      return {
+        name: 'Cloud Connectivity',
+        passed: true,
+        message: 'No cloud CLIs installed (optional)',
+        details: options.verbose ? { providers: results } : undefined,
+      };
+    }
+    return {
+      name: 'Cloud Connectivity',
+      passed: false,
+      error: 'No cloud provider connected',
+      fix: results.map(r => r.details).filter(Boolean).join('; '),
+      details: options.verbose ? { providers: results } : undefined,
+    };
+  }
+
+  return {
+    name: 'Cloud Connectivity',
+    passed: true,
+    message: connected.map(r => `${r.provider}: ${r.details}`).join(', '),
+    details: options.verbose ? { providers: results } : undefined,
+  };
+}
+
+/**
  * Check core services
  */
 async function checkCoreServices(options: DoctorOptions): Promise<CheckResult> {
@@ -339,6 +438,8 @@ async function checkDependencies(options: DoctorOptions): Promise<CheckResult> {
     { name: 'kubectl', cmd: 'kubectl', args: ['version', '--client'], required: false },
     { name: 'helm', cmd: 'helm', args: ['version', '--short'], required: false },
     { name: 'aws', cmd: 'aws', args: ['--version'], required: false },
+    { name: 'gcloud', cmd: 'gcloud', args: ['version'], required: false },
+    { name: 'az', cmd: 'az', args: ['version'], required: false },
   ];
 
   const results: Array<{ name: string; version?: string; available: boolean }> = [];
@@ -505,6 +606,7 @@ const DIAGNOSTIC_CHECKS: Array<{ name: string; check: DiagnosticCheck }> = [
   { name: 'Configuration', check: checkConfiguration },
   { name: 'LLM Provider', check: checkLLMProvider },
   { name: 'Cloud Credentials', check: checkCloudCredentials },
+  { name: 'Cloud Connectivity', check: checkCloudConnectivity },
   { name: 'Core Services', check: checkCoreServices },
   { name: 'Tool Services', check: checkToolServices },
   { name: 'Dependencies', check: checkDependencies },

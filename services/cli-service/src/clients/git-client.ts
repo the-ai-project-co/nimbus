@@ -263,6 +263,24 @@ export class GitClient {
   }
 
   /**
+   * Clone a repository
+   */
+  async clone(
+    url: string,
+    targetPath?: string,
+    options?: {
+      branch?: string;
+      depth?: number;
+    }
+  ): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/clone', { url, path: targetPath, ...options });
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { success: false, output: '', error: response.error?.message || 'Unknown error' };
+  }
+
+  /**
    * Check if service is available
    */
   async isAvailable(): Promise<boolean> {

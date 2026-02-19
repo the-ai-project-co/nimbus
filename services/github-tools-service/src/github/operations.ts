@@ -125,6 +125,34 @@ export class GitHubOperations {
     return data as unknown as PullRequest;
   }
 
+  /**
+   * Create a review on a pull request
+   */
+  async createPRReview(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+    body?: string
+  ): Promise<PRReview> {
+    logger.info(`Creating review on PR #${pullNumber} in ${owner}/${repo}`, { event });
+
+    const params: any = {
+      owner,
+      repo,
+      pull_number: pullNumber,
+      event,
+    };
+
+    if (body) {
+      params.body = body;
+    }
+
+    const { data } = await this.octokit.pulls.createReview(params);
+
+    return data as unknown as PRReview;
+  }
+
   // ==========================================
   // Issue Operations
   // ==========================================
@@ -693,4 +721,14 @@ export interface ReleaseAsset {
   size: number;
   download_count: number;
   browser_download_url: string;
+}
+
+export interface PRReview {
+  id: number;
+  node_id: string;
+  user: { login: string; id: number };
+  body: string;
+  state: string;
+  html_url: string;
+  submitted_at: string;
 }

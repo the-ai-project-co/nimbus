@@ -356,6 +356,140 @@ export class TerraformOperations {
   }
 
   /**
+   * Run tflint and/or checkov linting
+   */
+  async lint(options?: { tflint?: boolean; checkov?: boolean }): Promise<{
+    tflint?: { available: boolean; success: boolean; issues: Array<{ rule: string; severity: string; message: string; file?: string; line?: number }> };
+    checkov?: { available: boolean; success: boolean; passed: number; failed: number; skipped: number; checks: Array<{ id: string; name: string; result: string; file?: string }> };
+  }> {
+    const runTflint = options?.tflint !== false;
+    const runCheckov = options?.checkov !== false;
+    const result: {
+      tflint?: { available: boolean; success: boolean; issues: Array<{ rule: string; severity: string; message: string; file?: string; line?: number }> };
+      checkov?: { available: boolean; success: boolean; passed: number; failed: number; skipped: number; checks: Array<{ id: string; name: string; result: string; file?: string }> };
+    } = {};
+
+    if (runTflint) {
+      try {
+        const tflintResult = await execAsync('tflint --format json --no-color', {
+          cwd: this.workingDir,
+          timeout: 120000,
+        });
+
+        const parsed = JSON.parse(tflintResult.stdout || '{}');
+        const issues = (parsed.issues || []).map((issue: any) => ({
+          rule: issue.rule?.name || 'unknown',
+          severity: issue.rule?.severity || 'warning',
+          message: issue.message || '',
+          file: issue.range?.filename,
+          line: issue.range?.start?.line,
+        }));
+
+        result.tflint = {
+          available: true,
+          success: issues.length === 0 || !issues.some((i: any) => i.severity === 'error'),
+          issues,
+        };
+      } catch (err: any) {
+        if (err.code === 'ENOENT' || err.message?.includes('ENOENT') || err.message?.includes('not found')) {
+          result.tflint = { available: false, success: false, issues: [] };
+        } else {
+          try {
+            const parsed = JSON.parse(err.stdout || '{}');
+            const issues = (parsed.issues || []).map((issue: any) => ({
+              rule: issue.rule?.name || 'unknown',
+              severity: issue.rule?.severity || 'warning',
+              message: issue.message || '',
+              file: issue.range?.filename,
+              line: issue.range?.start?.line,
+            }));
+            result.tflint = {
+              available: true,
+              success: false,
+              issues,
+            };
+          } catch {
+            result.tflint = {
+              available: true,
+              success: false,
+              issues: [{ rule: 'unknown', severity: 'error', message: err.message }],
+            };
+          }
+        }
+      }
+    }
+
+    if (runCheckov) {
+      try {
+        const checkovResult = await execAsync(
+          `checkov -d ${this.workingDir} --framework terraform --output json --compact`,
+          { cwd: this.workingDir, timeout: 300000 }
+        );
+
+        const parsed = JSON.parse(checkovResult.stdout || '{}');
+        const summary = parsed.summary || {};
+        const checks = (parsed.results?.passed_checks || [])
+          .map((c: any) => ({ id: c.check_id, name: c.check_name || c.name, result: 'passed', file: c.file_path }))
+          .concat(
+            (parsed.results?.failed_checks || []).map((c: any) => ({
+              id: c.check_id,
+              name: c.check_name || c.name,
+              result: 'failed',
+              file: c.file_path,
+            }))
+          );
+
+        result.checkov = {
+          available: true,
+          success: (summary.failed || 0) === 0,
+          passed: summary.passed || 0,
+          failed: summary.failed || 0,
+          skipped: summary.skipped || 0,
+          checks,
+        };
+      } catch (err: any) {
+        if (err.code === 'ENOENT' || err.message?.includes('ENOENT') || err.message?.includes('not found')) {
+          result.checkov = { available: false, success: false, passed: 0, failed: 0, skipped: 0, checks: [] };
+        } else {
+          try {
+            const parsed = JSON.parse(err.stdout || '{}');
+            const summary = parsed.summary || {};
+            const checks = (parsed.results?.passed_checks || [])
+              .map((c: any) => ({ id: c.check_id, name: c.check_name || c.name, result: 'passed', file: c.file_path }))
+              .concat(
+                (parsed.results?.failed_checks || []).map((c: any) => ({
+                  id: c.check_id,
+                  name: c.check_name || c.name,
+                  result: 'failed',
+                  file: c.file_path,
+                }))
+              );
+            result.checkov = {
+              available: true,
+              success: false,
+              passed: summary.passed || 0,
+              failed: summary.failed || 0,
+              skipped: summary.skipped || 0,
+              checks,
+            };
+          } catch {
+            result.checkov = {
+              available: true,
+              success: false,
+              passed: 0,
+              failed: 0,
+              skipped: 0,
+              checks: [{ id: 'unknown', name: 'checkov error', result: 'failed', file: undefined }],
+            };
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * List workspaces
    */
   async workspaceList(): Promise<TerraformWorkspaceResult> {

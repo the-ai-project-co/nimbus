@@ -13,6 +13,11 @@ dir = ".bun-cache"
 # Test runner configuration
 coverage = true
 coverageDir = "coverage"
+# Coverage threshold enforcement (Gap 14):
+# Bun does not support threshold config in bunfig.toml; thresholds are enforced
+# via the --coverage-threshold CLI flag in:
+#   - package.json "test:coverage" script (--coverage-threshold=80)
+#   - CI workflow "Check coverage threshold" step (--coverage-threshold=80)
 
 [run]
 # Runtime configuration

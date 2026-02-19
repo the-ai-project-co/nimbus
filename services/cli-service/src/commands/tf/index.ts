@@ -7,6 +7,8 @@
 import { terraformClient } from '../../clients';
 import { ui } from '../../wizard/ui';
 import { confirmWithResourceName } from '../../wizard/approval';
+import { showDestructionCostWarning } from '../../utils/cost-warning';
+import { historyManager } from '../../history';
 
 export interface TfCommandOptions {
   directory?: string;
@@ -16,6 +18,9 @@ export interface TfCommandOptions {
   dryRun?: boolean;
   out?: string;
   planFile?: string;
+  check?: boolean;
+  recursive?: boolean;
+  diff?: boolean;
 }
 
 /**
@@ -204,6 +209,9 @@ export async function tfDestroyCommand(options: TfCommandOptions = {}): Promise<
   ui.info(`Directory: ${directory}`);
   ui.warning('This will destroy all managed infrastructure!');
 
+  // Show cost warning before destructive operation
+  await showDestructionCostWarning(directory);
+
   if (!options.autoApprove) {
     // Require type-name-to-delete confirmation
     const confirmed = await confirmWithResourceName(workspaceName, 'terraform workspace');
@@ -280,12 +288,269 @@ export async function tfShowCommand(options: TfCommandOptions = {}): Promise<voi
 }
 
 /**
+ * Format Terraform configuration files
+ */
+export async function tfFmtCommand(options: TfCommandOptions = {}): Promise<void> {
+  const directory = options.directory || process.cwd();
+
+  ui.header('Terraform Fmt');
+  ui.info(`Directory: ${directory}`);
+
+  if (options.check) {
+    ui.info('Mode: check only (no changes will be made)');
+  }
+
+  ui.startSpinner({ message: 'Formatting Terraform files...' });
+
+  try {
+    const available = await terraformClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Terraform Tools Service not available');
+      ui.error('Please ensure the Terraform Tools Service is running.');
+      return;
+    }
+
+    const result = await terraformClient.fmt(directory, {
+      check: options.check,
+      recursive: options.recursive,
+      diff: options.diff,
+    });
+
+    if (result.success) {
+      if (result.files && result.files.length > 0) {
+        ui.stopSpinnerSuccess(`Formatted ${result.files.length} file(s)`);
+        for (const file of result.files) {
+          ui.print(`  ${ui.color('*', 'green')} ${file}`);
+        }
+      } else {
+        ui.stopSpinnerSuccess('All files already formatted');
+      }
+      if (result.output) {
+        ui.box({ title: 'Fmt Output', content: result.output });
+      }
+    } else {
+      ui.stopSpinnerFail('Terraform fmt failed');
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error formatting Terraform files');
+    ui.error(error.message);
+  }
+}
+
+/**
+ * Manage Terraform workspaces
+ */
+export async function tfWorkspaceCommand(subcommand: string, name: string | undefined, options: TfCommandOptions = {}): Promise<void> {
+  const directory = options.directory || process.cwd();
+
+  ui.header('Terraform Workspace');
+  ui.info(`Directory: ${directory}`);
+
+  try {
+    const available = await terraformClient.isAvailable();
+    if (!available) {
+      ui.error('Terraform Tools Service not available');
+      ui.error('Please ensure the Terraform Tools Service is running.');
+      return;
+    }
+
+    switch (subcommand) {
+      case 'list': {
+        ui.startSpinner({ message: 'Listing workspaces...' });
+        const result = await terraformClient.workspace.list(directory);
+        if (result.success) {
+          ui.stopSpinnerSuccess('Workspaces retrieved');
+          if (result.workspaces && result.workspaces.length > 0) {
+            for (const ws of result.workspaces) {
+              const marker = ws === result.current ? '* ' : '  ';
+              ui.print(`${marker}${ws}`);
+            }
+          }
+          if (result.output) {
+            ui.box({ title: 'Workspace List', content: result.output });
+          }
+        } else {
+          ui.stopSpinnerFail('Failed to list workspaces');
+          if (result.error) {
+            ui.error(result.error);
+          }
+        }
+        break;
+      }
+
+      case 'select': {
+        if (!name) {
+          ui.error('Usage: nimbus tf workspace select <name>');
+          return;
+        }
+        ui.startSpinner({ message: `Selecting workspace "${name}"...` });
+        const result = await terraformClient.workspace.select(name, directory);
+        if (result.success) {
+          ui.stopSpinnerSuccess(`Switched to workspace "${name}"`);
+          if (result.output) {
+            ui.box({ title: 'Output', content: result.output });
+          }
+        } else {
+          ui.stopSpinnerFail(`Failed to select workspace "${name}"`);
+          if (result.error) {
+            ui.error(result.error);
+          }
+        }
+        break;
+      }
+
+      case 'new': {
+        if (!name) {
+          ui.error('Usage: nimbus tf workspace new <name>');
+          return;
+        }
+        ui.startSpinner({ message: `Creating workspace "${name}"...` });
+        const result = await terraformClient.workspace.new(name, directory);
+        if (result.success) {
+          ui.stopSpinnerSuccess(`Created and switched to workspace "${name}"`);
+          if (result.output) {
+            ui.box({ title: 'Output', content: result.output });
+          }
+        } else {
+          ui.stopSpinnerFail(`Failed to create workspace "${name}"`);
+          if (result.error) {
+            ui.error(result.error);
+          }
+        }
+        break;
+      }
+
+      case 'delete': {
+        if (!name) {
+          ui.error('Usage: nimbus tf workspace delete <name>');
+          return;
+        }
+        ui.startSpinner({ message: `Deleting workspace "${name}"...` });
+        const result = await terraformClient.workspace.delete(name, directory);
+        if (result.success) {
+          ui.stopSpinnerSuccess(`Deleted workspace "${name}"`);
+          if (result.output) {
+            ui.box({ title: 'Output', content: result.output });
+          }
+        } else {
+          ui.stopSpinnerFail(`Failed to delete workspace "${name}"`);
+          if (result.error) {
+            ui.error(result.error);
+          }
+        }
+        break;
+      }
+
+      default:
+        ui.error(`Unknown workspace subcommand: ${subcommand}`);
+        ui.info('Available subcommands: list, select, new, delete');
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error managing Terraform workspace');
+    ui.error(error.message);
+  }
+}
+
+/**
+ * Import existing infrastructure into Terraform state
+ */
+export async function tfImportCommand(address: string, id: string, options: TfCommandOptions = {}): Promise<void> {
+  const directory = options.directory || process.cwd();
+
+  ui.header('Terraform Import');
+  ui.info(`Directory: ${directory}`);
+  ui.info(`Address: ${address}`);
+  ui.info(`ID: ${id}`);
+
+  ui.startSpinner({ message: `Importing ${address}...` });
+
+  try {
+    const available = await terraformClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Terraform Tools Service not available');
+      ui.error('Please ensure the Terraform Tools Service is running.');
+      return;
+    }
+
+    const result = await terraformClient.import(directory, address, id);
+
+    if (result.success) {
+      ui.stopSpinnerSuccess(`Successfully imported ${address}`);
+      if (result.output) {
+        ui.box({ title: 'Import Output', content: result.output });
+      }
+    } else {
+      ui.stopSpinnerFail('Terraform import failed');
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error importing resource');
+    ui.error(error.message);
+  }
+}
+
+/**
+ * Show Terraform output values
+ */
+export async function tfOutputCommand(options: TfCommandOptions = {}, name?: string): Promise<void> {
+  const directory = options.directory || process.cwd();
+
+  ui.header('Terraform Output');
+  ui.info(`Directory: ${directory}`);
+  if (name) {
+    ui.info(`Output: ${name}`);
+  }
+
+  ui.startSpinner({ message: 'Retrieving Terraform outputs...' });
+
+  try {
+    const available = await terraformClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Terraform Tools Service not available');
+      ui.error('Please ensure the Terraform Tools Service is running.');
+      return;
+    }
+
+    const result = await terraformClient.output(directory, name);
+
+    if (result.success) {
+      ui.stopSpinnerSuccess('Outputs retrieved');
+      if (result.outputs) {
+        for (const [key, val] of Object.entries(result.outputs)) {
+          const value = val.sensitive ? '<sensitive>' : JSON.stringify(val.value);
+          ui.print(`  ${ui.color(key, 'cyan')} = ${value}`);
+        }
+      }
+      if (result.output) {
+        ui.box({ title: 'Output', content: result.output });
+      }
+    } else {
+      ui.stopSpinnerFail('Failed to retrieve outputs');
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error retrieving Terraform outputs');
+    ui.error(error.message);
+  }
+}
+
+/**
  * Main terraform command router
  */
 export async function tfCommand(subcommand: string, args: string[]): Promise<void> {
   const options: TfCommandOptions = {
     directory: process.cwd(),
   };
+
+  // Collect positional args (non-flag args)
+  const positionalArgs: string[] = [];
 
   // Parse args
   for (let i = 0; i < args.length; i++) {
@@ -306,30 +571,65 @@ export async function tfCommand(subcommand: string, args: string[]): Promise<voi
       const [key, value] = arg.slice(6).split('=');
       options.vars = options.vars || {};
       options.vars[key] = value;
+    } else if (arg === '--check') {
+      options.check = true;
+    } else if (arg === '-r' || arg === '--recursive') {
+      options.recursive = true;
+    } else if (arg === '--diff') {
+      options.diff = true;
+    } else if (!arg.startsWith('-')) {
+      positionalArgs.push(arg);
     }
   }
 
-  switch (subcommand) {
-    case 'init':
-      await tfInitCommand(options);
-      break;
-    case 'plan':
-      await tfPlanCommand(options);
-      break;
-    case 'apply':
-      await tfApplyCommand(options);
-      break;
-    case 'validate':
-      await tfValidateCommand(options);
-      break;
-    case 'destroy':
-      await tfDestroyCommand(options);
-      break;
-    case 'show':
-      await tfShowCommand(options);
-      break;
-    default:
-      ui.error(`Unknown terraform subcommand: ${subcommand}`);
-      ui.info('Available commands: init, plan, apply, validate, destroy, show');
+  const startTime = Date.now();
+  const entry = historyManager.addEntry('tf', [subcommand, ...args]);
+
+  try {
+    switch (subcommand) {
+      case 'init':
+        await tfInitCommand(options);
+        break;
+      case 'plan':
+        await tfPlanCommand(options);
+        break;
+      case 'apply':
+        await tfApplyCommand(options);
+        break;
+      case 'validate':
+        await tfValidateCommand(options);
+        break;
+      case 'destroy':
+        await tfDestroyCommand(options);
+        break;
+      case 'show':
+        await tfShowCommand(options);
+        break;
+      case 'fmt':
+        await tfFmtCommand(options);
+        break;
+      case 'workspace':
+        await tfWorkspaceCommand(positionalArgs[0] || 'list', positionalArgs[1], options);
+        break;
+      case 'import':
+        if (positionalArgs.length < 2) {
+          ui.error('Usage: nimbus tf import <address> <id>');
+          ui.info('Example: nimbus tf import aws_instance.web i-1234567890abcdef0');
+          return;
+        }
+        await tfImportCommand(positionalArgs[0], positionalArgs[1], options);
+        break;
+      case 'output':
+        await tfOutputCommand(options, positionalArgs[0]);
+        break;
+      default:
+        ui.error(`Unknown terraform subcommand: ${subcommand}`);
+        ui.info('Available commands: init, plan, apply, validate, destroy, show, fmt, workspace, import, output');
+    }
+
+    historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
+  } catch (error: any) {
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    throw error;
   }
 }

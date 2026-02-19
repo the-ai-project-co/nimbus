@@ -119,6 +119,14 @@ export interface TerraformWizardContext {
   awsAccountId?: string;
   awsAccountAlias?: string;
 
+  // GCP configuration
+  gcpProject?: string;
+  gcpRegions?: string[];
+
+  // Azure configuration
+  azureSubscription?: string;
+  azureResourceGroup?: string;
+
   // Discovery options
   servicesToScan?: string[];
   excludeServices?: string[];

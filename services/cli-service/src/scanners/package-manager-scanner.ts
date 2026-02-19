@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Scanner, ScanResult, PackageManagerInfo, ConfidenceLevel } from './types';
+import type { Scanner, ScanResult, ScanOptions, PackageManagerInfo, ConfidenceLevel } from './types';
 
 interface PackageManagerPattern {
   name: string;
@@ -159,7 +159,7 @@ const PACKAGE_MANAGER_PATTERNS: PackageManagerPattern[] = [
 export class PackageManagerScanner implements Scanner {
   name = 'package-manager';
 
-  async scan(cwd: string): Promise<ScanResult> {
+  async scan(cwd: string, _options?: ScanOptions): Promise<ScanResult> {
     const packageManagers = await this.detectPackageManagers(cwd);
 
     return {

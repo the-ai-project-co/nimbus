@@ -249,6 +249,32 @@ async function handleFmt(ctx: RouteContext): Promise<Response> {
   }
 }
 
+// POST /api/terraform/lint
+async function handleLint(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      directory: string;
+      tflint?: boolean;
+      checkov?: boolean;
+    }>(ctx.req);
+
+    if (!body.directory) {
+      return error('Missing required field: directory', 400);
+    }
+
+    const terraform = new TerraformOperations(body.directory);
+    const result = await terraform.lint({
+      tflint: body.tflint,
+      checkov: body.checkov,
+    });
+
+    return success(result);
+  } catch (err: any) {
+    logger.error('Terraform lint failed', err);
+    return error(err.message);
+  }
+}
+
 // GET /api/terraform/workspace/list
 async function handleWorkspaceList(ctx: RouteContext): Promise<Response> {
   try {
@@ -600,6 +626,8 @@ export async function router(req: Request): Promise<Response> {
           return handleValidate(ctx);
         case '/fmt':
           return handleFmt(ctx);
+        case '/lint':
+          return handleLint(ctx);
         case '/workspace/select':
           return handleWorkspaceSelect(ctx);
         case '/workspace/new':

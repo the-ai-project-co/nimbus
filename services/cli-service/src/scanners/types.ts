@@ -23,7 +23,7 @@ export interface ScanResult {
  */
 export interface Scanner {
   name: string;
-  scan(cwd: string): Promise<ScanResult>;
+  scan(cwd: string, options?: ScanOptions): Promise<ScanResult>;
 }
 
 /**
@@ -153,6 +153,8 @@ export interface ScanOptions {
   includeHidden?: boolean;
   /** Custom project instructions */
   instructions?: string;
+  /** Maximum directory depth for scanning */
+  maxDepth?: number;
 }
 
 /**

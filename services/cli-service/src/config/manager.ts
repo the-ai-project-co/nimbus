@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import type { NimbusConfig, ConfigKey } from './types';
 import { CONFIG_KEYS } from './types';
+import { NimbusConfigSchema } from './schema';
 
 const CONFIG_VERSION = 1;
 
@@ -34,6 +35,36 @@ function validateKeyPath(key: string): void {
       throw new Error(`Invalid config key: "${part}" is not allowed`);
     }
   }
+}
+
+/**
+ * Resolve environment variables in config values.
+ * Supports ${VAR} and ${VAR:-default} syntax.
+ * Recursively walks objects and arrays.
+ */
+function resolveEnvVars(value: any): any {
+  if (typeof value === 'string') {
+    return value.replace(/\$\{([^}]+)\}/g, (_match, expr: string) => {
+      const defaultSep = expr.indexOf(':-');
+      if (defaultSep !== -1) {
+        const varName = expr.slice(0, defaultSep);
+        const defaultValue = expr.slice(defaultSep + 2);
+        return process.env[varName] ?? defaultValue;
+      }
+      return process.env[expr] ?? '';
+    });
+  }
+  if (Array.isArray(value)) {
+    return value.map(resolveEnvVars);
+  }
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = resolveEnvVars(v);
+    }
+    return result;
+  }
+  return value;
 }
 
 /**
@@ -63,6 +94,19 @@ function createDefaultConfig(): NimbusConfig {
       colors: true,
       spinner: 'dots',
     },
+    persona: {
+      mode: 'standard',
+      verbosity: 'normal',
+      custom: '',
+    },
+    cloud: {
+      default_provider: 'aws',
+      aws: { default_region: 'us-east-1', default_profile: 'default' },
+      gcp: { default_region: 'us-central1' },
+      azure: { default_region: 'eastus' },
+    },
+    terraform: { default_backend: 's3' },
+    kubernetes: { default_namespace: 'default' },
   };
 }
 
@@ -190,6 +234,28 @@ export class ConfigManager {
   }
 
   /**
+   * Deep merge two objects, with source values taking precedence
+   */
+  private deepMerge(target: any, source: any): any {
+    const result = { ...target };
+    for (const key of Object.keys(source)) {
+      if (
+        source[key] &&
+        typeof source[key] === 'object' &&
+        !Array.isArray(source[key]) &&
+        target[key] &&
+        typeof target[key] === 'object' &&
+        !Array.isArray(target[key])
+      ) {
+        result[key] = this.deepMerge(target[key], source[key]);
+      } else if (source[key] !== undefined) {
+        result[key] = source[key];
+      }
+    }
+    return result;
+  }
+
+  /**
    * Get the path to the config file
    */
   getConfigPath(): string {
@@ -223,21 +289,21 @@ export class ConfigManager {
 
     try {
       const content = fs.readFileSync(this.configPath, 'utf-8');
-      const parsed = parseSimpleYaml(content) as NimbusConfig;
+      const parsed = resolveEnvVars(parseSimpleYaml(content));
 
-      // Deep merge with defaults to ensure all fields exist
+      // Validate with Zod schema
+      const parseResult = NimbusConfigSchema.safeParse(parsed);
       const defaults = createDefaultConfig();
-      this.config = {
-        ...defaults,
-        ...parsed,
-        workspace: { ...defaults.workspace, ...(parsed.workspace ?? {}) },
-        llm: { ...defaults.llm, ...(parsed.llm ?? {}) },
-        history: { ...defaults.history, ...(parsed.history ?? {}) },
-        safety: { ...defaults.safety, ...(parsed.safety ?? {}) },
-        ui: { ...defaults.ui, ...(parsed.ui ?? {}) },
-        version: CONFIG_VERSION,
-      };
 
+      if (!parseResult.success) {
+        // Use defaults for invalid fields — don't crash
+        const merged = this.deepMerge(defaults, parsed);
+        this.config = merged as NimbusConfig;
+      } else {
+        this.config = this.deepMerge(defaults, parseResult.data) as NimbusConfig;
+      }
+
+      this.config.version = CONFIG_VERSION;
       return this.config;
     } catch {
       // If file is corrupted, start fresh
@@ -305,8 +371,9 @@ export class ConfigManager {
     validateKeyPath(key);
 
     const config = this.load();
+    const configCopy = JSON.parse(JSON.stringify(config));
     const parts = key.split('.');
-    let obj: any = config;
+    let obj: any = configCopy;
 
     // Navigate to parent object
     for (let i = 0; i < parts.length - 1; i++) {
@@ -321,6 +388,24 @@ export class ConfigManager {
     // Set the value
     const lastPart = parts[parts.length - 1];
     obj[lastPart] = value;
+
+    // Validate the entire config after the change
+    const result = NimbusConfigSchema.safeParse(configCopy);
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      throw new Error(`Invalid value for '${key}': ${issue?.message || 'validation failed'}`);
+    }
+
+    // Apply to the real config and save
+    let realObj: any = config;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (realObj[part] === undefined) {
+        realObj[part] = Object.create(null);
+      }
+      realObj = realObj[part];
+    }
+    realObj[lastPart] = value;
 
     this.save(config);
   }

@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Scanner, ScanResult, FrameworkInfo, ConfidenceLevel } from './types';
+import type { Scanner, ScanResult, ScanOptions, FrameworkInfo, ConfidenceLevel } from './types';
 
 interface FrameworkPattern {
   name: string;
@@ -257,7 +257,7 @@ const FRAMEWORK_PATTERNS: FrameworkPattern[] = [
 export class FrameworkScanner implements Scanner {
   name = 'framework';
 
-  async scan(cwd: string): Promise<ScanResult> {
+  async scan(cwd: string, _options?: ScanOptions): Promise<ScanResult> {
     const frameworks = await this.detectFrameworks(cwd);
 
     return {

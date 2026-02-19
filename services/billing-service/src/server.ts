@@ -3,15 +3,19 @@
  * HTTP server for billing endpoints
  */
 
-import { logger } from '@nimbus/shared-utils';
+import { logger, serviceAuthMiddleware, SimpleRateLimiter, rateLimitMiddleware } from '@nimbus/shared-utils';
 import { getBillingStatus, subscribe, cancelSubscription } from './routes/subscriptions';
 import { getUsage, recordUsage } from './routes/usage';
 import { handleStripeWebhook, WebhookSignatureError, WebhookParseError, WebhookProcessingError } from './routes/webhooks';
-import { initDatabase } from './db/adapter';
+import { initDatabase, getInvoices, generateInvoice } from './db/adapter';
 
 export async function startServer(port: number) {
   // Initialize database
   await initDatabase();
+
+  // Rate limiter: 120 requests/min for billing service
+  const limiter = new SimpleRateLimiter({ requestsPerMinute: 120 });
+  const checkRateLimit = rateLimitMiddleware(limiter);
 
   const server = Bun.serve({
     port,
@@ -28,6 +32,14 @@ export async function startServer(port: number) {
           timestamp: new Date().toISOString(),
         });
       }
+
+      // Service-to-service authentication
+      const authResponse = serviceAuthMiddleware(req);
+      if (authResponse) return authResponse;
+
+      // Rate limiting
+      const rateLimitResponse = checkRateLimit(req);
+      if (rateLimitResponse) return rateLimitResponse;
 
       // Get billing status
       if (path === '/api/billing/status' && method === 'GET') {
@@ -128,11 +140,31 @@ export async function startServer(port: number) {
               { status: 400 }
             );
           }
-          // Mock invoices for now (real implementation would call Stripe)
-          const invoices = await getMockInvoices(teamId, limit);
+          const invoices = getInvoices(teamId, limit);
           return Response.json({ success: true, data: invoices });
         } catch (error: any) {
           logger.error('Get invoices error:', error);
+          return Response.json(
+            { success: false, error: error.message },
+            { status: 500 }
+          );
+        }
+      }
+
+      // Generate invoice
+      if (path === '/api/billing/invoices/generate' && method === 'POST') {
+        try {
+          const body = await req.json() as { teamId: string; periodStart: string; periodEnd: string };
+          if (!body.teamId || !body.periodStart || !body.periodEnd) {
+            return Response.json(
+              { success: false, error: 'teamId, periodStart, and periodEnd are required' },
+              { status: 400 }
+            );
+          }
+          const invoice = generateInvoice(body.teamId, body.periodStart, body.periodEnd);
+          return Response.json({ success: true, data: invoice });
+        } catch (error: any) {
+          logger.error('Generate invoice error:', error);
           return Response.json(
             { success: false, error: error.message },
             { status: 500 }
@@ -187,12 +219,20 @@ export async function startServer(port: number) {
   logger.info('  - GET  /api/billing/usage?teamId=...');
   logger.info('  - POST /api/billing/usage');
   logger.info('  - GET  /api/billing/invoices?teamId=...');
+  logger.info('  - POST /api/billing/invoices/generate');
   logger.info('  - POST /api/billing/webhooks/stripe');
 
-  return server;
-}
+  // Graceful shutdown handlers
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully...');
+    server.stop();
+    process.exit(0);
+  });
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down...');
+    server.stop();
+    process.exit(0);
+  });
 
-// Mock invoices (replace with real Stripe integration)
-async function getMockInvoices(teamId: string, limit: number) {
-  return [];
+  return server;
 }

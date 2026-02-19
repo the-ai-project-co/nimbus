@@ -6,6 +6,9 @@
 
 import { helmClient } from '../../clients';
 import { ui } from '../../wizard/ui';
+import { confirmWithResourceName } from '../../wizard/approval';
+import { showDestructionCostWarning } from '../../utils/cost-warning';
+import { historyManager } from '../../history';
 
 export interface HelmCommandOptions {
   namespace?: string;
@@ -225,6 +228,42 @@ export async function helmUninstallCommand(
 
   if (options.namespace) {
     ui.info(`Namespace: ${options.namespace}`);
+  }
+
+  // Show release info warning before destructive operation
+  ui.newLine();
+  ui.warning(`Destructive operation: uninstalling helm release "${releaseName}"`);
+  ui.print(`  ${ui.color('Release:', 'yellow')} ${releaseName}`);
+  ui.print(`  ${ui.color('Namespace:', 'yellow')} ${options.namespace || 'default'}`);
+  ui.print(`  ${ui.color('Keep history:', 'yellow')} ${options.keepHistory ? 'yes' : 'no'}`);
+  ui.print(`  ${ui.color('Impact:', 'red')} All resources managed by this release will be deleted.`);
+
+  // Attempt to show release details if service is available
+  try {
+    const available = await helmClient.isAvailable();
+    if (available) {
+      const statusResult = await helmClient.status(releaseName, {
+        namespace: options.namespace,
+      });
+      if (statusResult?.release) {
+        ui.print(`  ${ui.color('Chart:', 'yellow')} ${statusResult.release.chart || 'unknown'}`);
+        ui.print(`  ${ui.color('Revision:', 'yellow')} ${statusResult.release.revision || 'unknown'}`);
+        ui.print(`  ${ui.color('Status:', 'yellow')} ${statusResult.release.status || 'unknown'}`);
+      }
+    }
+  } catch {
+    // Best-effort release info display -- silently skip on failure
+  }
+
+  // Show cost warning before destructive operation
+  await showDestructionCostWarning(process.cwd());
+
+  // Require confirmation for destructive operation
+  if (!options.dryRun) {
+    const confirmed = await confirmWithResourceName(releaseName, 'helm release');
+    if (!confirmed) {
+      return;
+    }
   }
 
   ui.startSpinner({ message: `Uninstalling ${releaseName}...` });
@@ -540,6 +579,75 @@ export async function helmShowCommand(
 }
 
 /**
+ * Lint a Helm chart
+ */
+export async function helmLintCommand(
+  chartPath: string,
+  options: HelmCommandOptions & { strict?: boolean; valuesFiles?: string[] } = {}
+): Promise<void> {
+  ui.header('Helm Lint');
+  ui.info(`Chart: ${chartPath}`);
+
+  if (options.strict) {
+    ui.info('Mode: strict');
+  }
+
+  ui.startSpinner({ message: `Linting ${chartPath}...` });
+
+  try {
+    const available = await helmClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Helm Tools Service not available');
+      ui.error('Please ensure the Helm Tools Service is running.');
+      return;
+    }
+
+    const result = await helmClient.lint(chartPath, {
+      strict: options.strict,
+      valuesFiles: options.valuesFiles,
+      namespace: options.namespace,
+    });
+
+    if (result.success) {
+      const lintData = result.data;
+      const messages: any[] = lintData?.messages || [];
+      const errors = messages.filter((m: any) => m.severity === 'error');
+      const warnings = messages.filter((m: any) => m.severity === 'warning');
+
+      if (errors.length === 0) {
+        ui.stopSpinnerSuccess(`Chart linted successfully${warnings.length > 0 ? ` (${warnings.length} warnings)` : ''}`);
+      } else {
+        ui.stopSpinnerFail(`Lint found ${errors.length} error(s)`);
+      }
+
+      if (messages.length > 0) {
+        ui.newLine();
+        for (const msg of messages) {
+          if (msg.severity === 'error') {
+            ui.error(`  ${msg.message || msg}`);
+          } else {
+            ui.warning(`  ${msg.message || msg}`);
+          }
+        }
+      }
+
+      if (lintData?.output) {
+        ui.newLine();
+        ui.box({ title: 'Lint Output', content: lintData.output });
+      }
+    } else {
+      ui.stopSpinnerFail('Lint failed');
+      if (result.error) {
+        ui.error(typeof result.error === 'string' ? result.error : 'Unknown error');
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error linting Helm chart');
+    ui.error(error.message);
+  }
+}
+
+/**
  * Main helm command router
  */
 export async function helmCommand(subcommand: string, args: string[]): Promise<void> {
@@ -581,82 +689,108 @@ export async function helmCommand(subcommand: string, args: string[]): Promise<v
     }
   }
 
-  switch (subcommand) {
-    case 'list':
-    case 'ls':
-      await helmListCommand(options);
-      break;
-    case 'install':
-      if (positionalArgs.length < 2) {
-        ui.error('Usage: nimbus helm install <release-name> <chart>');
-        return;
-      }
-      await helmInstallCommand(positionalArgs[0], positionalArgs[1], options);
-      break;
-    case 'upgrade':
-      if (positionalArgs.length < 2) {
-        ui.error('Usage: nimbus helm upgrade <release-name> <chart>');
-        return;
-      }
-      await helmUpgradeCommand(positionalArgs[0], positionalArgs[1], options);
-      break;
-    case 'uninstall':
-    case 'delete':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus helm uninstall <release-name>');
-        return;
-      }
-      await helmUninstallCommand(positionalArgs[0], options);
-      break;
-    case 'rollback':
-      if (positionalArgs.length < 2) {
-        ui.error('Usage: nimbus helm rollback <release-name> <revision>');
-        return;
-      }
-      await helmRollbackCommand(positionalArgs[0], parseInt(positionalArgs[1], 10), options);
-      break;
-    case 'history':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus helm history <release-name>');
-        return;
-      }
-      await helmHistoryCommand(positionalArgs[0], options);
-      break;
-    case 'search':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus helm search <keyword>');
-        return;
-      }
-      await helmSearchCommand(positionalArgs[0], options);
-      break;
-    case 'show':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus helm show <chart> [--subcommand all|chart|readme|values|crds]');
-        return;
-      }
-      {
-        // First positional arg might be the subcommand (all, chart, readme, values, crds)
-        const validSubs = ['all', 'chart', 'readme', 'values', 'crds'];
-        let showSub: 'all' | 'chart' | 'readme' | 'values' | 'crds' = 'all';
-        let chartName = positionalArgs[0];
-        if (validSubs.includes(positionalArgs[0]) && positionalArgs[1]) {
-          showSub = positionalArgs[0] as typeof showSub;
-          chartName = positionalArgs[1];
+  const startTime = Date.now();
+  const entry = historyManager.addEntry('helm', [subcommand, ...args]);
+
+  try {
+    switch (subcommand) {
+      case 'list':
+      case 'ls':
+        await helmListCommand(options);
+        break;
+      case 'install':
+        if (positionalArgs.length < 2) {
+          ui.error('Usage: nimbus helm install <release-name> <chart>');
+          return;
         }
-        await helmShowCommand(chartName, { ...options, subcommand: showSub });
-      }
-      break;
-    case 'repo':
-      if (positionalArgs[0] === 'add' && positionalArgs.length >= 3) {
-        await helmRepoAddCommand(positionalArgs[1], positionalArgs[2]);
-      } else if (positionalArgs[0] === 'update') {
-        await helmRepoUpdateCommand();
-      } else {
-        ui.error('Usage: nimbus helm repo add <name> <url> | nimbus helm repo update');
-      }
-      break;
-    default:
-      ui.error(`Unknown helm subcommand: ${subcommand}`);
-      ui.info('Available commands: list, install, upgrade, uninstall, rollback, history, search, show, repo');
+        await helmInstallCommand(positionalArgs[0], positionalArgs[1], options);
+        break;
+      case 'upgrade':
+        if (positionalArgs.length < 2) {
+          ui.error('Usage: nimbus helm upgrade <release-name> <chart>');
+          return;
+        }
+        await helmUpgradeCommand(positionalArgs[0], positionalArgs[1], options);
+        break;
+      case 'uninstall':
+      case 'delete':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus helm uninstall <release-name>');
+          return;
+        }
+        await helmUninstallCommand(positionalArgs[0], options);
+        break;
+      case 'rollback':
+        if (positionalArgs.length < 2) {
+          ui.error('Usage: nimbus helm rollback <release-name> <revision>');
+          return;
+        }
+        await helmRollbackCommand(positionalArgs[0], parseInt(positionalArgs[1], 10), options);
+        break;
+      case 'history':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus helm history <release-name>');
+          return;
+        }
+        await helmHistoryCommand(positionalArgs[0], options);
+        break;
+      case 'search':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus helm search <keyword>');
+          return;
+        }
+        await helmSearchCommand(positionalArgs[0], options);
+        break;
+      case 'show':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus helm show <chart> [--subcommand all|chart|readme|values|crds]');
+          return;
+        }
+        {
+          // First positional arg might be the subcommand (all, chart, readme, values, crds)
+          const validSubs = ['all', 'chart', 'readme', 'values', 'crds'];
+          let showSub: 'all' | 'chart' | 'readme' | 'values' | 'crds' = 'all';
+          let chartName = positionalArgs[0];
+          if (validSubs.includes(positionalArgs[0]) && positionalArgs[1]) {
+            showSub = positionalArgs[0] as typeof showSub;
+            chartName = positionalArgs[1];
+          }
+          await helmShowCommand(chartName, { ...options, subcommand: showSub });
+        }
+        break;
+      case 'repo':
+        if (positionalArgs[0] === 'add' && positionalArgs.length >= 3) {
+          await helmRepoAddCommand(positionalArgs[1], positionalArgs[2]);
+        } else if (positionalArgs[0] === 'update') {
+          await helmRepoUpdateCommand();
+        } else {
+          ui.error('Usage: nimbus helm repo add <name> <url> | nimbus helm repo update');
+        }
+        break;
+      case 'lint':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus helm lint <chart-path> [--strict]');
+          return;
+        }
+        {
+          const strict = args.includes('--strict');
+          const valuesFiles: string[] = [];
+          for (let i = 0; i < args.length; i++) {
+            if ((args[i] === '-f' || args[i] === '--values') && args[i + 1]) {
+              valuesFiles.push(args[i + 1]);
+            }
+          }
+          await helmLintCommand(positionalArgs[0], { ...options, strict, valuesFiles });
+        }
+        break;
+      default:
+        ui.error(`Unknown helm subcommand: ${subcommand}`);
+        ui.info('Available commands: list, install, upgrade, uninstall, rollback, history, search, show, repo, lint');
+    }
+
+    historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
+  } catch (error: any) {
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    throw error;
   }
 }

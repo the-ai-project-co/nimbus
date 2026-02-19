@@ -60,6 +60,14 @@ export interface LLMResponse {
   };
   model: string;
   finishReason: 'stop' | 'length' | 'tool_calls' | 'content_filter';
+  /** Per-request cost information (added by the router after provider responds) */
+  cost?: {
+    costUSD: number;
+    breakdown: {
+      input: number;
+      output: number;
+    };
+  };
 }
 
 export interface StreamChunk {
@@ -105,6 +113,11 @@ export interface LLMProvider {
    * Get maximum token limit for a model
    */
   getMaxTokens(model: string): number;
+
+  /**
+   * List available models for this provider
+   */
+  listModels(): Promise<string[]>;
 }
 
 /**
@@ -117,6 +130,7 @@ export abstract class BaseProvider implements LLMProvider {
   abstract completeWithTools(request: ToolCompletionRequest): Promise<LLMResponse>;
   abstract countTokens(text: string): Promise<number>;
   abstract getMaxTokens(model: string): number;
+  abstract listModels(): Promise<string[]>;
 
   /**
    * Extract system prompt from messages

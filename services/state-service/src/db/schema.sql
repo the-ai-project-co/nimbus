@@ -1,3 +1,6 @@
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+
 -- Nimbus State Service Database Schema
 -- Based on releases/mvp/docs/01-mvp-spec.md
 

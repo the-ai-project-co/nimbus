@@ -218,13 +218,13 @@ describe('AWS Tools Service Routes', () => {
 
   // IAM Route Tests
 
-  test('GET /api/aws/iam/user returns error without userName', async () => {
+  test('GET /api/aws/iam/user returns current user when userName is omitted', async () => {
     const response = await fetch(`http://localhost:${PORT}/api/aws/iam/user`);
     const data = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(data.success).toBe(false);
-    expect(data.error).toContain('userName');
+    // userName is now optional - omitting it returns the current IAM user
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
   });
 
   test('POST /api/aws/iam/user returns error without userName', async () => {

@@ -6,6 +6,7 @@
 
 import { gitClient } from '../../clients';
 import { ui } from '../../wizard/ui';
+import { historyManager } from '../../history';
 
 export interface GitCommandOptions {
   directory?: string;
@@ -619,6 +620,59 @@ export async function gitStashCommand(
 }
 
 /**
+ * Clone a repository
+ */
+export async function gitCloneCommand(
+  url: string,
+  targetPath?: string,
+  options: GitCommandOptions = {}
+): Promise<void> {
+  ui.header('Git Clone');
+
+  ui.info(`URL: ${url}`);
+  if (targetPath) {
+    ui.info(`Path: ${targetPath}`);
+  }
+  if (options.branch) {
+    ui.info(`Branch: ${options.branch}`);
+  }
+  if (options.limit) {
+    ui.info(`Depth: ${options.limit}`);
+  }
+
+  ui.startSpinner({ message: `Cloning ${url}...` });
+
+  try {
+    const available = await gitClient.isAvailable();
+    if (!available) {
+      ui.stopSpinnerFail('Git Tools Service not available');
+      ui.error('Please ensure the Git Tools Service is running.');
+      return;
+    }
+
+    const result = await gitClient.clone(url, targetPath, {
+      branch: options.branch,
+      depth: options.limit,
+    });
+
+    if (result.success) {
+      ui.stopSpinnerSuccess('Repository cloned');
+      if (result.output) {
+        ui.info(result.output);
+      }
+    } else {
+      ui.stopSpinnerFail('Failed to clone repository');
+      if (result.error) {
+        ui.error(result.error);
+      }
+    }
+  } catch (error: any) {
+    ui.stopSpinnerFail('Error cloning repository');
+    ui.error(error.message);
+  }
+}
+
+/**
  * Main git command router
  */
 export async function gitCommand(subcommand: string, args: string[]): Promise<void> {
@@ -662,74 +716,91 @@ export async function gitCommand(subcommand: string, args: string[]): Promise<vo
     }
   }
 
-  switch (subcommand) {
-    case 'status':
-      await gitStatusCommand(options);
-      break;
-    case 'add':
-      if (positionalArgs.length < 1 && !options.all) {
-        ui.error('Usage: nimbus git add <files...> or nimbus git add -a');
-        return;
+  const startTime = Date.now();
+  const entry = historyManager.addEntry('git', [subcommand, ...args]);
+
+  try {
+    switch (subcommand) {
+      case 'status':
+        await gitStatusCommand(options);
+        break;
+      case 'add':
+        if (positionalArgs.length < 1 && !options.all) {
+          ui.error('Usage: nimbus git add <files...> or nimbus git add -a');
+          return;
+        }
+        await gitAddCommand(positionalArgs, options);
+        break;
+      case 'commit':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus git commit -m "message"');
+          return;
+        }
+        await gitCommitCommand(positionalArgs[0], options);
+        break;
+      case 'push':
+        await gitPushCommand(options);
+        break;
+      case 'pull':
+        await gitPullCommand(options);
+        break;
+      case 'fetch':
+        await gitFetchCommand(options);
+        break;
+      case 'log':
+        await gitLogCommand(options);
+        break;
+      case 'branch':
+        await gitBranchCommand(options);
+        break;
+      case 'checkout':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus git checkout <branch-or-file>');
+          return;
+        }
+        await gitCheckoutCommand(positionalArgs[0], options);
+        break;
+      case 'diff':
+        await gitDiffCommand(options);
+        break;
+      case 'merge':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus git merge <branch>');
+          return;
+        }
+        await gitMergeCommand(positionalArgs[0], options);
+        break;
+      case 'clone':
+        if (positionalArgs.length < 1) {
+          ui.error('Usage: nimbus git clone <url> [path] [--branch <branch>] [--limit <depth>]');
+          return;
+        }
+        await gitCloneCommand(positionalArgs[0], positionalArgs[1], options);
+        break;
+      case 'stash': {
+        const validStashActions = ['push', 'pop', 'list', 'drop', 'apply', 'clear'];
+        const stashAction = (positionalArgs[0] || 'push') as 'push' | 'pop' | 'list' | 'drop' | 'apply' | 'clear';
+        if (!validStashActions.includes(stashAction)) {
+          ui.error(`Unknown stash action: ${stashAction}`);
+          ui.info('Actions: push, pop, list, drop, apply, clear');
+          return;
+        }
+        // Extract stash message from -m flag (already captured in positionalArgs if using -m)
+        const stashMessage = positionalArgs[1];
+        await gitStashCommand(stashAction, {
+          ...options,
+          message: stashMessage,
+        });
+        break;
       }
-      await gitAddCommand(positionalArgs, options);
-      break;
-    case 'commit':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus git commit -m "message"');
-        return;
-      }
-      await gitCommitCommand(positionalArgs[0], options);
-      break;
-    case 'push':
-      await gitPushCommand(options);
-      break;
-    case 'pull':
-      await gitPullCommand(options);
-      break;
-    case 'fetch':
-      await gitFetchCommand(options);
-      break;
-    case 'log':
-      await gitLogCommand(options);
-      break;
-    case 'branch':
-      await gitBranchCommand(options);
-      break;
-    case 'checkout':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus git checkout <branch-or-file>');
-        return;
-      }
-      await gitCheckoutCommand(positionalArgs[0], options);
-      break;
-    case 'diff':
-      await gitDiffCommand(options);
-      break;
-    case 'merge':
-      if (positionalArgs.length < 1) {
-        ui.error('Usage: nimbus git merge <branch>');
-        return;
-      }
-      await gitMergeCommand(positionalArgs[0], options);
-      break;
-    case 'stash': {
-      const validStashActions = ['push', 'pop', 'list', 'drop', 'apply', 'clear'];
-      const stashAction = (positionalArgs[0] || 'push') as 'push' | 'pop' | 'list' | 'drop' | 'apply' | 'clear';
-      if (!validStashActions.includes(stashAction)) {
-        ui.error(`Unknown stash action: ${stashAction}`);
-        ui.info('Actions: push, pop, list, drop, apply, clear');
-        return;
-      }
-      // Extract stash message from -m flag (already captured in positionalArgs if using -m)
-      const stashMessage = positionalArgs[1];
-      await gitStashCommand(stashAction, {
-        ...options,
-        message: stashMessage,
-      });
-      break;
+      default:
+        ui.error(`Unknown git subcommand: ${subcommand}`);
+        ui.info('Available commands: status, add, commit, push, pull, fetch, log, branch, checkout, diff, merge, clone, stash');
     }
-    default:
-      ui.error(`Unknown git subcommand: ${subcommand}`);
-      ui.info('Available commands: status, add, commit, push, pull, fetch, log, branch, checkout, diff, merge, stash');
+
+    historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
+  } catch (error: any) {
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    throw error;
   }
 }

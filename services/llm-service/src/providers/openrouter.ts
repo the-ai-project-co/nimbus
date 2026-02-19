@@ -192,6 +192,18 @@ export class OpenRouterProvider extends BaseProvider {
     return limits[model] || 4096;
   }
 
+  async listModels(): Promise<string[]> {
+    return [
+      'anthropic/claude-sonnet-4-20250514',
+      'anthropic/claude-haiku-4-20250514',
+      'openai/gpt-4o',
+      'openai/gpt-4o-mini',
+      'google/gemini-2.0-flash-exp',
+      'meta-llama/llama-3.1-405b-instruct',
+      'mistralai/mixtral-8x22b-instruct',
+    ];
+  }
+
   /**
    * Convert messages to OpenAI-compatible format
    */

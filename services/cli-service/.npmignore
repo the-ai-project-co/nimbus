@@ -1,0 +1,36 @@
+# Source files (bundled into dist/ at build time)
+src/
+tests/
+
+# TypeScript config
+tsconfig.json
+tsconfig.json.bak
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+*.test.ts
+*.spec.ts
+__tests__/
+__mocks__/
+
+# Node modules (installed by consumers)
+node_modules/
+
+# Build artifacts that should not ship
+*.tsbuildinfo
+*.map

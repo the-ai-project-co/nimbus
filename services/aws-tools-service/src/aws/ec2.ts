@@ -14,6 +14,7 @@ import {
   DescribeSubnetsCommand,
   CreateTagsCommand,
   DescribeImagesCommand,
+  ModifyInstanceAttributeCommand,
   type DescribeInstancesCommandInput,
   type RunInstancesCommandInput,
   type Filter,
@@ -210,6 +211,13 @@ export class EC2Operations {
   }
 
   /**
+   * Start a single instance (convenience wrapper)
+   */
+  async startInstance(instanceId: string): Promise<OperationResult> {
+    return this.startInstances([instanceId]);
+  }
+
+  /**
    * Stop instances
    */
   async stopInstances(instanceIds: string[], force?: boolean): Promise<OperationResult> {
@@ -238,6 +246,13 @@ export class EC2Operations {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Stop a single instance (convenience wrapper)
+   */
+  async stopInstance(instanceId: string, force?: boolean): Promise<OperationResult> {
+    return this.stopInstances([instanceId], force);
   }
 
   /**
@@ -292,6 +307,13 @@ export class EC2Operations {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Terminate a single instance (convenience wrapper)
+   */
+  async terminateInstance(instanceId: string): Promise<OperationResult> {
+    return this.terminateInstances([instanceId]);
   }
 
   /**
@@ -471,6 +493,144 @@ export class EC2Operations {
       };
     } catch (error: any) {
       logger.error('Failed to list security groups', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Describe security groups with flexible filters
+   */
+  async describeSecurityGroups(filters?: Record<string, string[]>): Promise<OperationResult> {
+    try {
+      const input: any = {};
+
+      if (filters) {
+        input.Filters = Object.entries(filters).map(([name, values]): Filter => ({
+          Name: name,
+          Values: values,
+        }));
+      }
+
+      const command = new DescribeSecurityGroupsCommand(input);
+      const response = await this.client.send(command);
+
+      const groups = response.SecurityGroups?.map((g) => ({
+        groupId: g.GroupId,
+        groupName: g.GroupName,
+        description: g.Description,
+        vpcId: g.VpcId,
+        ownerId: g.OwnerId,
+        inboundRules: g.IpPermissions?.map((p) => ({
+          protocol: p.IpProtocol,
+          fromPort: p.FromPort,
+          toPort: p.ToPort,
+          ipRanges: p.IpRanges?.map((r) => ({
+            cidr: r.CidrIp,
+            description: r.Description,
+          })),
+          ipv6Ranges: p.Ipv6Ranges?.map((r) => ({
+            cidr: r.CidrIpv6,
+            description: r.Description,
+          })),
+          securityGroups: p.UserIdGroupPairs?.map((sg) => ({
+            groupId: sg.GroupId,
+            userId: sg.UserId,
+          })),
+        })),
+        outboundRules: g.IpPermissionsEgress?.map((p) => ({
+          protocol: p.IpProtocol,
+          fromPort: p.FromPort,
+          toPort: p.ToPort,
+          ipRanges: p.IpRanges?.map((r) => ({
+            cidr: r.CidrIp,
+            description: r.Description,
+          })),
+        })),
+        tags: g.Tags?.reduce(
+          (acc, tag) => {
+            if (tag.Key) acc[tag.Key] = tag.Value || '';
+            return acc;
+          },
+          {} as Record<string, string>
+        ),
+      }));
+
+      return {
+        success: true,
+        data: { securityGroups: groups || [] },
+      };
+    } catch (error: any) {
+      logger.error('Failed to describe security groups', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Modify an instance attribute
+   */
+  async modifyInstanceAttribute(
+    instanceId: string,
+    attribute: string,
+    value: string
+  ): Promise<OperationResult> {
+    try {
+      const input: any = {
+        InstanceId: instanceId,
+      };
+
+      // Map common attribute names to the SDK command input fields
+      switch (attribute) {
+        case 'instanceType':
+          input.InstanceType = { Value: value };
+          break;
+        case 'userData':
+          input.UserData = { Value: Buffer.from(value).toString('base64') };
+          break;
+        case 'disableApiTermination':
+          input.DisableApiTermination = { Value: value === 'true' };
+          break;
+        case 'instanceInitiatedShutdownBehavior':
+          input.InstanceInitiatedShutdownBehavior = { Value: value };
+          break;
+        case 'sourceDestCheck':
+          input.SourceDestCheck = { Value: value === 'true' };
+          break;
+        case 'ebsOptimized':
+          input.EbsOptimized = { Value: value === 'true' };
+          break;
+        case 'enaSupport':
+          input.EnaSupport = { Value: value === 'true' };
+          break;
+        case 'sriovNetSupport':
+          input.SriovNetSupport = { Value: value };
+          break;
+        default:
+          return {
+            success: false,
+            error: `Unsupported attribute: ${attribute}. Supported: instanceType, userData, disableApiTermination, instanceInitiatedShutdownBehavior, sourceDestCheck, ebsOptimized, enaSupport, sriovNetSupport`,
+          };
+      }
+
+      const command = new ModifyInstanceAttributeCommand(input);
+      await this.client.send(command);
+
+      return {
+        success: true,
+        data: {
+          message: `Attribute '${attribute}' modified for instance ${instanceId}`,
+          instanceId,
+          attribute,
+          value,
+        },
+      };
+    } catch (error: any) {
+      logger.error('Failed to modify instance attribute', error);
       return {
         success: false,
         error: error.message,

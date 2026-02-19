@@ -165,8 +165,19 @@ export async function authGcpCommand(options: AuthCloudOptions = {}): Promise<vo
 
   ui.print(`  ${ui.bold('Account:')} ${account.stdout}`);
 
+  // Check Application Default Credentials
+  const adcCheck = await runCommand('gcloud', ['auth', 'application-default', 'print-access-token']);
+  if (adcCheck.success) {
+    ui.print(`  ${ui.bold('ADC:')}     ${ui.color('configured', 'green')}`);
+  } else {
+    ui.print(`  ${ui.bold('ADC:')}     ${ui.color('not configured', 'yellow')}`);
+    ui.print(ui.dim('  Set with: gcloud auth application-default login'));
+  }
+
   // Get current project
-  const projectArgs = ['config', 'get-value', 'project'];
+  const projectArgs = options.project
+    ? ['config', 'get-value', 'project', '--project', options.project]
+    : ['config', 'get-value', 'project'];
   const project = await runCommand('gcloud', projectArgs);
   if (project.success && project.stdout && project.stdout !== '(unset)') {
     ui.print(`  ${ui.bold('Project:')} ${project.stdout}`);

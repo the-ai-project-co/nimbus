@@ -159,8 +159,14 @@ export class OllamaProvider extends BaseProvider {
   }
 
   async countTokens(text: string): Promise<number> {
-    // Rough estimate for Llama models: ~4 characters per token
-    return Math.ceil(text.length / 4);
+    try {
+      // Use gpt-tokenizer (already a dependency) for better approximation
+      const { encode } = await import('gpt-tokenizer');
+      return encode(text).length;
+    } catch {
+      // Fallback to approximation if tokenizer fails
+      return Math.ceil(text.length / 4);
+    }
   }
 
   getMaxTokens(model: string): number {
@@ -177,6 +183,23 @@ export class OllamaProvider extends BaseProvider {
     // Handle model variants (e.g., "llama3.2:7b" -> "llama3.2")
     const baseModel = model.split(':')[0];
     return limits[baseModel] || limits[model] || 4096;
+  }
+
+  async listModels(): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (response.ok) {
+        const data: any = await response.json();
+        if (data.models && Array.isArray(data.models)) {
+          return data.models.map((m: any) => m.name || m.model).filter(Boolean);
+        }
+      }
+    } catch {
+      // Ollama not available, return static fallback
+    }
+    return ['llama3.2', 'llama3.2:70b', 'codellama', 'mistral', 'mixtral', 'phi'];
   }
 
   /**

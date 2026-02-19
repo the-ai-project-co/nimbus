@@ -109,6 +109,11 @@ export const terraformQuestionnaire: QuestionnaireStep[] = [
             description: 'Managed Kubernetes cluster with node groups'
           },
           {
+            value: 'ecs',
+            label: 'Container Service (ECS Fargate)',
+            description: 'Serverless containers with Fargate, ALB, and auto scaling'
+          },
+          {
             value: 'rds',
             label: 'Database (RDS)',
             description: 'Managed relational database (PostgreSQL, MySQL)'
@@ -119,9 +124,9 @@ export const terraformQuestionnaire: QuestionnaireStep[] = [
             description: 'S3 buckets for file storage'
           },
           {
-            value: 'ecs',
-            label: 'Container Service (ECS)',
-            description: 'AWS ECS for container workloads'
+            value: 'kms',
+            label: 'Encryption Keys (KMS)',
+            description: 'Standalone KMS keys for encryption at rest'
           },
         ],
         default: ['vpc'],
@@ -320,6 +325,116 @@ export const terraformQuestionnaire: QuestionnaireStep[] = [
     ],
   },
   {
+    id: 'ecs_config',
+    title: 'ECS Fargate Configuration',
+    description: 'Configure your ECS Fargate service',
+    condition: (answers) => {
+      const components = answers.components as string[];
+      return components && components.includes('ecs');
+    },
+    questions: [
+      {
+        id: 'ecs_service_name',
+        type: 'text',
+        label: 'Service name',
+        description: 'Name for the ECS service (lowercase, no spaces)',
+        default: 'web',
+        validation: [
+          { type: 'required', message: 'Service name is required' },
+          {
+            type: 'pattern',
+            value: /^[a-z0-9-]+$/,
+            message: 'Service name must be lowercase alphanumeric with hyphens'
+          },
+        ],
+      },
+      {
+        id: 'ecs_container_image',
+        type: 'text',
+        label: 'Container image',
+        description: 'Docker image (e.g., nginx:latest or 123456789.dkr.ecr.us-east-1.amazonaws.com/app:v1)',
+        default: 'nginx:latest',
+        validation: [
+          { type: 'required', message: 'Container image is required' },
+        ],
+      },
+      {
+        id: 'ecs_container_port',
+        type: 'number',
+        label: 'Container port',
+        description: 'Port your application listens on',
+        default: 8080,
+        validation: [
+          { type: 'required', message: 'Container port is required' },
+          { type: 'min', value: 1, message: 'Port must be at least 1' },
+          { type: 'max', value: 65535, message: 'Port must be at most 65535' },
+        ],
+      },
+      {
+        id: 'ecs_cpu',
+        type: 'select',
+        label: 'Task CPU',
+        description: 'Fargate task CPU allocation',
+        options: [
+          { value: '256', label: '0.25 vCPU (256 units) - Minimal' },
+          { value: '512', label: '0.5 vCPU (512 units) - Light workloads' },
+          { value: '1024', label: '1 vCPU (1024 units) - Standard' },
+          { value: '2048', label: '2 vCPU (2048 units) - Compute intensive' },
+          { value: '4096', label: '4 vCPU (4096 units) - High performance' },
+        ],
+        default: '256',
+        validation: [
+          { type: 'required', message: 'CPU allocation is required' },
+        ],
+      },
+      {
+        id: 'ecs_memory',
+        type: 'select',
+        label: 'Task memory',
+        description: 'Fargate task memory allocation',
+        options: [
+          { value: '512', label: '512 MiB' },
+          { value: '1024', label: '1 GB' },
+          { value: '2048', label: '2 GB' },
+          { value: '4096', label: '4 GB' },
+          { value: '8192', label: '8 GB' },
+        ],
+        default: '512',
+        validation: [
+          { type: 'required', message: 'Memory allocation is required' },
+        ],
+      },
+      {
+        id: 'ecs_desired_count',
+        type: 'number',
+        label: 'Desired task count',
+        description: 'Number of tasks to run simultaneously',
+        default: 2,
+        validation: [
+          { type: 'required', message: 'Desired count is required' },
+          { type: 'min', value: 1, message: 'At least 1 task required' },
+        ],
+      },
+      {
+        id: 'ecs_enable_autoscaling',
+        type: 'confirm',
+        label: 'Enable auto scaling?',
+        description: 'Automatically scale tasks based on CPU/memory utilization',
+        default: true,
+      },
+      {
+        id: 'ecs_health_check_path',
+        type: 'text',
+        label: 'Health check path',
+        description: 'HTTP path for ALB health checks',
+        default: '/health',
+        validation: [
+          { type: 'required', message: 'Health check path is required' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'rds_config',
     title: 'Database Configuration',
     description: 'Configure your RDS database',
@@ -480,6 +595,71 @@ export const terraformQuestionnaire: QuestionnaireStep[] = [
         label: 'Block all public access?',
         description: 'Recommended for security',
         default: true,
+      },
+    ],
+  },
+  {
+    id: 'kms_config',
+    title: 'KMS Key Configuration',
+    description: 'Configure your KMS encryption keys',
+    condition: (answers) => {
+      const components = answers.components as string[];
+      return components && components.includes('kms');
+    },
+    questions: [
+      {
+        id: 'kms_key_alias',
+        type: 'text',
+        label: 'Key alias',
+        description: 'A descriptive alias for the KMS key (e.g., data-encryption)',
+        default: 'main-key',
+        validation: [
+          { type: 'required', message: 'Key alias is required' },
+          {
+            type: 'pattern',
+            value: /^[a-z0-9-]+$/,
+            message: 'Key alias must be lowercase alphanumeric with hyphens'
+          },
+        ],
+      },
+      {
+        id: 'kms_description',
+        type: 'text',
+        label: 'Key description',
+        description: 'Description of the key purpose',
+        default: 'Encryption key for data at rest',
+        validation: [
+          { type: 'required', message: 'Key description is required' },
+        ],
+      },
+      {
+        id: 'kms_enable_rotation',
+        type: 'confirm',
+        label: 'Enable automatic key rotation?',
+        description: 'Automatically rotate the key material annually (recommended)',
+        default: true,
+      },
+      {
+        id: 'kms_deletion_window',
+        type: 'select',
+        label: 'Deletion window (days)',
+        description: 'Waiting period before a deleted key is permanently destroyed',
+        options: [
+          { value: '7', label: '7 days (minimum)' },
+          { value: '14', label: '14 days' },
+          { value: '30', label: '30 days (recommended for production)' },
+        ],
+        default: '30',
+        validation: [
+          { type: 'required', message: 'Deletion window is required' },
+        ],
+      },
+      {
+        id: 'kms_multi_region',
+        type: 'confirm',
+        label: 'Enable multi-region key?',
+        description: 'Create a multi-region key that can be replicated to other regions',
+        default: false,
       },
     ],
   },

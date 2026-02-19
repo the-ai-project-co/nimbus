@@ -18,6 +18,7 @@ import {
   OllamaProvider,
   OpenRouterProvider,
 } from './providers';
+import { calculateCost, CostResult } from './cost-calculator';
 
 export interface RouterConfig {
   defaultProvider: string;
@@ -26,16 +27,48 @@ export interface RouterConfig {
     enabled: boolean;
     cheapModelFor: string[];
     expensiveModelFor: string[];
+    cheapModel: string;
+    expensiveModel: string;
   };
   fallback: {
     enabled: boolean;
     providers: string[];
   };
+  tokenBudget?: {
+    maxTokensPerRequest?: number;
+  };
+}
+
+export interface ProviderInfo {
+  name: string;
+  available: boolean;
+  models: string[];
+}
+
+/**
+ * Metadata emitted by the streaming fallback to indicate which provider
+ * is actually serving the response.  The WebSocket handler inspects this
+ * to notify clients of provider switches.
+ */
+export interface StreamFallbackMeta {
+  /** The provider that is actively streaming. */
+  activeProvider: string;
+  /** If a fallback occurred, the provider that originally failed. */
+  failedProvider?: string;
+  /** True when this stream is being served by a fallback provider. */
+  isFallback: boolean;
 }
 
 export class LLMRouter {
   private providers: Map<string, LLMProvider>;
   private config: RouterConfig;
+
+  /**
+   * Populated during streaming with fallback so callers (e.g. WebSocket)
+   * can inspect which provider ended up serving the stream.  Reset on
+   * every call to routeStream / executeStreamWithFallback.
+   */
+  lastStreamFallbackMeta: StreamFallbackMeta | null = null;
 
   constructor(config?: Partial<RouterConfig>) {
     this.providers = new Map();
@@ -51,15 +84,18 @@ export class LLMRouter {
           'simple_queries',
           'summarization',
           'classification',
+          'explanations',
         ],
         expensiveModelFor: config?.costOptimization?.expensiveModelFor || [
           'code_generation',
           'complex_reasoning',
           'planning',
         ],
+        cheapModel: config?.costOptimization?.cheapModel || process.env.CHEAP_MODEL || 'claude-haiku-4-20250514',
+        expensiveModel: config?.costOptimization?.expensiveModel || process.env.EXPENSIVE_MODEL || 'claude-opus-4-20250514',
       },
       fallback: {
-        enabled: config?.fallback?.enabled ?? process.env.ENABLE_FALLBACK === 'true',
+        enabled: config?.fallback?.enabled ?? process.env.DISABLE_FALLBACK !== 'true',
         providers:
           config?.fallback?.providers ||
           (process.env.FALLBACK_PROVIDERS?.split(',') ?? ['anthropic', 'openai', 'openrouter', 'google']),
@@ -116,31 +152,118 @@ export class LLMRouter {
   async route(request: CompletionRequest, taskType?: string): Promise<LLMResponse> {
     const provider = this.selectProvider(request, taskType);
 
+    // Enforce token budget
+    this.enforceTokenBudget(request);
+
     if (!provider) {
       throw new Error('No LLM provider available');
     }
 
+    let response: LLMResponse;
     if (this.config.fallback.enabled) {
-      return this.executeWithFallback(provider, request);
+      response = await this.executeWithFallback(provider, request);
+    } else {
+      response = await provider.complete(request);
     }
 
-    return provider.complete(request);
+    // Attach per-request cost calculation
+    const cost = this.computeCost(provider.name, response);
+    response.cost = cost;
+
+    // Persist usage to the state service (fire-and-forget)
+    if (response.usage) {
+      this.persistUsage(response.usage, response.model, provider.name, cost);
+    }
+
+    return response;
   }
 
   /**
-   * Route a streaming completion request
+   * Route a streaming completion request.
+   * Collects token usage from the final chunk and persists cost data
+   * after the stream completes (fire-and-forget, same as route()).
    */
   async *routeStream(
     request: CompletionRequest,
     taskType?: string
   ): AsyncIterable<StreamChunk> {
-    const provider = this.selectProvider(request, taskType);
+    // Capture `this` and config references before yield points.
+    // TypeScript strict mode narrows `this` to `never` after yield in
+    // async generators, so all post-yield access goes through locals.
+    const self = this as LLMRouter;
+    const defaultModel = self.config.defaultModel;
+
+    const provider = self.selectProvider(request, taskType);
+
+    // Enforce token budget
+    self.enforceTokenBudget(request);
 
     if (!provider) {
       throw new Error('No LLM provider available');
     }
 
-    yield* provider.stream(request);
+    // Reset fallback metadata
+    self.lastStreamFallbackMeta = null;
+
+    const stream = self.config.fallback.enabled
+      ? self.executeStreamWithFallback(provider, request)
+      : provider.stream(request);
+
+    let totalContent = '';
+    let lastUsage: StreamChunk['usage'] | undefined;
+
+    for await (const chunk of stream) {
+      if (chunk.content) {
+        totalContent += chunk.content;
+      }
+      if (chunk.usage) {
+        lastUsage = chunk.usage;
+      }
+      yield chunk;
+    }
+
+    // Determine which provider actually served the stream.
+    // Use type assertion because TS control-flow analysis incorrectly
+    // narrows lastStreamFallbackMeta to `null` -- it was mutated by
+    // executeStreamWithFallback during iteration above.
+    const fallbackMeta = self.lastStreamFallbackMeta as StreamFallbackMeta | null;
+    const activeProviderName = fallbackMeta?.activeProvider ?? provider.name;
+
+    // Track cost after stream completes
+    if (lastUsage) {
+      const model = request.model || defaultModel;
+      const cost = calculateCost(
+        activeProviderName,
+        model,
+        lastUsage.promptTokens,
+        lastUsage.completionTokens
+      );
+      self.persistUsage(lastUsage, model, activeProviderName, cost);
+    } else {
+      // Estimate tokens from content length if no usage data
+      const estimatedOutputTokens = Math.ceil(totalContent.length / 4);
+      const estimatedInputTokens = request.messages.reduce(
+        (sum, m) => sum + Math.ceil(m.content.length / 4),
+        0
+      );
+      const model = request.model || defaultModel;
+      const cost = calculateCost(
+        activeProviderName,
+        model,
+        estimatedInputTokens,
+        estimatedOutputTokens
+      );
+      self.persistUsage(
+        {
+          promptTokens: estimatedInputTokens,
+          completionTokens: estimatedOutputTokens,
+          totalTokens: estimatedInputTokens + estimatedOutputTokens,
+        },
+        model,
+        activeProviderName,
+        cost
+      );
+    }
   }
 
   /**
@@ -149,65 +272,81 @@ export class LLMRouter {
   async routeWithTools(request: ToolCompletionRequest, taskType?: string): Promise<LLMResponse> {
     const provider = this.selectProvider(request, taskType);
 
+    // Enforce token budget
+    this.enforceTokenBudget(request);
+
     if (!provider) {
       throw new Error('No LLM provider available');
     }
 
+    let response: LLMResponse;
     if (this.config.fallback.enabled) {
-      return this.executeToolsWithFallback(provider, request);
+      response = await this.executeToolsWithFallback(provider, request);
+    } else {
+      response = await provider.completeWithTools(request);
     }
 
-    return provider.completeWithTools(request);
+    // Attach per-request cost calculation
+    const cost = this.computeCost(provider.name, response);
+    response.cost = cost;
+
+    // Persist usage to the state service (fire-and-forget)
+    if (response.usage) {
+      this.persistUsage(response.usage, response.model, provider.name, cost);
+    }
+
+    return response;
   }
 
   /**
    * Get list of available models across all providers
    */
-  getAvailableModels(): Record<string, string[]> {
+  async getAvailableModels(): Promise<Record<string, string[]>> {
     const models: Record<string, string[]> = {};
 
-    if (this.providers.has('anthropic')) {
-      models.anthropic = [
-        'claude-sonnet-4-20250514',
-        'claude-haiku-4-20250514',
-        'claude-opus-4-20250514',
-        'claude-3-5-sonnet-20241022',
-        'claude-3-5-haiku-20241022',
-      ];
-    }
+    const entries = Array.from(this.providers.entries());
+    const results = await Promise.allSettled(
+      entries.map(async ([name, provider]) => {
+        const providerModels = await provider.listModels();
+        return { name, models: providerModels };
+      })
+    );
 
-    if (this.providers.has('openai')) {
-      models.openai = [
-        'gpt-4o',
-        'gpt-4o-2024-11-20',
-        'gpt-4o-mini',
-        'gpt-4o-mini-2024-07-18',
-        'gpt-4-turbo',
-        'gpt-4',
-      ];
-    }
-
-    if (this.providers.has('google')) {
-      models.google = ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'];
-    }
-
-    if (this.providers.has('openrouter')) {
-      models.openrouter = [
-        'anthropic/claude-sonnet-4-20250514',
-        'anthropic/claude-haiku-4-20250514',
-        'openai/gpt-4o',
-        'openai/gpt-4o-mini',
-        'google/gemini-2.0-flash-exp',
-        'meta-llama/llama-3.1-405b-instruct',
-        'mistralai/mixtral-8x22b-instruct',
-      ];
-    }
-
-    if (this.providers.has('ollama')) {
-      models.ollama = ['llama3.2', 'llama3.2:70b', 'codellama', 'mistral', 'mixtral', 'phi'];
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        models[result.value.name] = result.value.models;
+      }
     }
 
     return models;
+  }
+
+  /**
+   * Get provider information including availability and models.
+   * Each registered provider is queried for its model list. If the query
+   * succeeds the provider is marked available; otherwise it is marked
+   * unavailable with an empty model list.
+   */
+  async getProviders(): Promise<ProviderInfo[]> {
+    const entries = Array.from(this.providers.entries());
+    const results = await Promise.allSettled(
+      entries.map(async ([name, provider]) => {
+        const models = await provider.listModels();
+        return { name, available: true, models };
+      })
+    );
+
+    const providers: ProviderInfo[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === 'fulfilled') {
+        providers.push(result.value);
+      } else {
+        providers.push({ name: entries[i][0], available: false, models: [] });
+      }
+    }
+
+    return providers;
   }
 
   /**
@@ -227,16 +366,24 @@ export class LLMRouter {
     // Cost optimization
     if (this.config.costOptimization.enabled && taskType) {
       if (this.config.costOptimization.cheapModelFor.includes(taskType)) {
-        const provider = this.getCheapProvider();
+        const cheapModel = this.config.costOptimization.cheapModel;
+        const provider = this.getProviderForModel(cheapModel)
+          ? this.providers.get(this.getProviderForModel(cheapModel)) || this.getCheapProvider()
+          : this.getCheapProvider();
         if (provider) {
-          logger.info(`Selected cheap provider ${provider.name} for task type: ${taskType}`);
+          if (!request.model) request.model = cheapModel;
+          logger.info(`Selected cheap provider ${provider.name} with model ${request.model} for task type: ${taskType}`);
           return provider;
         }
       }
       if (this.config.costOptimization.expensiveModelFor.includes(taskType)) {
-        const provider = this.getExpensiveProvider();
+        const expensiveModel = this.config.costOptimization.expensiveModel;
+        const provider = this.getProviderForModel(expensiveModel)
+          ? this.providers.get(this.getProviderForModel(expensiveModel)) || this.getExpensiveProvider()
+          : this.getExpensiveProvider();
         if (provider) {
-          logger.info(`Selected expensive provider ${provider.name} for task type: ${taskType}`);
+          if (!request.model) request.model = expensiveModel;
+          logger.info(`Selected expensive provider ${provider.name} with model ${request.model} for task type: ${taskType}`);
           return provider;
         }
       }
@@ -314,6 +461,102 @@ export class LLMRouter {
   }
 
   /**
+   * Execute streaming request with fallback logic.
+   *
+   * Handles two failure modes:
+   * 1. Provider fails before producing any chunks (e.g. auth error, rate limit) --
+   *    immediately falls through to the next provider.
+   * 2. Provider fails mid-stream (partial chunks already buffered) -- discards
+   *    the partial output and starts fresh with the next provider.
+   *
+   * Chunks are buffered internally per-provider attempt.  Only once a provider
+   * completes its full stream successfully are the buffered chunks yielded to
+   * the caller.  This prevents the caller from receiving a garbled mix of
+   * partial responses from multiple providers.
+   */
+  private async *executeStreamWithFallback(
+    primaryProvider: LLMProvider,
+    request: CompletionRequest
+  ): AsyncIterable<StreamChunk> {
+    // Capture `this` for use across yield points
+    const self = this as LLMRouter;
+
+    const fallbackProviders = self.config.fallback.providers
+      .map((name) => self.providers.get(name))
+      .filter(Boolean) as LLMProvider[];
+
+    const allProviders = [primaryProvider, ...fallbackProviders.filter((p) => p !== primaryProvider)];
+
+    let failedProvider: string | undefined;
+
+    for (const provider of allProviders) {
+      const bufferedChunks: StreamChunk[] = [];
+      let streamCompleted = false;
+
+      try {
+        logger.info(`Attempting stream with ${provider.name}`);
+
+        for await (const chunk of provider.stream(request)) {
+          bufferedChunks.push(chunk);
+
+          if (chunk.done) {
+            streamCompleted = true;
+          }
+        }
+
+        // If we got here the stream completed without throwing.
+        // Even if there was no explicit done=true chunk we treat
+        // exhausting the iterator as success.
+        streamCompleted = true;
+      } catch (error) {
+        const partialChunkCount = bufferedChunks.length;
+        logger.warn(
+          `Provider ${provider.name} failed for stream after ${partialChunkCount} chunk(s), trying fallback...`,
+          { error }
+        );
+        failedProvider = provider.name;
+        // Discard buffered chunks from the failed provider and try next
+        continue;
+      }
+
+      if (streamCompleted) {
+        // Record which provider served the response
+        self.lastStreamFallbackMeta = {
+          activeProvider: provider.name,
+          failedProvider,
+          isFallback: !!failedProvider,
+        };
+
+        if (failedProvider) {
+          logger.info(
+            `Stream fallback: ${failedProvider} -> ${provider.name} (${bufferedChunks.length} chunks)`
+          );
+        }
+
+        // Yield all buffered chunks to the caller
+        for (const chunk of bufferedChunks) {
+          yield chunk;
+        }
+        return;
+      }
+    }
+
+    throw new Error('All LLM providers failed for streaming request');
+  }
+
+  /**
+   * Compute cost for a response using the cost calculator
+   */
+  private computeCost(providerName: string, response: LLMResponse): CostResult {
+    return calculateCost(
+      providerName,
+      response.model,
+      response.usage.promptTokens,
+      response.usage.completionTokens
+    );
+  }
+
+  /**
    * Get provider name for a specific model
    */
   private getProviderForModel(model: string): string {
@@ -345,6 +588,35 @@ export class LLMRouter {
   }
 
   /**
+   * Persist token usage to the state service (fire-and-forget)
+   */
+  persistUsage(
+    usage: { promptTokens: number; completionTokens: number; totalTokens: number },
+    model?: string,
+    provider?: string,
+    cost?: CostResult
+  ): void {
+    const stateServiceUrl = process.env.STATE_SERVICE_URL || 'http://localhost:3011';
+    fetch(`${stateServiceUrl}/api/state/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'llm_usage',
+        command: 'llm.completion',
+        provider: provider || this.config.defaultProvider,
+        model: model || this.config.defaultModel,
+        inputTokens: usage.promptTokens,
+        outputTokens: usage.completionTokens,
+        totalTokens: usage.totalTokens,
+        costUSD: cost?.costUSD ?? 0,
+        timestamp: new Date().toISOString(),
+      }),
+    }).catch((err) => {
+      logger.warn('Failed to persist LLM usage to state service', { error: err.message });
+    });
+  }
+
+  /**
    * Get the most capable (expensive) provider
    */
   private getExpensiveProvider(): LLMProvider | null {
@@ -355,5 +627,13 @@ export class LLMRouter {
       this.providers.get('google') ||
       null
     );
+  }
+
+  /**
+   * Enforce token budget on a request
+   */
+  private enforceTokenBudget(request: CompletionRequest): void {
+    const maxTokens = this.config.tokenBudget?.maxTokensPerRequest || 32768;
+    request.maxTokens = Math.min(request.maxTokens || 4096, maxTokens);
   }
 }

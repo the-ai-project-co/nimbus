@@ -59,6 +59,22 @@ export async function initDatabase(): Promise<Database> {
   db.run(`CREATE INDEX IF NOT EXISTS idx_usage_user ON usage_records(user_id, timestamp)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_usage_type ON usage_records(operation_type)`);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS invoices (
+      id TEXT PRIMARY KEY,
+      team_id TEXT NOT NULL,
+      period_start DATETIME NOT NULL,
+      period_end DATETIME NOT NULL,
+      total_tokens INTEGER DEFAULT 0,
+      total_cost_usd REAL DEFAULT 0,
+      operation_count INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'paid',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_team ON invoices(team_id, period_start)`);
+
   logger.info(`Billing database initialized at ${DATABASE_PATH}`);
   return db;
 }
@@ -277,4 +293,56 @@ export function getUserUsageAggregates(
       AND timestamp <= ?
     GROUP BY user_id
   `).all(teamId, since.toISOString(), untilDate.toISOString()) as UserUsageAggregate[];
+}
+
+// Invoice operations
+export interface InvoiceRecord {
+  id: string;
+  team_id: string;
+  period_start: string;
+  period_end: string;
+  total_tokens: number;
+  total_cost_usd: number;
+  operation_count: number;
+  status: string;
+  created_at: string;
+}
+
+export function getInvoices(teamId: string, limit: number): InvoiceRecord[] {
+  const db = getDatabase();
+  return db.query(
+    `SELECT * FROM invoices WHERE team_id = ? ORDER BY period_start DESC LIMIT ?`
+  ).all(teamId, limit) as InvoiceRecord[];
+}
+
+export function generateInvoice(
+  teamId: string,
+  periodStart: string,
+  periodEnd: string
+): InvoiceRecord {
+  const db = getDatabase();
+  const id = crypto.randomUUID();
+
+  // Aggregate usage records for the period
+  const agg = db.query(`
+    SELECT
+      COALESCE(SUM(tokens_used), 0) as total_tokens,
+      COALESCE(SUM(cost_usd), 0) as total_cost_usd,
+      COUNT(*) as operation_count
+    FROM usage_records
+    WHERE team_id = ?
+      AND timestamp >= ?
+      AND timestamp < ?
+  `).get(teamId, periodStart, periodEnd) as {
+    total_tokens: number;
+    total_cost_usd: number;
+    operation_count: number;
+  };
+
+  db.run(`
+    INSERT INTO invoices (id, team_id, period_start, period_end, total_tokens, total_cost_usd, operation_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [id, teamId, periodStart, periodEnd, agg.total_tokens, agg.total_cost_usd, agg.operation_count]);
+
+  return db.query(`SELECT * FROM invoices WHERE id = ?`).get(id) as InvoiceRecord;
 }

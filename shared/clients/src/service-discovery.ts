@@ -22,6 +22,8 @@ export const ServiceURLs = {
   TEAM: getEnv('TEAM_SERVICE_URL', 'http://localhost:3013'),
   BILLING: getEnv('BILLING_SERVICE_URL', 'http://localhost:3014'),
   AUDIT: getEnv('AUDIT_SERVICE_URL', 'http://localhost:3015'),
+  GCP_TOOLS: getEnv('GCP_TOOLS_URL', 'http://localhost:3016'),
+  AZURE_TOOLS: getEnv('AZURE_TOOLS_URL', 'http://localhost:3017'),
 } as const;
 
 export const WebSocketURLs = {

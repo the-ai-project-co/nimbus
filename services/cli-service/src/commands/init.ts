@@ -42,6 +42,8 @@ export interface InitOptions {
   template?: 'vpc' | 'eks' | 'full-stack' | 'minimal';
   /** Import from existing IaC directory */
   fromExisting?: string;
+  /** Maximum directory depth for project scanning */
+  maxDepth?: number;
 }
 
 const NIMBUS_DIR = '.nimbus';
@@ -792,6 +794,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   const scanOptions: Partial<ScanOptions> = {
     depth: scanDepth,
     instructions: options.instructions,
+    maxDepth: options.maxDepth,
   };
 
   let context: ProjectContext;

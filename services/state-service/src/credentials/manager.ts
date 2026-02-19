@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'node:crypto';
 import { logger } from '@nimbus/shared-utils';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -24,6 +25,39 @@ async function loadKeytar(): Promise<any> {
     keytar = null;
     return null;
   }
+}
+
+// AES-256-GCM encryption for file-based credential storage
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const KEY_LENGTH = 32;
+const IV_LENGTH = 16;
+const AUTH_TAG_LENGTH = 16;
+const ENCRYPTION_SALT = 'nimbus-credential-store-v1';
+
+function deriveEncryptionKey(): Buffer {
+  const machineSecret = `${os.hostname()}:${os.userInfo().username}:${ENCRYPTION_SALT}`;
+  return crypto.pbkdf2Sync(machineSecret, ENCRYPTION_SALT, 100_000, KEY_LENGTH, 'sha256');
+}
+
+function encryptData(plaintext: string): string {
+  const key = deriveEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf-8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  // Format: base64(iv + authTag + ciphertext)
+  return Buffer.concat([iv, authTag, encrypted]).toString('base64');
+}
+
+function decryptData(encoded: string): string {
+  const key = deriveEncryptionKey();
+  const data = Buffer.from(encoded, 'base64');
+  const iv = data.subarray(0, IV_LENGTH);
+  const authTag = data.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+  const ciphertext = data.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf-8');
 }
 
 export interface AWSCredentials {
@@ -422,23 +456,29 @@ export class CredentialsManager {
   }
 
   /**
-   * Store credential data as base64-encoded file
+   * Store credential data encrypted with AES-256-GCM
    */
   private async storeCredentialInFile(provider: string, data: string): Promise<void> {
     await fs.mkdir(CREDENTIALS_DIR, { recursive: true });
     const filePath = path.join(CREDENTIALS_DIR, `credentials.${provider}.enc`);
-    const encoded = Buffer.from(data).toString('base64');
-    await fs.writeFile(filePath, encoded, { mode: 0o600 });
+    const encrypted = encryptData(data);
+    await fs.writeFile(filePath, encrypted, { mode: 0o600 });
   }
 
   /**
-   * Retrieve credential data from base64-encoded file
+   * Retrieve credential data from AES-256-GCM encrypted file.
+   * Falls back to base64 decode for backward compatibility with existing files.
    */
   private async retrieveCredentialFromFile(provider: string): Promise<string | null> {
     const filePath = path.join(CREDENTIALS_DIR, `credentials.${provider}.enc`);
     try {
       const encoded = await fs.readFile(filePath, 'utf-8');
-      return Buffer.from(encoded, 'base64').toString('utf-8');
+      try {
+        return decryptData(encoded);
+      } catch {
+        // Fallback: try base64 decode for backward compatibility with existing files
+        return Buffer.from(encoded, 'base64').toString('utf-8');
+      }
     } catch {
       return null;
     }

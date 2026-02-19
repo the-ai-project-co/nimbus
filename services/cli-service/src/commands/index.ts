@@ -66,6 +66,10 @@ export {
   tfValidateCommand,
   tfDestroyCommand,
   tfShowCommand,
+  tfFmtCommand,
+  tfWorkspaceCommand,
+  tfImportCommand,
+  tfOutputCommand,
   type TfCommandOptions,
 } from './tf';
 
@@ -94,6 +98,7 @@ export {
   helmShowCommand,
   helmRepoAddCommand,
   helmRepoUpdateCommand,
+  helmLintCommand,
   type HelmCommandOptions,
 } from './helm';
 
@@ -327,6 +332,9 @@ export {
   fsListCommand,
   fsSearchCommand,
   fsReadCommand,
+  fsTreeCommand,
+  fsWriteCommand,
+  fsDiffCommand,
   type FsCommandOptions,
 } from './fs';
 
@@ -335,6 +343,17 @@ export {
   resumeCommand,
   type ResumeOptions,
 } from './resume';
+
+// Template commands
+export {
+  templateCommand,
+  type TemplateCommandOptions,
+} from './template';
+
+// Auth profile commands
+export {
+  authProfileCommand,
+} from './auth-profile';
 
 // ===== Top-Level Aliases =====
 // These re-exports provide short-form access to common commands
@@ -351,3 +370,15 @@ export { ghIssueViewCommand as issueViewCommand } from './gh';
 // File system aliases: nimbus read -> nimbus fs read
 export { fsReadCommand as readCommand } from './fs';
 export { fsSearchCommand as searchCommand } from './fs';
+export { fsWriteCommand as writeCommand } from './fs';
+export { fsDiffCommand as diffCommand } from './fs';
+
+// Top-level command aliases: short names -> full commands
+// tf -> terraform (tfCommand)
+export { tfCommand as terraformCommand } from './tf';
+// k -> k8s (k8sCommand)
+export { k8sCommand as kCommand } from './k8s';
+// g -> generate (generateTerraformCommand serves as the base generate entry point)
+export { generateTerraformCommand as gCommand } from './generate-terraform';
+// h -> helm (helmCommand)
+export { helmCommand as hCommand } from './helm';

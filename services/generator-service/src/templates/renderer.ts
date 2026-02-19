@@ -120,6 +120,10 @@ export class TemplateRenderer {
       return result;
     });
 
+    // Math helpers
+    this.handlebars.registerHelper('add', (a: number, b: number) => a + b);
+    this.handlebars.registerHelper('subtract', (a: number, b: number) => a - b);
+
     // Conditional helpers
     this.handlebars.registerHelper('eq', (a: any, b: any) => a === b);
     this.handlebars.registerHelper('ne', (a: any, b: any) => a !== b);

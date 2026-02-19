@@ -503,7 +503,7 @@ export function setupRoutes(app: Elysia) {
   // ===== Generation Routes =====
 
   // Generate infrastructure from questionnaire
-  app.post('/api/generate/from-questionnaire', ({ body }) => {
+  app.post('/api/generate/from-questionnaire', async ({ body }) => {
     const typedBody = body as {
       sessionId: string;
       applyBestPractices?: boolean;
@@ -574,12 +574,22 @@ export function setupRoutes(app: Elysia) {
         }
       }
 
+      // Post-generation validation
+      let validationReport = null;
+      if (Object.keys(generatedFiles).some(f => f.endsWith('.tf'))) {
+        const { TerraformProjectGenerator } = await import('./generators/terraform-project-generator');
+        const validator = new TerraformProjectGenerator();
+        const filesArray = Object.entries(generatedFiles).map(([filePath, content]) => ({ path: filePath, content }));
+        validationReport = validator.validateProject(filesArray);
+      }
+
       return {
         success: true,
         data: {
           generated_files: generatedFiles,
           configuration: config,
           best_practices_report: bestPracticesReport,
+          validation: validationReport,
         },
       };
     } catch (error) {
@@ -762,6 +772,15 @@ export function setupRoutes(app: Elysia) {
         }
       }
 
+      // Post-generation validation
+      let validationReport = null;
+      if (Object.keys(generatedFiles).some(f => f.endsWith('.tf'))) {
+        const { TerraformProjectGenerator } = await import('./generators/terraform-project-generator');
+        const validator = new TerraformProjectGenerator();
+        const filesArray = Object.entries(generatedFiles).map(([filePath, content]) => ({ path: filePath, content }));
+        validationReport = validator.validateProject(filesArray);
+      }
+
       return {
         success: true,
         data: {
@@ -774,6 +793,7 @@ export function setupRoutes(app: Elysia) {
             region: stack.region,
           },
           best_practices_report: bestPracticesReport,
+          validation: validationReport,
           errors: errors.length > 0 ? errors : undefined,
         },
       };
@@ -797,6 +817,8 @@ export function setupRoutes(app: Elysia) {
       environment?: string;
       backendConfig?: { bucket: string; dynamodbTable?: string; key?: string };
       tags?: Record<string, string>;
+      /** Set to true to run terraform fmt/validate/tflint subprocess checks */
+      runSubprocessValidation?: boolean;
     };
 
     try {
@@ -812,11 +834,22 @@ export function setupRoutes(app: Elysia) {
         tags: typedBody.tags,
       });
 
+      // D1: Run subprocess validation if requested
+      let subprocessValidation;
+      if (typedBody.runSubprocessValidation) {
+        try {
+          subprocessValidation = await generator.validateWithSubprocess(result.files);
+        } catch (err) {
+          logger.warn('Subprocess validation failed', { error: (err as Error).message });
+        }
+      }
+
       return {
         success: true,
         data: {
           files: result.files,
           validation: result.validation,
+          subprocessValidation,
         },
       };
     } catch (error) {

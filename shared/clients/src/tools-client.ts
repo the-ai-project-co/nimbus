@@ -14,6 +14,8 @@ export class ToolsClient {
   private helmClient: RestClient;
   private awsClient: RestClient;
   private githubClient: RestClient;
+  private gcpClient: RestClient;
+  private azureClient: RestClient;
 
   constructor(options: RestClientOptions = {}) {
     this.gitClient = new RestClient(ServiceURLs.GIT_TOOLS, options);
@@ -23,6 +25,8 @@ export class ToolsClient {
     this.helmClient = new RestClient(ServiceURLs.HELM_TOOLS, options);
     this.awsClient = new RestClient(ServiceURLs.AWS_TOOLS, options);
     this.githubClient = new RestClient(ServiceURLs.GITHUB_TOOLS, options);
+    this.gcpClient = new RestClient(ServiceURLs.GCP_TOOLS, options);
+    this.azureClient = new RestClient(ServiceURLs.AZURE_TOOLS, options);
   }
 
   // ==================== Git Operations ====================
@@ -156,6 +160,10 @@ export class ToolsClient {
 
     move: async (source: string, destination: string, options?: { basePath?: string; overwrite?: boolean }) => {
       return this.fsClient.post('/api/fs/move', { source, destination, ...options });
+    },
+
+    tree: async (directory: string, options?: { maxDepth?: number; includeHidden?: boolean; includeFiles?: boolean }) => {
+      return this.fsClient.post('/api/fs/tree', { directory, ...options });
     },
 
     mkdir: async (dirPath: string, options?: { basePath?: string; recursive?: boolean }) => {
@@ -422,6 +430,10 @@ export class ToolsClient {
       if (options?.subcommand) params.set('subcommand', options.subcommand);
       if (options?.version) params.set('version', options.version);
       return this.helmClient.get(`/api/helm/show?${params.toString()}`);
+    },
+
+    lint: async (chartPath: string, options?: { strict?: boolean; valuesFiles?: string[]; namespace?: string }) => {
+      return this.helmClient.post('/api/helm/lint', { chartPath, ...options });
     },
   };
 
@@ -721,13 +733,164 @@ export class ToolsClient {
     },
   };
 
+  // ==================== GCP Operations ====================
+
+  gcp = {
+    compute: {
+      listInstances: async (options?: { project?: string; zone?: string; maxResults?: number; pageToken?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.project) params.set('project', options.project);
+        if (options?.zone) params.set('zone', options.zone);
+        if (options?.maxResults) params.set('maxResults', options.maxResults.toString());
+        if (options?.pageToken) params.set('pageToken', options.pageToken);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.gcpClient.get(`/api/gcp/compute/instances${query}`);
+      },
+
+      startInstance: async (instance: string, options?: { project?: string; zone?: string }) => {
+        return this.gcpClient.post('/api/gcp/compute/instances/start', { instance, ...options });
+      },
+
+      stopInstance: async (instance: string, options?: { project?: string; zone?: string }) => {
+        return this.gcpClient.post('/api/gcp/compute/instances/stop', { instance, ...options });
+      },
+    },
+
+    storage: {
+      listBuckets: async (options?: { project?: string; maxResults?: number; pageToken?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.project) params.set('project', options.project);
+        if (options?.maxResults) params.set('maxResults', options.maxResults.toString());
+        if (options?.pageToken) params.set('pageToken', options.pageToken);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.gcpClient.get(`/api/gcp/storage/buckets${query}`);
+      },
+    },
+
+    gke: {
+      listClusters: async (options?: { project?: string; zone?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.project) params.set('project', options.project);
+        if (options?.zone) params.set('zone', options.zone);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.gcpClient.get(`/api/gcp/gke/clusters${query}`);
+      },
+    },
+
+    iam: {
+      listServiceAccounts: async (options?: { project?: string; maxResults?: number; pageToken?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.project) params.set('project', options.project);
+        if (options?.maxResults) params.set('maxResults', options.maxResults.toString());
+        if (options?.pageToken) params.set('pageToken', options.pageToken);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.gcpClient.get(`/api/gcp/iam/service-accounts${query}`);
+      },
+
+      listRoles: async (options?: { project?: string; maxResults?: number; pageToken?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.project) params.set('project', options.project);
+        if (options?.maxResults) params.set('maxResults', options.maxResults.toString());
+        if (options?.pageToken) params.set('pageToken', options.pageToken);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.gcpClient.get(`/api/gcp/iam/roles${query}`);
+      },
+    },
+
+    discover: {
+      startDiscovery: async (options?: { project?: string; regions?: string[] }) => {
+        return this.gcpClient.post('/api/gcp/discover/start', options);
+      },
+
+      getSession: async (sessionId: string) => {
+        return this.gcpClient.get(`/api/gcp/discover/session/${sessionId}`);
+      },
+    },
+
+    terraform: {
+      generate: async (options?: { project?: string; resources?: string[]; outputDir?: string }) => {
+        return this.gcpClient.post('/api/gcp/terraform/generate', options);
+      },
+    },
+  };
+
+  // ==================== Azure Operations ====================
+
+  azure = {
+    compute: {
+      listVMs: async (options?: { subscriptionId?: string; resourceGroup?: string; maxResults?: number }) => {
+        const params = new URLSearchParams();
+        if (options?.subscriptionId) params.set('subscriptionId', options.subscriptionId);
+        if (options?.resourceGroup) params.set('resourceGroup', options.resourceGroup);
+        if (options?.maxResults) params.set('maxResults', options.maxResults.toString());
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.azureClient.get(`/api/azure/compute/vms${query}`);
+      },
+
+      startVM: async (vmName: string, options?: { subscriptionId?: string; resourceGroup?: string }) => {
+        return this.azureClient.post('/api/azure/compute/vms/start', { vmName, ...options });
+      },
+
+      stopVM: async (vmName: string, options?: { subscriptionId?: string; resourceGroup?: string; deallocate?: boolean }) => {
+        return this.azureClient.post('/api/azure/compute/vms/stop', { vmName, ...options });
+      },
+    },
+
+    storage: {
+      listAccounts: async (options?: { subscriptionId?: string; resourceGroup?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.subscriptionId) params.set('subscriptionId', options.subscriptionId);
+        if (options?.resourceGroup) params.set('resourceGroup', options.resourceGroup);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.azureClient.get(`/api/azure/storage/accounts${query}`);
+      },
+    },
+
+    aks: {
+      listClusters: async (options?: { subscriptionId?: string; resourceGroup?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.subscriptionId) params.set('subscriptionId', options.subscriptionId);
+        if (options?.resourceGroup) params.set('resourceGroup', options.resourceGroup);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.azureClient.get(`/api/azure/aks/clusters${query}`);
+      },
+    },
+
+    iam: {
+      listRoleAssignments: async (options?: { subscriptionId?: string; resourceGroup?: string; scope?: string }) => {
+        const params = new URLSearchParams();
+        if (options?.subscriptionId) params.set('subscriptionId', options.subscriptionId);
+        if (options?.resourceGroup) params.set('resourceGroup', options.resourceGroup);
+        if (options?.scope) params.set('scope', options.scope);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.azureClient.get(`/api/azure/iam/role-assignments${query}`);
+      },
+    },
+
+    discover: {
+      startDiscovery: async (options?: { subscriptionId?: string; resourceGroups?: string[] }) => {
+        return this.azureClient.post('/api/azure/discover/start', options);
+      },
+
+      getSession: async (sessionId: string) => {
+        return this.azureClient.get(`/api/azure/discover/session/${sessionId}`);
+      },
+    },
+
+    terraform: {
+      generate: async (options?: { subscriptionId?: string; resources?: string[]; outputDir?: string }) => {
+        return this.azureClient.post('/api/azure/terraform/generate', options);
+      },
+    },
+  };
+
   // ==================== Health Checks ====================
 
   /**
    * Check health of all tool services
    */
   async healthCheck(): Promise<Record<string, boolean>> {
-    const [git, fs, terraform, k8s, helm, aws, github] = await Promise.all([
+    const [git, fs, terraform, k8s, helm, aws, github, gcp, azure] = await Promise.all([
       this.gitClient.healthCheck(),
       this.fsClient.healthCheck(),
       this.terraformClient.healthCheck(),
@@ -735,15 +898,17 @@ export class ToolsClient {
       this.helmClient.healthCheck(),
       this.awsClient.healthCheck(),
       this.githubClient.healthCheck(),
+      this.gcpClient.healthCheck(),
+      this.azureClient.healthCheck(),
     ]);
 
-    return { git, fs, terraform, k8s, helm, aws, github };
+    return { git, fs, terraform, k8s, helm, aws, github, gcp, azure };
   }
 
   /**
    * Check health of a specific service
    */
-  async healthCheckService(service: 'git' | 'fs' | 'terraform' | 'k8s' | 'helm' | 'aws' | 'github'): Promise<boolean> {
+  async healthCheckService(service: 'git' | 'fs' | 'terraform' | 'k8s' | 'helm' | 'aws' | 'github' | 'gcp' | 'azure'): Promise<boolean> {
     const clients: Record<string, RestClient> = {
       git: this.gitClient,
       fs: this.fsClient,
@@ -752,6 +917,8 @@ export class ToolsClient {
       helm: this.helmClient,
       aws: this.awsClient,
       github: this.githubClient,
+      gcp: this.gcpClient,
+      azure: this.azureClient,
     };
 
     return clients[service].healthCheck();

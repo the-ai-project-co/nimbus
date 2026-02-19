@@ -16,6 +16,7 @@ import {
   DeleteUserCommand,
   CreateRoleCommand,
   DeleteRoleCommand,
+  CreatePolicyCommand,
   AttachUserPolicyCommand,
   DetachUserPolicyCommand,
   AttachRolePolicyCommand,
@@ -47,6 +48,14 @@ export interface CreateRoleOptions {
   description?: string;
   path?: string;
   maxSessionDuration?: number;
+  tags?: Record<string, string>;
+}
+
+export interface CreatePolicyOptions {
+  policyName: string;
+  policyDocument: string;
+  description?: string;
+  path?: string;
   tags?: Record<string, string>;
 }
 
@@ -128,10 +137,11 @@ export class IAMOperations {
 
   /**
    * Get IAM user details
+   * If userName is not provided, returns the current authenticated user.
    */
-  async getUser(userName: string): Promise<OperationResult> {
+  async getUser(userName?: string): Promise<OperationResult> {
     try {
-      const command = new GetUserCommand({ UserName: userName });
+      const command = new GetUserCommand(userName ? { UserName: userName } : {});
       const response = await this.client.send(command);
 
       const user = response.User;
@@ -353,6 +363,42 @@ export class IAMOperations {
       };
     } catch (error: any) {
       logger.error('Failed to delete role', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create IAM policy
+   */
+  async createPolicy(options: CreatePolicyOptions): Promise<OperationResult> {
+    try {
+      const command = new CreatePolicyCommand({
+        PolicyName: options.policyName,
+        PolicyDocument: options.policyDocument,
+        Description: options.description,
+        Path: options.path,
+        Tags: options.tags
+          ? Object.entries(options.tags).map(([Key, Value]) => ({ Key, Value }))
+          : undefined,
+      });
+
+      const response = await this.client.send(command);
+
+      return {
+        success: true,
+        data: {
+          policyName: response.Policy?.PolicyName,
+          policyId: response.Policy?.PolicyId,
+          arn: response.Policy?.Arn,
+          path: response.Policy?.Path,
+          createDate: response.Policy?.CreateDate,
+        },
+      };
+    } catch (error: any) {
+      logger.error('Failed to create policy', error);
       return {
         success: false,
         error: error.message,

@@ -6,11 +6,25 @@
  */
 
 import * as readline from 'readline';
+import * as fs from 'fs';
+import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { ui } from '../wizard/ui';
 import { LLMClient, GeneratorClient, type ChatMessage, type StreamingChunk, type GenerationResult } from '../clients';
 import { StreamingDisplay } from './streaming';
 import { AuthStore } from '../auth/store';
+import { highlightCodeBlocks } from './ink/Message';
+
+/** Shape returned by the State Service conversations endpoint */
+interface StateConversation {
+  sessionId: string;
+  title?: string;
+  updatedAt: string;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
+}
+
+/** Supported export formats for the /export command */
+type ExportFormat = 'json' | 'markdown' | 'text';
 
 export type PersonaTone = 'professional' | 'assistant' | 'expert';
 
@@ -117,7 +131,7 @@ export class ChatUI {
       ui.dim(`Model: ${modelInfo} (${providerInfo})`),
       '',
       ui.dim('Type your message and press Enter to send.'),
-      ui.dim('Commands: /help, /clear, /model, /persona, /verbose, /generate, /exit'),
+      ui.dim('Commands: /help, /clear, /model, /persona, /verbose, /generate, /load, /export, /exit'),
     ];
 
     if (this.generatorAvailable) {
@@ -233,41 +247,14 @@ export class ChatUI {
         }
         break;
 
-      case 'sessions': {
-        try {
-          const response = await fetch(
-            `${this.stateServiceUrl}/api/state/conversations`
-          );
-          if (!response.ok) {
-            ui.warning('Failed to load sessions from State Service.');
-            break;
-          }
-          const body = (await response.json()) as {
-            success?: boolean;
-            data?: Array<{
-              sessionId: string;
-              updatedAt: string;
-              messages?: Array<{ role: string; content: string }>;
-            }>;
-          };
-          if (body.success && Array.isArray(body.data) && body.data.length > 0) {
-            ui.newLine();
-            ui.section('Previous Sessions');
-            for (const session of body.data) {
-              const msgCount =
-                session.messages?.length ?? 0;
-              ui.print(
-                `  ${ui.dim(session.sessionId.substring(0, 8))}  ${session.updatedAt}  (${msgCount} messages)`
-              );
-            }
-          } else {
-            ui.info('No previous sessions found.');
-          }
-        } catch {
-          ui.warning('State Service is not available.');
-        }
+      case 'sessions':
+      case 'load':
+        await this.handleLoadCommand();
         break;
-      }
+
+      case 'export':
+        await this.handleExportCommand(args);
+        break;
 
       case 'exit':
       case 'quit':
@@ -343,7 +330,9 @@ export class ChatUI {
     ui.print('  /verbose        - Toggle verbose output (tokens, model, latency)');
     ui.print('  /history        - Show conversation history');
     ui.print('  /save           - Save conversation to State Service');
-    ui.print('  /sessions       - List previous chat sessions');
+    ui.print('  /load           - List and load a saved conversation');
+    ui.print('  /sessions       - Alias for /load');
+    ui.print('  /export [fmt]   - Export conversation (json, markdown, text)');
     ui.print('  /generate       - Force generation mode for next message');
     ui.print('  /exit           - Exit chat mode');
     ui.newLine();
@@ -378,7 +367,10 @@ export class ChatUI {
       const roleColor = msg.role === 'user' ? 'green' : msg.role === 'assistant' ? 'blue' : 'gray';
       const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Nimbus' : 'System';
 
-      ui.print(`  ${ui.color(roleLabel + ':', roleColor)} ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`);
+      const displayContent = msg.role === 'assistant'
+        ? highlightCodeBlocks(msg.content)
+        : msg.content;
+      ui.print(`  ${ui.color(roleLabel + ':', roleColor)} ${displayContent.substring(0, 100)}${displayContent.length > 100 ? '...' : ''}`);
     }
   }
 
@@ -647,6 +639,221 @@ export class ChatUI {
 
     ui.newLine();
     ui.info('Files are ready. Use "nimbus apply terraform" to deploy.');
+  }
+
+  /**
+   * Handle the /load (and /sessions alias) command.
+   *
+   * Fetches saved conversations from the State Service, displays them as
+   * a numbered list, and allows the user to select one by number. The
+   * selected conversation's messages are loaded into `this.history`.
+   */
+  private async handleLoadCommand(): Promise<void> {
+    let conversations: StateConversation[];
+
+    try {
+      const response = await fetch(
+        `${this.stateServiceUrl}/api/state/conversations`,
+      );
+
+      if (!response.ok) {
+        ui.warning('Failed to load sessions from State Service.');
+        return;
+      }
+
+      const body = (await response.json()) as {
+        success?: boolean;
+        data?: StateConversation[];
+      };
+
+      if (!body.success || !Array.isArray(body.data) || body.data.length === 0) {
+        ui.info('No saved conversations found.');
+        return;
+      }
+
+      conversations = body.data;
+    } catch {
+      ui.warning('State Service is not available. Ensure it is running on ' + this.stateServiceUrl);
+      return;
+    }
+
+    // Display numbered list
+    ui.newLine();
+    ui.section('Saved Conversations');
+
+    for (let i = 0; i < conversations.length; i++) {
+      const session = conversations[i];
+      const title = session.title || `Session ${session.sessionId.substring(0, 8)}`;
+      const msgCount = session.messages?.length ?? 0;
+      const date = session.updatedAt
+        ? new Date(session.updatedAt).toLocaleString()
+        : 'unknown date';
+      ui.print(`  ${ui.color(`[${i + 1}]`, 'cyan')} ${title}  ${ui.dim(date)}  (${msgCount} messages)`);
+    }
+
+    ui.newLine();
+    ui.print('Enter a number to load, or press Enter to cancel:');
+
+    // Wait for user selection via a one-shot line read
+    const selection = await this.promptForInput();
+
+    if (!selection) {
+      ui.info('Load cancelled.');
+      return;
+    }
+
+    const index = parseInt(selection, 10) - 1;
+    if (isNaN(index) || index < 0 || index >= conversations.length) {
+      ui.warning(`Invalid selection: ${selection}. Expected 1-${conversations.length}.`);
+      return;
+    }
+
+    const chosen = conversations[index];
+    const loadedMessages: ChatMessage[] = (chosen.messages ?? []).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    // Replace current history, preserving any existing system prompt if the
+    // loaded conversation does not include one.
+    const existingSystem = this.history.find((m) => m.role === 'system');
+    const loadedHasSystem = loadedMessages.some((m) => m.role === 'system');
+
+    if (existingSystem && !loadedHasSystem) {
+      this.history = [existingSystem, ...loadedMessages];
+    } else {
+      this.history = loadedMessages;
+    }
+
+    this.sessionId = chosen.sessionId;
+    const title = chosen.title || `Session ${chosen.sessionId.substring(0, 8)}`;
+    ui.success(`Loaded conversation: ${title}`);
+  }
+
+  /**
+   * Handle the /export command.
+   *
+   * Exports the current conversation to a file in the requested format.
+   * Supported formats: json (default), markdown, text.
+   */
+  private async handleExportCommand(args: string[]): Promise<void> {
+    const userMessages = this.history.filter((m) => m.role !== 'system');
+
+    if (userMessages.length === 0) {
+      ui.info('Nothing to export. Start a conversation first.');
+      return;
+    }
+
+    // Parse the requested format (default: json)
+    const rawFormat = (args[0] || 'json').toLowerCase();
+    const formatAliases: Record<string, ExportFormat> = {
+      json: 'json',
+      md: 'markdown',
+      markdown: 'markdown',
+      txt: 'text',
+      text: 'text',
+    };
+    const format: ExportFormat | undefined = formatAliases[rawFormat];
+
+    if (!format) {
+      ui.warning(`Unsupported export format: ${rawFormat}`);
+      ui.info('Supported formats: json, markdown (md), text (txt)');
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const extMap: Record<ExportFormat, string> = {
+      json: 'json',
+      markdown: 'md',
+      text: 'txt',
+    };
+    const ext = extMap[format];
+    const filename = `nimbus-chat-export-${timestamp}.${ext}`;
+    const filepath = path.resolve(process.cwd(), filename);
+
+    let content: string;
+
+    switch (format) {
+      case 'json': {
+        const payload = {
+          title: `Nimbus Chat Export`,
+          messages: this.history.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          exportedAt: new Date().toISOString(),
+          model: this.options.model || 'default',
+        };
+        content = JSON.stringify(payload, null, 2);
+        break;
+      }
+
+      case 'markdown': {
+        const lines: string[] = [
+          `# Nimbus Chat Export`,
+          '',
+          `> Exported at ${new Date().toISOString()} | Model: ${this.options.model || 'default'}`,
+          '',
+        ];
+        for (const msg of this.history) {
+          if (msg.role === 'system') continue;
+          const heading = msg.role === 'user' ? 'User' : 'Assistant';
+          lines.push(`## ${heading}`, '', msg.content, '');
+        }
+        content = lines.join('\n');
+        break;
+      }
+
+      case 'text': {
+        const lines: string[] = [
+          `Nimbus Chat Export`,
+          `Exported at ${new Date().toISOString()} | Model: ${this.options.model || 'default'}`,
+          '---',
+          '',
+        ];
+        for (const msg of this.history) {
+          if (msg.role === 'system') continue;
+          const label = msg.role === 'user' ? 'You' : 'Nimbus';
+          lines.push(`${label}:`, msg.content, '');
+        }
+        content = lines.join('\n');
+        break;
+      }
+    }
+
+    try {
+      fs.writeFileSync(filepath, content, 'utf-8');
+      ui.success(`Conversation exported to ${filename}`);
+    } catch (err: any) {
+      ui.warning(`Failed to write export file: ${err.message}`);
+    }
+  }
+
+  /**
+   * Prompt the user for a single line of input.
+   *
+   * Returns the trimmed input, or an empty string if the user presses
+   * Enter without typing anything.
+   */
+  private promptForInput(): Promise<string> {
+    return new Promise<string>((resolve) => {
+      if (!this.rl) {
+        resolve('');
+        return;
+      }
+
+      // The readline interface already has a persistent 'line' listener
+      // (from `start()`). We set `isProcessing` to true so the persistent
+      // listener in `handleInput` early-returns, and register a one-shot
+      // listener to capture the user's selection.
+      this.isProcessing = true;
+      this.rl.once('line', (line: string) => {
+        this.isProcessing = false;
+        resolve(line.trim());
+      });
+
+      process.stdout.write(ui.color('> ', 'cyan'));
+    });
   }
 
   /**

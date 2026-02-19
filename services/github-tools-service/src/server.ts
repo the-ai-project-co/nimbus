@@ -4,13 +4,14 @@
  * HTTP server for GitHub API operations
  */
 
-import { logger } from '@nimbus/shared-utils';
+import { logger, serviceAuthMiddleware, SimpleRateLimiter, rateLimitMiddleware } from '@nimbus/shared-utils';
 import { healthHandler } from './routes/health';
 import {
   listPRsHandler,
   getPRHandler,
   createPRHandler,
   mergePRHandler,
+  createPRReviewHandler,
   listIssuesHandler,
   getIssueHandler,
   createIssueHandler,
@@ -61,6 +62,522 @@ function addCorsHeaders(response: Response): Response {
   });
 }
 
+const SWAGGER_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Nimbus GitHub Tools Service API</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>SwaggerUIBundle({ url: '/api/openapi.json', dom_id: '#swagger-ui' });</script>
+</body>
+</html>`;
+
+const OPENAPI_SPEC = {
+  openapi: '3.0.3',
+  info: {
+    title: 'Nimbus GitHub Tools Service API',
+    version: '0.1.0',
+    description: 'GitHub operations service for Nimbus. Provides HTTP endpoints for managing GitHub pull requests, issues, repositories, branches, GitHub Actions workflows, and releases via the GitHub API.',
+  },
+  servers: [{ url: 'http://localhost:3011', description: 'Local development' }],
+  components: {
+    securitySchemes: {
+      BearerAuth: { type: 'http', scheme: 'bearer', description: 'GitHub personal access token' },
+    },
+    schemas: {
+      SuccessResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: { type: 'object' },
+        },
+      },
+      ErrorResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: false },
+          error: { type: 'string' },
+        },
+      },
+      HealthResponse: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', example: 'healthy' },
+          service: { type: 'string', example: 'github-tools-service' },
+          version: { type: 'string', example: '0.1.0' },
+          timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+      OwnerRepoParams: {
+        type: 'object',
+        properties: {
+          owner: { type: 'string', description: 'Repository owner' },
+          repo: { type: 'string', description: 'Repository name' },
+        },
+      },
+      CreatePRRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'title', 'head', 'base'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          title: { type: 'string', description: 'PR title' },
+          head: { type: 'string', description: 'Source branch' },
+          base: { type: 'string', description: 'Target branch' },
+          body: { type: 'string', description: 'PR description' },
+          draft: { type: 'boolean', description: 'Create as draft' },
+        },
+      },
+      MergePRRequest: {
+        type: 'object',
+        required: ['owner', 'repo'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          commit_title: { type: 'string', description: 'Merge commit title' },
+          commit_message: { type: 'string', description: 'Merge commit message' },
+          merge_method: { type: 'string', enum: ['merge', 'squash', 'rebase'], description: 'Merge strategy' },
+        },
+      },
+      CreatePRReviewRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'event'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          event: { type: 'string', enum: ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'], description: 'Review event type' },
+          body: { type: 'string', description: 'Review comment' },
+        },
+      },
+      CreateIssueRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'title'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          title: { type: 'string', description: 'Issue title' },
+          body: { type: 'string', description: 'Issue body' },
+          labels: { type: 'array', items: { type: 'string' }, description: 'Labels to add' },
+          assignees: { type: 'array', items: { type: 'string' }, description: 'Assignees' },
+          milestone: { type: 'integer', description: 'Milestone number' },
+        },
+      },
+      AddCommentRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'body'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          body: { type: 'string', description: 'Comment text' },
+        },
+      },
+      CreateBranchRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'branch', 'sha'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          branch: { type: 'string', description: 'New branch name' },
+          sha: { type: 'string', description: 'Commit SHA to branch from' },
+        },
+      },
+      TriggerWorkflowRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'workflow_id', 'ref'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          workflow_id: { oneOf: [{ type: 'string' }, { type: 'integer' }], description: 'Workflow ID or filename' },
+          ref: { type: 'string', description: 'Branch or tag reference' },
+          inputs: { type: 'object', additionalProperties: { type: 'string' }, description: 'Workflow input parameters' },
+        },
+      },
+      CreateReleaseRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'tag_name'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          tag_name: { type: 'string', description: 'Tag for the release' },
+          target_commitish: { type: 'string', description: 'Target commit or branch' },
+          name: { type: 'string', description: 'Release name' },
+          body: { type: 'string', description: 'Release notes' },
+          draft: { type: 'boolean' },
+          prerelease: { type: 'boolean' },
+          generate_release_notes: { type: 'boolean', description: 'Auto-generate notes' },
+        },
+      },
+      GenerateNotesRequest: {
+        type: 'object',
+        required: ['owner', 'repo', 'tag_name'],
+        properties: {
+          owner: { type: 'string' },
+          repo: { type: 'string' },
+          tag_name: { type: 'string', description: 'Tag name for the release' },
+          previous_tag_name: { type: 'string', description: 'Previous tag for comparison' },
+          target_commitish: { type: 'string' },
+        },
+      },
+    },
+  },
+  security: [{ BearerAuth: [] }],
+  paths: {
+    '/health': {
+      get: {
+        tags: ['Health'], summary: 'Health check', operationId: 'healthCheck', security: [],
+        responses: { '200': { description: 'Healthy', content: { 'application/json': { schema: { $ref: '#/components/schemas/HealthResponse' } } } } },
+      },
+    },
+    '/api/github/user': {
+      get: {
+        tags: ['User'], summary: 'Get authenticated user', description: 'Validate the GitHub token and return user info.',
+        operationId: 'getUser',
+        responses: {
+          '200': { description: 'User info', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Missing auth token', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/prs': {
+      get: {
+        tags: ['Pull Requests'], summary: 'List PRs', operationId: 'listPRs',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'state', in: 'query', schema: { type: 'string', enum: ['open', 'closed', 'all'], default: 'open' } },
+          { name: 'per_page', in: 'query', schema: { type: 'integer', default: 30 } },
+        ],
+        responses: {
+          '200': { description: 'PR list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing owner/repo', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      post: {
+        tags: ['Pull Requests'], summary: 'Create PR', operationId: 'createPR',
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePRRequest' } } } },
+        responses: {
+          '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing required fields', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/prs/{number}': {
+      get: {
+        tags: ['Pull Requests'], summary: 'Get PR', operationId: 'getPR',
+        parameters: [
+          { name: 'number', in: 'path', required: true, schema: { type: 'integer' } },
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'PR details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/prs/{number}/merge': {
+      post: {
+        tags: ['Pull Requests'], summary: 'Merge PR', operationId: 'mergePR',
+        parameters: [{ name: 'number', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/MergePRRequest' } } } },
+        responses: {
+          '200': { description: 'Merged', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing required fields', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/prs/{number}/reviews': {
+      post: {
+        tags: ['Pull Requests'], summary: 'Create PR review', operationId: 'createPRReview',
+        parameters: [{ name: 'number', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreatePRReviewRequest' } } } },
+        responses: {
+          '201': { description: 'Review created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Invalid event type', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/issues': {
+      get: {
+        tags: ['Issues'], summary: 'List issues', operationId: 'listIssues',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'state', in: 'query', schema: { type: 'string', enum: ['open', 'closed', 'all'], default: 'open' } },
+          { name: 'per_page', in: 'query', schema: { type: 'integer', default: 30 } },
+        ],
+        responses: {
+          '200': { description: 'Issue list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing owner/repo', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      post: {
+        tags: ['Issues'], summary: 'Create issue', operationId: 'createIssue',
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateIssueRequest' } } } },
+        responses: {
+          '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing required fields', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/issues/{number}': {
+      get: {
+        tags: ['Issues'], summary: 'Get issue', operationId: 'getIssue',
+        parameters: [
+          { name: 'number', in: 'path', required: true, schema: { type: 'integer' } },
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Issue details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/issues/{number}/close': {
+      put: {
+        tags: ['Issues'], summary: 'Close issue', operationId: 'closeIssue',
+        parameters: [
+          { name: 'number', in: 'path', required: true, schema: { type: 'integer' } },
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Closed', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/issues/{number}/comments': {
+      post: {
+        tags: ['Issues'], summary: 'Add comment to issue', operationId: 'addComment',
+        parameters: [{ name: 'number', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/AddCommentRequest' } } } },
+        responses: {
+          '201': { description: 'Comment added', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing body', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/repos': {
+      get: {
+        tags: ['Repository'], summary: 'Get repo info', operationId: 'getRepo',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Repo info', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/repos/branches': {
+      get: {
+        tags: ['Repository'], summary: 'List branches', operationId: 'listBranches',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'per_page', in: 'query', schema: { type: 'integer', default: 30 } },
+        ],
+        responses: {
+          '200': { description: 'Branch list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      post: {
+        tags: ['Repository'], summary: 'Create branch', operationId: 'createBranch',
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateBranchRequest' } } } },
+        responses: {
+          '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing required fields', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      delete: {
+        tags: ['Repository'], summary: 'Delete branch', operationId: 'deleteBranch',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'branch', in: 'query', required: true, schema: { type: 'string' }, description: 'Branch name to delete' },
+        ],
+        responses: {
+          '200': { description: 'Deleted', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing parameters', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/actions/workflows': {
+      get: {
+        tags: ['Actions'], summary: 'List workflows', operationId: 'listWorkflows',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'per_page', in: 'query', schema: { type: 'integer', default: 30 } },
+        ],
+        responses: {
+          '200': { description: 'Workflow list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/actions/runs': {
+      get: {
+        tags: ['Actions'], summary: 'List workflow runs', operationId: 'listWorkflowRuns',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'workflow_id', in: 'query', schema: { type: 'string' } },
+          { name: 'branch', in: 'query', schema: { type: 'string' } },
+          { name: 'event', in: 'query', schema: { type: 'string' } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['queued', 'in_progress', 'completed', 'requested', 'waiting'] } },
+          { name: 'per_page', in: 'query', schema: { type: 'integer', default: 30 } },
+        ],
+        responses: {
+          '200': { description: 'Run list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/actions/runs/{runId}': {
+      get: {
+        tags: ['Actions'], summary: 'Get workflow run', operationId: 'getWorkflowRun',
+        parameters: [
+          { name: 'runId', in: 'path', required: true, schema: { type: 'integer' } },
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Run details', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/actions/trigger': {
+      post: {
+        tags: ['Actions'], summary: 'Trigger workflow', operationId: 'triggerWorkflow',
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/TriggerWorkflowRequest' } } } },
+        responses: {
+          '202': { description: 'Triggered', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing required fields', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/actions/runs/{runId}/cancel': {
+      post: {
+        tags: ['Actions'], summary: 'Cancel workflow run', operationId: 'cancelWorkflowRun',
+        parameters: [{ name: 'runId', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['owner', 'repo'], properties: { owner: { type: 'string' }, repo: { type: 'string' } } } } } },
+        responses: {
+          '200': { description: 'Cancelled', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/actions/runs/{runId}/rerun': {
+      post: {
+        tags: ['Actions'], summary: 'Re-run workflow', operationId: 'rerunWorkflow',
+        parameters: [{ name: 'runId', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['owner', 'repo'], properties: { owner: { type: 'string' }, repo: { type: 'string' } } } } } },
+        responses: {
+          '200': { description: 'Re-run triggered', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/releases': {
+      get: {
+        tags: ['Releases'], summary: 'List releases', operationId: 'listReleases',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'per_page', in: 'query', schema: { type: 'integer', default: 30 } },
+        ],
+        responses: {
+          '200': { description: 'Release list', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+      post: {
+        tags: ['Releases'], summary: 'Create release', operationId: 'createRelease',
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateReleaseRequest' } } } },
+        responses: {
+          '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing required fields', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/releases/latest': {
+      get: {
+        tags: ['Releases'], summary: 'Latest release', operationId: 'getLatestRelease',
+        parameters: [
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Latest release', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/releases/tag/{tag}': {
+      get: {
+        tags: ['Releases'], summary: 'Get release by tag', operationId: 'getReleaseByTag',
+        parameters: [
+          { name: 'tag', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Release', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/releases/{releaseId}': {
+      delete: {
+        tags: ['Releases'], summary: 'Delete release', operationId: 'deleteRelease',
+        parameters: [
+          { name: 'releaseId', in: 'path', required: true, schema: { type: 'integer' } },
+          { name: 'owner', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'repo', in: 'query', required: true, schema: { type: 'string' } },
+        ],
+        responses: {
+          '200': { description: 'Deleted', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/api/github/releases/notes': {
+      post: {
+        tags: ['Releases'], summary: 'Generate release notes', operationId: 'generateReleaseNotes',
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/GenerateNotesRequest' } } } },
+        responses: {
+          '200': { description: 'Generated notes', content: { 'application/json': { schema: { $ref: '#/components/schemas/SuccessResponse' } } } },
+          '400': { description: 'Missing required fields', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+  },
+};
+
+const limiter = new SimpleRateLimiter({ requestsPerMinute: 120 });
+const checkRateLimit = rateLimitMiddleware(limiter);
+
 export async function startServer(port: number) {
   const server = Bun.serve({
     port,
@@ -74,6 +591,16 @@ export async function startServer(port: number) {
         return addCorsHeaders(new Response(null, { status: 204 }));
       }
 
+      // Swagger UI
+      if (path === '/swagger' || path === '/swagger/') {
+        return addCorsHeaders(new Response(SWAGGER_HTML, { headers: { 'Content-Type': 'text/html' } }));
+      }
+
+      // OpenAPI spec
+      if (path === '/api/openapi.json') {
+        return addCorsHeaders(Response.json(OPENAPI_SPEC));
+      }
+
       let response: Response;
 
       // Health check endpoint
@@ -81,6 +608,14 @@ export async function startServer(port: number) {
         response = Response.json(healthHandler());
         return addCorsHeaders(response);
       }
+
+      // Service-to-service authentication
+      const authResponse = serviceAuthMiddleware(req);
+      if (authResponse) return addCorsHeaders(authResponse);
+
+      // Rate limiting
+      const rateLimitResponse = checkRateLimit(req);
+      if (rateLimitResponse) return addCorsHeaders(rateLimitResponse);
 
       // ==========================================
       // Pull Request Routes
@@ -96,6 +631,16 @@ export async function startServer(port: number) {
       if (path === '/api/github/prs' && method === 'POST') {
         response = await createPRHandler(req);
         return addCorsHeaders(response);
+      }
+
+      // POST /api/github/prs/:number/reviews - Create PR review
+      const createReviewMatch = path.match(/^\/api\/github\/prs\/(\d+)\/reviews$/);
+      if (createReviewMatch && method === 'POST') {
+        const prNumber = parseNumber(createReviewMatch[1]);
+        if (prNumber) {
+          response = await createPRReviewHandler(req, prNumber);
+          return addCorsHeaders(response);
+        }
       }
 
       // GET /api/github/prs/:number - Get PR
@@ -307,34 +852,18 @@ export async function startServer(port: number) {
   });
 
   logger.info(`GitHub Tools Service HTTP server listening on port ${port}`);
-  logger.info('Available routes:');
-  logger.info('  - GET  /health');
-  logger.info('  - GET  /api/github/user');
-  logger.info('  - GET  /api/github/prs');
-  logger.info('  - POST /api/github/prs');
-  logger.info('  - GET  /api/github/prs/:number');
-  logger.info('  - POST /api/github/prs/:number/merge');
-  logger.info('  - GET  /api/github/issues');
-  logger.info('  - POST /api/github/issues');
-  logger.info('  - GET  /api/github/issues/:number');
-  logger.info('  - PUT  /api/github/issues/:number/close');
-  logger.info('  - POST /api/github/issues/:number/comments');
-  logger.info('  - GET  /api/github/repos');
-  logger.info('  - GET  /api/github/repos/branches');
-  logger.info('  - POST /api/github/repos/branches');
-  logger.info('  - DELETE /api/github/repos/branches');
-  logger.info('  - GET  /api/github/actions/workflows');
-  logger.info('  - GET  /api/github/actions/runs');
-  logger.info('  - GET  /api/github/actions/runs/:runId');
-  logger.info('  - POST /api/github/actions/trigger');
-  logger.info('  - POST /api/github/actions/runs/:runId/cancel');
-  logger.info('  - POST /api/github/actions/runs/:runId/rerun');
-  logger.info('  - GET  /api/github/releases');
-  logger.info('  - GET  /api/github/releases/latest');
-  logger.info('  - GET  /api/github/releases/tag/:tag');
-  logger.info('  - POST /api/github/releases');
-  logger.info('  - DELETE /api/github/releases/:releaseId');
-  logger.info('  - POST /api/github/releases/notes');
+
+  // Graceful shutdown handlers
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully...');
+    server.stop();
+    process.exit(0);
+  });
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down...');
+    server.stop();
+    process.exit(0);
+  });
 
   return server;
 }

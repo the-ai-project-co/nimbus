@@ -238,13 +238,72 @@ async function applyWithService(options: ApplyK8sOptions): Promise<void> {
   // Wait for resources to be ready
   if (options.wait) {
     ui.newLine();
-    ui.startSpinner({ message: 'Waiting for resources to be ready...' });
-
-    // TODO: Implement wait logic via k8sClient
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    ui.stopSpinnerSuccess('Resources ready');
+    await waitForResources(resources, options.namespace);
   }
+}
+
+/**
+ * Wait for rollout resources to be ready by polling kubectl rollout status
+ * via the k8s tools service. Only Deployments, StatefulSets, and DaemonSets
+ * are tracked; other resource kinds are skipped.
+ */
+async function waitForResources(
+  resources: Array<{ kind: string; name: string; namespace?: string }>,
+  defaultNamespace?: string
+): Promise<void> {
+  const rolloutKinds = ['Deployment', 'StatefulSet', 'DaemonSet'];
+  const rolloutResources = resources.filter(r => rolloutKinds.includes(r.kind));
+
+  if (rolloutResources.length === 0) {
+    ui.success('All resources applied (no rollout resources to wait for)');
+    return;
+  }
+
+  ui.startSpinner({ message: `Waiting for ${rolloutResources.length} resource(s) to be ready...` });
+
+  const timeout = 120_000; // 120 seconds
+  const pollInterval = 2_000; // 2 seconds
+  const startTime = Date.now();
+  let readyCount = 0;
+  const readySet = new Set<string>();
+
+  while (readyCount < rolloutResources.length) {
+    if (Date.now() - startTime > timeout) {
+      const pending = rolloutResources
+        .filter(r => !readySet.has(`${r.kind}/${r.name}`))
+        .map(r => `${r.kind}/${r.name}`);
+      ui.stopSpinnerFail(`Timeout: ${pending.join(', ')} not ready after ${timeout / 1000}s`);
+      return;
+    }
+
+    for (const resource of rolloutResources) {
+      const key = `${resource.kind}/${resource.name}`;
+      if (readySet.has(key)) continue;
+
+      try {
+        const result = await k8sClient.rollout(
+          resource.kind.toLowerCase(),
+          resource.name,
+          'status',
+          { namespace: resource.namespace || defaultNamespace }
+        );
+
+        if (result.success && result.output && result.output.includes('successfully rolled out')) {
+          readySet.add(key);
+          readyCount++;
+        }
+      } catch {
+        // Not ready yet, continue polling
+      }
+    }
+
+    if (readyCount < rolloutResources.length) {
+      ui.updateSpinner(`Waiting: ${readyCount}/${rolloutResources.length} resources ready...`);
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+  }
+
+  ui.stopSpinnerSuccess(`All ${rolloutResources.length} resource(s) ready`);
 }
 
 /**

@@ -1,0 +1,32 @@
+{
+  "name": "@nimbus/azure-tools-service",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Azure Tools Service for Nimbus",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "lint": "echo 'Lint not configured yet'",
+    "type-check": "tsc --noEmit",
+    "build": "bun build src/index.ts --outdir=dist --target=bun"
+  },
+  "dependencies": {
+    "@azure/arm-compute": "^23.3.0",
+    "@azure/arm-storage": "^19.1.0",
+    "@azure/arm-containerservice": "^24.1.0",
+    "@azure/arm-network": "^36.0.0",
+    "@azure/arm-resources": "^7.0.0",
+    "@azure/arm-subscriptions": "^6.0.0",
+    "@azure/identity": "^4.13.0",
+    "@nimbus/shared-clients": "workspace:*",
+    "@nimbus/shared-types": "workspace:*",
+    "@nimbus/shared-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.3.3"
+  }
+}

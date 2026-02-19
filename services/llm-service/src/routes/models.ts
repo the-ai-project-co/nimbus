@@ -13,7 +13,7 @@ export function createModelsRoutes(router: LLMRouter) {
    */
   async function modelsHandler(req: Request): Promise<Response> {
     try {
-      const models = router.getAvailableModels();
+      const models = await router.getAvailableModels();
 
       logger.info('Models list requested', {
         providerCount: Object.keys(models).length,

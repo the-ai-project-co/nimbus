@@ -117,9 +117,16 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async countTokens(text: string): Promise<number> {
-    // Anthropic doesn't have a public tokenizer API
-    // Use approximation: ~4 characters per token
-    return Math.ceil(text.length / 4);
+    try {
+      const response = await this.client.messages.count_tokens({
+        model: this.defaultModel,
+        messages: [{ role: 'user', content: text }],
+      });
+      return response.input_tokens;
+    } catch {
+      // Fallback to approximation if API call fails
+      return Math.ceil(text.length / 4);
+    }
   }
 
   getMaxTokens(model: string): number {
@@ -131,6 +138,16 @@ export class AnthropicProvider extends BaseProvider {
       'claude-3-5-haiku-20241022': 8192,
     };
     return limits[model] || 4096;
+  }
+
+  async listModels(): Promise<string[]> {
+    return [
+      'claude-sonnet-4-20250514',
+      'claude-haiku-4-20250514',
+      'claude-opus-4-20250514',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+    ];
   }
 
   /**

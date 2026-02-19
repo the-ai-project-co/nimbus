@@ -35,6 +35,9 @@ export class Wizard<TContext extends Record<string, any>> {
   private context: TContext;
   private completedSteps: string[] = [];
   private cancelled: boolean = false;
+  private stepHistory: number[] = [];
+  private contextSnapshots: Map<number, TContext> = new Map();
+  private currentStepIndex: number = 0;
 
   constructor(config: WizardConfig<TContext>) {
     this.config = config;
@@ -51,16 +54,24 @@ export class Wizard<TContext extends Record<string, any>> {
       // Display header
       ui.header(this.config.title, this.config.description);
 
-      // Run each step
-      for (const step of this.config.steps) {
+      const steps = this.config.steps;
+      this.currentStepIndex = 0;
+
+      while (this.currentStepIndex < steps.length) {
         if (this.cancelled) {
           break;
         }
 
+        const step = steps[this.currentStepIndex];
+
         // Check step condition
         if (step.condition && !step.condition(this.context)) {
+          this.currentStepIndex++;
           continue;
         }
+
+        // Save context snapshot before executing step (for back navigation)
+        this.contextSnapshots.set(this.currentStepIndex, { ...this.context });
 
         // Execute step
         const result = await this.runStep(step);
@@ -68,6 +79,7 @@ export class Wizard<TContext extends Record<string, any>> {
         if (!result.success) {
           if (step.canSkip) {
             ui.warning(`Skipping step: ${step.title}`);
+            this.currentStepIndex++;
             continue;
           }
 
@@ -80,6 +92,7 @@ export class Wizard<TContext extends Record<string, any>> {
         }
 
         this.completedSteps.push(step.id);
+        this.stepHistory.push(this.currentStepIndex);
 
         // Handle step navigation
         if (result.skipRemaining) {
@@ -87,9 +100,15 @@ export class Wizard<TContext extends Record<string, any>> {
         }
 
         if (result.nextStep) {
-          // Jump to specific step (not implemented in this version)
-          // Could be extended to support step jumping
+          // Jump to specific step by id
+          const targetIdx = steps.findIndex(s => s.id === result.nextStep);
+          if (targetIdx >= 0) {
+            this.currentStepIndex = targetIdx;
+            continue;
+          }
         }
+
+        this.currentStepIndex++;
       }
 
       if (this.cancelled) {
@@ -177,6 +196,48 @@ export class Wizard<TContext extends Record<string, any>> {
    */
   updateContext(update: Partial<TContext>): void {
     this.context = { ...this.context, ...update };
+  }
+
+  /**
+   * Go back to the previous step, restoring its context snapshot.
+   * Returns true if navigation succeeded, false if there is no previous step.
+   */
+  goBack(): boolean {
+    if (this.stepHistory.length === 0) {
+      return false;
+    }
+
+    const previousIndex = this.stepHistory.pop()!;
+
+    // Restore context snapshot from before the previous step executed
+    const snapshot = this.contextSnapshots.get(previousIndex);
+    if (snapshot) {
+      this.context = { ...snapshot };
+    }
+
+    // Remove the step from completed steps
+    const step = this.config.steps[previousIndex];
+    const completedIdx = this.completedSteps.lastIndexOf(step.id);
+    if (completedIdx >= 0) {
+      this.completedSteps.splice(completedIdx, 1);
+    }
+
+    this.currentStepIndex = previousIndex;
+    return true;
+  }
+
+  /**
+   * Check if back navigation is possible
+   */
+  canGoBack(): boolean {
+    return this.stepHistory.length > 0;
+  }
+
+  /**
+   * Get the current step index (zero-based)
+   */
+  getCurrentStepIndex(): number {
+    return this.currentStepIndex;
   }
 
   /**

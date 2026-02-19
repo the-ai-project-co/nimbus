@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { EC2Operations } from './aws/ec2';
 import { S3Operations } from './aws/s3';
 import { IAMOperations } from './aws/iam';
+import { CloudFormationOperations } from './aws/cloudformation';
 import { logger } from '@nimbus/shared-utils';
 import { type DiscoveryConfig } from './discovery';
 import {
@@ -207,6 +208,31 @@ async function handleStartInstances(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * POST /api/aws/ec2/instance/start - Start a single EC2 instance
+ */
+async function handleStartInstance(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ instanceId: string; region?: string }>(ctx.req);
+
+    if (!body.instanceId) {
+      return error('Missing required field: instanceId', 400);
+    }
+
+    const ec2 = new EC2Operations({ region: body.region });
+    const result = await ec2.startInstance(body.instanceId);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to start instance', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Start instance failed', err);
+    return error(err.message);
+  }
+}
+
+/**
  * POST /api/aws/ec2/instances/stop - Stop EC2 instances
  */
 async function handleStopInstances(ctx: RouteContext): Promise<Response> {
@@ -227,6 +253,31 @@ async function handleStopInstances(ctx: RouteContext): Promise<Response> {
     return success(result.data);
   } catch (err: any) {
     logger.error('Stop instances failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/ec2/instance/stop - Stop a single EC2 instance
+ */
+async function handleStopInstance(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ instanceId: string; force?: boolean; region?: string }>(ctx.req);
+
+    if (!body.instanceId) {
+      return error('Missing required field: instanceId', 400);
+    }
+
+    const ec2 = new EC2Operations({ region: body.region });
+    const result = await ec2.stopInstance(body.instanceId, body.force);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to stop instance', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Stop instance failed', err);
     return error(err.message);
   }
 }
@@ -277,6 +328,31 @@ async function handleTerminateInstances(ctx: RouteContext): Promise<Response> {
     return success(result.data);
   } catch (err: any) {
     logger.error('Terminate instances failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/ec2/instance/terminate - Terminate a single EC2 instance
+ */
+async function handleTerminateInstance(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{ instanceId: string; region?: string }>(ctx.req);
+
+    if (!body.instanceId) {
+      return error('Missing required field: instanceId', 400);
+    }
+
+    const ec2 = new EC2Operations({ region: body.region });
+    const result = await ec2.terminateInstance(body.instanceId);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to terminate instance', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Terminate instance failed', err);
     return error(err.message);
   }
 }
@@ -399,6 +475,68 @@ async function handleListSecurityGroups(ctx: RouteContext): Promise<Response> {
     return success(result.data);
   } catch (err: any) {
     logger.error('List security groups failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/ec2/security-groups/describe - Describe security groups with filters
+ */
+async function handleDescribeSecurityGroups(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      filters?: Record<string, string[]>;
+      region?: string;
+    }>(ctx.req);
+
+    const ec2 = new EC2Operations({ region: body.region });
+    const result = await ec2.describeSecurityGroups(body.filters);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to describe security groups', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Describe security groups failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/ec2/instance/modify-attribute - Modify instance attribute
+ */
+async function handleModifyInstanceAttribute(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      instanceId: string;
+      attribute: string;
+      value: string;
+      region?: string;
+    }>(ctx.req);
+
+    if (!body.instanceId) {
+      return error('Missing required field: instanceId', 400);
+    }
+
+    if (!body.attribute) {
+      return error('Missing required field: attribute', 400);
+    }
+
+    if (body.value === undefined || body.value === null) {
+      return error('Missing required field: value', 400);
+    }
+
+    const ec2 = new EC2Operations({ region: body.region });
+    const result = await ec2.modifyInstanceAttribute(body.instanceId, body.attribute, body.value);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to modify instance attribute', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Modify instance attribute failed', err);
     return error(err.message);
   }
 }
@@ -572,6 +710,54 @@ async function handleDeleteObject(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * POST /api/aws/s3/object/copy - Copy S3 object
+ */
+async function handleCopyObject(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      sourceBucket: string;
+      sourceKey: string;
+      destinationBucket: string;
+      destinationKey: string;
+      region?: string;
+    }>(ctx.req);
+
+    if (!body.sourceBucket) {
+      return error('Missing required field: sourceBucket', 400);
+    }
+
+    if (!body.sourceKey) {
+      return error('Missing required field: sourceKey', 400);
+    }
+
+    if (!body.destinationBucket) {
+      return error('Missing required field: destinationBucket', 400);
+    }
+
+    if (!body.destinationKey) {
+      return error('Missing required field: destinationKey', 400);
+    }
+
+    const s3 = new S3Operations({ region: body.region });
+    const result = await s3.copyObject({
+      sourceBucket: body.sourceBucket,
+      sourceKey: body.sourceKey,
+      destinationBucket: body.destinationBucket,
+      destinationKey: body.destinationKey,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to copy object', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Copy object failed', err);
+    return error(err.message);
+  }
+}
+
+/**
  * POST /api/aws/s3/bucket - Create S3 bucket
  */
 async function handleCreateBucket(ctx: RouteContext): Promise<Response> {
@@ -657,12 +843,8 @@ async function handleListUsers(ctx: RouteContext): Promise<Response> {
  */
 async function handleGetUser(ctx: RouteContext): Promise<Response> {
   try {
-    const userName = ctx.url.searchParams.get('userName');
+    const userName = ctx.url.searchParams.get('userName') || undefined;
     const region = ctx.url.searchParams.get('region') || undefined;
-
-    if (!userName) {
-      return error('Missing required query parameter: userName', 400);
-    }
 
     const iam = new IAMOperations({ region });
     const result = await iam.getUser(userName);
@@ -789,6 +971,125 @@ async function handleGetRole(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * POST /api/aws/iam/role - Create IAM role
+ */
+async function handleCreateRole(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      roleName: string;
+      assumeRolePolicyDocument: string;
+      description?: string;
+      path?: string;
+      maxSessionDuration?: number;
+      tags?: Record<string, string>;
+      region?: string;
+    }>(ctx.req);
+
+    if (!body.roleName) {
+      return error('Missing required field: roleName', 400);
+    }
+
+    if (!body.assumeRolePolicyDocument) {
+      return error('Missing required field: assumeRolePolicyDocument', 400);
+    }
+
+    const iam = new IAMOperations({ region: body.region });
+    const result = await iam.createRole({
+      roleName: body.roleName,
+      assumeRolePolicyDocument: body.assumeRolePolicyDocument,
+      description: body.description,
+      path: body.path,
+      maxSessionDuration: body.maxSessionDuration,
+      tags: body.tags,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to create role', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Create role failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/iam/policy - Create IAM policy
+ */
+async function handleCreatePolicy(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      policyName: string;
+      policyDocument: string;
+      description?: string;
+      path?: string;
+      tags?: Record<string, string>;
+      region?: string;
+    }>(ctx.req);
+
+    if (!body.policyName) {
+      return error('Missing required field: policyName', 400);
+    }
+
+    if (!body.policyDocument) {
+      return error('Missing required field: policyDocument', 400);
+    }
+
+    const iam = new IAMOperations({ region: body.region });
+    const result = await iam.createPolicy({
+      policyName: body.policyName,
+      policyDocument: body.policyDocument,
+      description: body.description,
+      path: body.path,
+      tags: body.tags,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to create policy', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Create policy failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * POST /api/aws/iam/role/attach-policy - Attach policy to role
+ */
+async function handleAttachRolePolicy(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      roleName: string;
+      policyArn: string;
+      region?: string;
+    }>(ctx.req);
+
+    if (!body.roleName) {
+      return error('Missing required field: roleName', 400);
+    }
+
+    if (!body.policyArn) {
+      return error('Missing required field: policyArn', 400);
+    }
+
+    const iam = new IAMOperations({ region: body.region });
+    const result = await iam.attachRolePolicy(body.roleName, body.policyArn);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to attach role policy', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Attach role policy failed', err);
+    return error(err.message);
+  }
+}
+
+/**
  * GET /api/aws/iam/policies - List IAM policies
  */
 async function handleListPolicies(ctx: RouteContext): Promise<Response> {
@@ -842,6 +1143,166 @@ async function handleListGroups(ctx: RouteContext): Promise<Response> {
     return success(result.data);
   } catch (err: any) {
     logger.error('List groups failed', err);
+    return error(err.message);
+  }
+}
+
+// ==================== CloudFormation Handlers ====================
+
+/**
+ * POST /api/aws/cloudformation/stacks - Create CloudFormation stack
+ */
+async function handleCreateStack(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      stackName: string;
+      templateBody: string;
+      parameters?: Record<string, string>;
+      capabilities?: string[];
+      tags?: Record<string, string>;
+      timeoutInMinutes?: number;
+      onFailure?: 'DO_NOTHING' | 'ROLLBACK' | 'DELETE';
+      region?: string;
+    }>(ctx.req);
+
+    if (!body.stackName) {
+      return error('Missing required field: stackName', 400);
+    }
+
+    if (!body.templateBody) {
+      return error('Missing required field: templateBody', 400);
+    }
+
+    const cf = new CloudFormationOperations({ region: body.region });
+    const result = await cf.createStack({
+      stackName: body.stackName,
+      templateBody: body.templateBody,
+      parameters: body.parameters,
+      capabilities: body.capabilities,
+      tags: body.tags,
+      timeoutInMinutes: body.timeoutInMinutes,
+      onFailure: body.onFailure,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to create stack', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Create stack failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * PUT /api/aws/cloudformation/stacks - Update CloudFormation stack
+ */
+async function handleUpdateStack(ctx: RouteContext): Promise<Response> {
+  try {
+    const body = await parseBody<{
+      stackName: string;
+      templateBody: string;
+      parameters?: Record<string, string>;
+      capabilities?: string[];
+      tags?: Record<string, string>;
+      region?: string;
+    }>(ctx.req);
+
+    if (!body.stackName) {
+      return error('Missing required field: stackName', 400);
+    }
+
+    if (!body.templateBody) {
+      return error('Missing required field: templateBody', 400);
+    }
+
+    const cf = new CloudFormationOperations({ region: body.region });
+    const result = await cf.updateStack({
+      stackName: body.stackName,
+      templateBody: body.templateBody,
+      parameters: body.parameters,
+      capabilities: body.capabilities,
+      tags: body.tags,
+    });
+
+    if (!result.success) {
+      return error(result.error || 'Failed to update stack', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Update stack failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * DELETE /api/aws/cloudformation/stacks - Delete CloudFormation stack
+ */
+async function handleDeleteStack(ctx: RouteContext): Promise<Response> {
+  try {
+    const stackName = ctx.url.searchParams.get('stackName');
+    const region = ctx.url.searchParams.get('region') || undefined;
+
+    if (!stackName) {
+      return error('Missing required query parameter: stackName', 400);
+    }
+
+    const cf = new CloudFormationOperations({ region });
+    const result = await cf.deleteStack(stackName);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to delete stack', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Delete stack failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/cloudformation/stacks - Describe / list CloudFormation stacks
+ */
+async function handleDescribeStacks(ctx: RouteContext): Promise<Response> {
+  try {
+    const stackName = ctx.url.searchParams.get('stackName') || undefined;
+    const region = ctx.url.searchParams.get('region') || undefined;
+
+    const cf = new CloudFormationOperations({ region });
+    const result = await cf.describeStacks(stackName);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to describe stacks', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('Describe stacks failed', err);
+    return error(err.message);
+  }
+}
+
+/**
+ * GET /api/aws/cloudformation/stacks/list - List CloudFormation stacks with status filter
+ */
+async function handleListStacks(ctx: RouteContext): Promise<Response> {
+  try {
+    const statusFilter = ctx.url.searchParams.get('statusFilter')?.split(',').filter(Boolean);
+    const region = ctx.url.searchParams.get('region') || undefined;
+
+    const cf = new CloudFormationOperations({ region });
+    const result = await cf.listStacks(statusFilter);
+
+    if (!result.success) {
+      return error(result.error || 'Failed to list stacks', 500);
+    }
+
+    return success(result.data);
+  } catch (err: any) {
+    logger.error('List stacks failed', err);
     return error(err.message);
   }
 }
@@ -1295,6 +1756,16 @@ export async function router(req: Request): Promise<Response> {
           return handleTerminateInstances(ctx);
         case '/instances/run':
           return handleRunInstances(ctx);
+        case '/instance/start':
+          return handleStartInstance(ctx);
+        case '/instance/stop':
+          return handleStopInstance(ctx);
+        case '/instance/terminate':
+          return handleTerminateInstance(ctx);
+        case '/instance/modify-attribute':
+          return handleModifyInstanceAttribute(ctx);
+        case '/security-groups/describe':
+          return handleDescribeSecurityGroups(ctx);
       }
     }
   }
@@ -1318,6 +1789,8 @@ export async function router(req: Request): Promise<Response> {
       switch (route) {
         case '/object':
           return handlePutObject(ctx);
+        case '/object/copy':
+          return handleCopyObject(ctx);
         case '/bucket':
           return handleCreateBucket(ctx);
       }
@@ -1358,6 +1831,12 @@ export async function router(req: Request): Promise<Response> {
       switch (route) {
         case '/user':
           return handleCreateUser(ctx);
+        case '/role':
+          return handleCreateRole(ctx);
+        case '/policy':
+          return handleCreatePolicy(ctx);
+        case '/role/attach-policy':
+          return handleAttachRolePolicy(ctx);
       }
     }
 
@@ -1365,6 +1844,41 @@ export async function router(req: Request): Promise<Response> {
       switch (route) {
         case '/user':
           return handleDeleteUser(ctx);
+      }
+    }
+  }
+
+  // CloudFormation routes
+  if (path.startsWith('/api/aws/cloudformation')) {
+    const route = path.replace('/api/aws/cloudformation', '');
+
+    if (method === 'GET') {
+      switch (route) {
+        case '/stacks':
+          return handleDescribeStacks(ctx);
+        case '/stacks/list':
+          return handleListStacks(ctx);
+      }
+    }
+
+    if (method === 'POST') {
+      switch (route) {
+        case '/stacks':
+          return handleCreateStack(ctx);
+      }
+    }
+
+    if (method === 'PUT') {
+      switch (route) {
+        case '/stacks':
+          return handleUpdateStack(ctx);
+      }
+    }
+
+    if (method === 'DELETE') {
+      switch (route) {
+        case '/stacks':
+          return handleDeleteStack(ctx);
       }
     }
   }

@@ -173,6 +173,47 @@ export async function mergePRHandler(req: Request, prNumber: number): Promise<Re
   }
 }
 
+/**
+ * POST /api/github/prs/:number/reviews - Create a review on a pull request
+ */
+export async function createPRReviewHandler(req: Request, prNumber: number): Promise<Response> {
+  const token = getToken(req);
+  if (!token) {
+    return error('Authorization header required', 401);
+  }
+
+  const body = await parseBody<{
+    owner: string;
+    repo: string;
+    event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+    body?: string;
+  }>(req);
+
+  if (!body) {
+    return error('Invalid JSON body', 400);
+  }
+
+  const { owner, repo, event: reviewEvent, body: reviewBody } = body;
+
+  if (!owner || !repo) {
+    return error('owner and repo are required', 400);
+  }
+
+  const validEvents = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'];
+  if (!reviewEvent || !validEvents.includes(reviewEvent)) {
+    return error(`event is required and must be one of: ${validEvents.join(', ')}`, 400);
+  }
+
+  try {
+    const github = new GitHubOperations(token);
+    const review = await github.createPRReview(owner, repo, prNumber, reviewEvent, reviewBody);
+    return success(review, 201);
+  } catch (err: any) {
+    logger.error('Failed to create PR review', err);
+    return error(err.message, err.status || 500);
+  }
+}
+
 // ==========================================
 // Issue Routes
 // ==========================================

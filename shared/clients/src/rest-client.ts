@@ -1,4 +1,4 @@
-import { logger, ServiceUnavailableError, TimeoutError } from '@nimbus/shared-utils';
+import { logger, ServiceUnavailableError, TimeoutError, getServiceAuthHeaders } from '@nimbus/shared-utils';
 import type { APIResponse } from '@nimbus/shared-types';
 
 export interface RestClientOptions {
@@ -21,6 +21,7 @@ export class RestClient {
     this.timeout = options.timeout || 30000;
     this.headers = {
       'Content-Type': 'application/json',
+      ...getServiceAuthHeaders(),
       ...options.headers,
     };
     this.retries = options.retries || 0;

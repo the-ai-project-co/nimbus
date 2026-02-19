@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Scanner, ScanResult, CloudInfo, ConfidenceLevel } from './types';
+import type { Scanner, ScanResult, ScanOptions, CloudInfo, ConfidenceLevel } from './types';
 
 interface CloudPattern {
   name: string;
@@ -160,7 +160,7 @@ const CLOUD_PATTERNS: CloudPattern[] = [
 export class CloudScanner implements Scanner {
   name = 'cloud';
 
-  async scan(cwd: string): Promise<ScanResult> {
+  async scan(cwd: string, _options?: ScanOptions): Promise<ScanResult> {
     const cloud = await this.detectCloud(cwd);
 
     return {

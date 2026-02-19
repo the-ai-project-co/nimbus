@@ -12,7 +12,10 @@ export class ConfigurationManager {
   private loaded: boolean = false;
 
   constructor(configPath?: string) {
-    this.configPath = configPath || path.join(os.homedir(), '.nimbus', 'config.yaml');
+    this.configPath =
+      configPath ||
+      process.env.NIMBUS_CONFIG_PATH ||
+      path.join(os.homedir(), '.nimbus', 'config.yaml');
     this.config = DEFAULT_CONFIG;
   }
 

@@ -8,6 +8,24 @@ import { logger } from '@nimbus/shared-utils';
 
 const execAsync = promisify(exec);
 
+/**
+ * Sensitive file patterns that should be blocked from access
+ */
+const SENSITIVE_PATTERNS: RegExp[] = [
+  /\.env(\.|$)/i,              // .env, .env.local, .env.production
+  /credentials/i,              // AWS credentials, any credentials file
+  /\.pem$/i,                   // PEM certificates
+  /\.key$/i,                   // Private keys
+  /id_rsa/i,                   // SSH keys
+  /id_ed25519/i,               // SSH keys (Ed25519)
+  /id_ecdsa/i,                 // SSH keys (ECDSA)
+  /\.ssh[/\\]/i,               // Anything inside .ssh directory
+  /\/etc\/shadow$/,            // Unix shadow passwords
+  /\/etc\/passwd$/,            // Unix passwords
+  /\.aws[/\\]credentials/i,   // AWS credentials file specifically
+  /\.kube[/\\]config/i,       // Kubeconfig with cluster secrets
+];
+
 export interface FileStats {
   size: number;
   isFile: boolean;
@@ -66,13 +84,35 @@ export class FileSystemOperations {
   }
 
   /**
+   * Check if a resolved path points to a sensitive file
+   */
+  private assertNotSensitive(resolvedPath: string): void {
+    if (process.env.ALLOW_SENSITIVE_FILES === 'true') {
+      return;
+    }
+
+    const normalized = path.resolve(resolvedPath);
+    const basename = path.basename(normalized);
+
+    for (const pattern of SENSITIVE_PATTERNS) {
+      if (pattern.test(basename) || pattern.test(normalized)) {
+        throw new Error(
+          `Access denied: reading sensitive file '${basename}' is blocked for security`
+        );
+      }
+    }
+  }
+
+  /**
    * Resolve path relative to base path
    */
   private resolvePath(filePath: string): string {
-    if (path.isAbsolute(filePath)) {
-      return filePath;
-    }
-    return path.resolve(this.basePath, filePath);
+    const resolved = path.isAbsolute(filePath)
+      ? filePath
+      : path.resolve(this.basePath, filePath);
+
+    this.assertNotSensitive(resolved);
+    return resolved;
   }
 
   /**

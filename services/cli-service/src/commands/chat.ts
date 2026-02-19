@@ -9,6 +9,7 @@ import { AuthStore } from '../auth/store';
 import { ui } from '../wizard/ui';
 import { GeneratorClient, type ConversationResult, type GenerationResult } from '../clients';
 import { randomUUID } from 'crypto';
+import { historyManager } from '../history';
 
 export interface ChatOptions {
   /** LLM model to use */
@@ -27,6 +28,8 @@ export interface ChatOptions {
   persona?: 'professional' | 'assistant' | 'expert';
   /** Verbosity level */
   verbosity?: 'minimal' | 'normal' | 'detailed';
+  /** UI mode */
+  ui?: 'default' | 'ink';
 }
 
 /**
@@ -36,59 +39,87 @@ export interface ChatOptions {
  *   nimbus chat                    - Start interactive chat
  *   nimbus chat --model gpt-4o     - Use specific model
  *   nimbus chat -m "Hello"         - Send single message (non-interactive)
+ *   nimbus chat --ui=ink           - Use the Ink-based rich terminal UI
  */
 export async function chatCommand(options: ChatOptions = {}): Promise<void> {
-  // Get default model from auth store if not specified
-  if (!options.model) {
-    const authStore = new AuthStore();
-    const status = authStore.getStatus();
-    // Find the default provider's model
-    const defaultProviderInfo = status.providers.find(p => p.name === status.defaultProvider);
-    options.model = defaultProviderInfo?.model;
-  }
-
-  // Read persona from config if not specified
-  if (!options.persona || !options.verbosity) {
+  // If --ui=ink is requested, attempt to launch the Ink-based chat UI.
+  // This is flag-gated and falls back gracefully if ink/react are not installed.
+  if (options.ui === 'ink') {
     try {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const { homedir } = await import('os');
-      const configPath = path.join(homedir(), '.nimbus', 'config.json');
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        if (!options.persona && config?.persona?.mode) {
-          options.persona = config.persona.mode;
+      const { startInkChat } = await import('../ui/ink/index');
+      await startInkChat({
+        model: options.model,
+        systemPrompt: options.systemPrompt,
+        showTokenCount: options.showTokenCount,
+      });
+      return;
+    } catch (err: any) {
+      ui.warning('Ink UI not available. Falling back to standard chat.');
+      ui.info('Install optional dependencies: bun add ink react ink-text-input ink-spinner');
+    }
+  }
+
+  const startTime = Date.now();
+  const entry = historyManager.addEntry('chat', [], { model: options.model, persona: options.persona });
+
+  try {
+    // Get default model from auth store if not specified
+    if (!options.model) {
+      const authStore = new AuthStore();
+      const status = authStore.getStatus();
+      // Find the default provider's model
+      const defaultProviderInfo = status.providers.find(p => p.name === status.defaultProvider);
+      options.model = defaultProviderInfo?.model;
+    }
+
+    // Read persona from config if not specified
+    if (!options.persona || !options.verbosity) {
+      try {
+        const { configManager } = await import('../config/manager');
+        if (!options.persona) {
+          const mode = configManager.get('persona.mode');
+          if (mode) {
+            options.persona = mode;
+          }
         }
-        if (!options.verbosity && config?.persona?.verbosity) {
-          options.verbosity = config.persona.verbosity;
+        if (!options.verbosity) {
+          const verbosity = configManager.get('persona.verbosity');
+          if (verbosity) {
+            options.verbosity = verbosity;
+          }
         }
+      } catch {
+        // Config read failure is non-critical
       }
-    } catch {
-      // Config read failure is non-critical
     }
-  }
-  const persona = options.persona || 'assistant';
-  const verbosity = options.verbosity || 'normal';
+    const persona = options.persona || 'assistant';
+    const verbosity = options.verbosity || 'normal';
 
-  // Non-interactive mode: send single message
-  if (options.nonInteractive || options.message) {
-    if (!options.message) {
-      ui.error('Message is required in non-interactive mode. Use --message or -m.');
-      process.exit(1);
+    // Non-interactive mode: send single message
+    if (options.nonInteractive || options.message) {
+      if (!options.message) {
+        ui.error('Message is required in non-interactive mode. Use --message or -m.');
+        process.exit(1);
+      }
+
+      await sendSingleMessage(options.message, options, persona, verbosity);
+      historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
+      return;
     }
 
-    await sendSingleMessage(options.message, options, persona, verbosity);
-    return;
+    // Interactive mode: start chat UI
+    const chatOptions: ChatUIOptions = {
+      model: options.model,
+      systemPrompt: options.systemPrompt || getPersonaSystemPrompt(persona, verbosity),
+      showTokenCount: options.showTokenCount ?? false,
+    };
+
+    await startChat(chatOptions);
+    historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
+  } catch (error: any) {
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    throw error;
   }
-
-  // Interactive mode: start chat UI
-  const chatOptions: ChatUIOptions = {
-    model: options.model,
-    systemPrompt: options.systemPrompt || getPersonaSystemPrompt(persona, verbosity),
-    showTokenCount: options.showTokenCount ?? false,
-  };
-
-  await startChat(chatOptions);
 }
 
 /**

@@ -9,6 +9,7 @@ import { select } from '../../wizard/prompts';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
+import { CostEstimator } from './estimator';
 
 // ==========================================
 // Types
@@ -455,64 +456,30 @@ export async function costEstimateCommand(options: CostEstimateOptions): Promise
 
   // Check for infracost
   if (!checkInfracost()) {
-    ui.warning('Infracost is not installed.');
+    ui.info('Infracost is not installed. Using built-in cost estimator.');
     ui.newLine();
-    ui.print('To install Infracost:');
-    ui.print(`  ${ui.dim('brew install infracost')} (macOS)`);
-    ui.print(`  ${ui.dim('curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh')} (Linux)`);
-    ui.newLine();
-    ui.print('Then run: infracost auth login');
 
-    // Offer to show a mock estimate
-    const showMock = await select({
-      message: 'Would you like to see a mock estimate for demonstration?',
-      options: [
-        { label: 'Yes, show mock data', value: 'yes' },
-        { label: 'No, exit', value: 'no' },
-      ],
-    });
+    ui.startSpinner({ message: 'Running built-in cost estimation...' });
 
-    if (showMock === 'no') return;
+    try {
+      const result = await CostEstimator.estimateDirectory(directory);
+      ui.stopSpinnerSuccess('Cost estimation complete');
 
-    // Generate mock estimate
-    const mockEstimate: CostEstimate = {
-      version: '0.2',
-      currency: 'USD',
-      projects: [{
-        name: path.basename(directory),
-        metadata: {},
-        pastTotalMonthlyCost: 0,
-        pastTotalHourlyCost: 0,
-        diffTotalMonthlyCost: 0,
-        diffTotalHourlyCost: 0,
-        totalMonthlyCost: 542.50,
-        totalHourlyCost: 0.74,
-        resources: [
-          { name: 'aws_instance.web', resourceType: 'aws_instance', monthlyCost: 85.00 },
-          { name: 'aws_instance.api', resourceType: 'aws_instance', monthlyCost: 85.00 },
-          { name: 'aws_db_instance.main', resourceType: 'aws_db_instance', monthlyCost: 210.50 },
-          { name: 'aws_s3_bucket.assets', resourceType: 'aws_s3_bucket', monthlyCost: 25.00 },
-          { name: 'aws_elasticache_cluster.cache', resourceType: 'aws_elasticache_cluster', monthlyCost: 137.00 },
-        ],
-      }],
-      totalMonthlyCost: 542.50,
-      totalHourlyCost: 0.74,
-      diffTotalMonthlyCost: 0,
-      timeGenerated: new Date().toISOString(),
-      summary: {
-        totalDetectedResources: 12,
-        totalSupportedResources: 10,
-        totalUnsupportedResources: 2,
-        totalUsageBasedResources: 3,
-        totalNoPriceResources: 0,
-        unsupportedResourceCounts: { 'aws_iam_role': 2 },
-        noPriceResourceCounts: {},
-      },
-    };
+      if (options.format === 'json') {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
 
-    ui.newLine();
-    ui.warning('Showing mock data for demonstration');
-    displayCostEstimate(mockEstimate, options.detailed || false);
+      displayCostEstimate(result, options.detailed || false);
+      ui.newLine();
+      ui.info('For more accurate pricing, install Infracost:');
+      ui.print(`  ${ui.dim('brew install infracost')} (macOS)`);
+      ui.print(`  ${ui.dim('curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh')} (Linux)`);
+    } catch (error) {
+      ui.stopSpinnerFail('Cost estimation failed');
+      ui.error(`Built-in estimator error: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
     return;
   }
 

@@ -3,7 +3,7 @@
  * HTTP server for audit logging endpoints
  */
 
-import { logger } from '@nimbus/shared-utils';
+import { logger, serviceAuthMiddleware, SimpleRateLimiter, rateLimitMiddleware } from '@nimbus/shared-utils';
 import { createLog, queryLogs } from './routes/logs';
 import { exportLogs } from './routes/export';
 import { initDatabase } from './db/adapter';
@@ -11,6 +11,10 @@ import { initDatabase } from './db/adapter';
 export async function startServer(port: number) {
   // Initialize database
   await initDatabase();
+
+  // Rate limiter: 120 requests/min for audit service
+  const limiter = new SimpleRateLimiter({ requestsPerMinute: 120 });
+  const checkRateLimit = rateLimitMiddleware(limiter);
 
   const server = Bun.serve({
     port,
@@ -27,6 +31,14 @@ export async function startServer(port: number) {
           timestamp: new Date().toISOString(),
         });
       }
+
+      // Service-to-service authentication
+      const authResponse = serviceAuthMiddleware(req);
+      if (authResponse) return authResponse;
+
+      // Rate limiting
+      const rateLimitResponse = checkRateLimit(req);
+      if (rateLimitResponse) return rateLimitResponse;
 
       // Create audit log
       if (path === '/api/audit/logs' && method === 'POST') {
@@ -114,6 +126,18 @@ export async function startServer(port: number) {
   logger.info('  - POST /api/audit/logs');
   logger.info('  - GET  /api/audit/logs');
   logger.info('  - GET  /api/audit/export');
+
+  // Graceful shutdown handlers
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully...');
+    server.stop();
+    process.exit(0);
+  });
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down...');
+    server.stop();
+    process.exit(0);
+  });
 
   return server;
 }

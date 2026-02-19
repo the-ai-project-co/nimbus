@@ -8,6 +8,17 @@ import type {
 } from '../types/agent';
 import { GeneratorServiceClient, TerraformToolsClient, FSToolsClient, StateServiceClient } from '../clients';
 
+/**
+ * Non-retryable errors for deterministic validation failures.
+ * These will not be retried by executeWithRetry.
+ */
+class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableError';
+  }
+}
+
 export class Executor {
   private logs: Map<string, ExecutionLog[]>;
   private artifacts: Map<string, ExecutionArtifact[]>;
@@ -68,9 +79,9 @@ export class Executor {
         break;
       }
 
-      // Execute ready steps in parallel
+      // Execute ready steps in parallel with retry
       const stepResults = await Promise.allSettled(
-        readySteps.map((step) => this.executeStep(plan.id, step))
+        readySteps.map((step) => this.executeWithRetry(plan.id, step))
       );
 
       // Process results
@@ -160,6 +171,59 @@ export class Executor {
     // that confirms a checkpoint exists before the orchestrator re-invokes executePlan.
 
     return checkpoint.state.results as ExecutionResult[] || [];
+  }
+
+  /**
+   * Execute a step with retry logic and exponential backoff
+   */
+  private async executeWithRetry(planId: string, step: PlanStep, maxRetries = 3): Promise<ExecutionResult> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await this.executeStep(planId, step);
+        if (result.status === 'success' || attempt === maxRetries) {
+          return result;
+        }
+        // Don't retry deterministic failures (validation errors, business logic)
+        if (result.error?.code === 'NON_RETRYABLE_ERROR') {
+          return result;
+        }
+        // Retry on transient failure results
+        logger.warn(`Step ${step.id} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying...`);
+        await this.delay(1000 * Math.pow(2, attempt));
+        // Reset step status for retry
+        step.status = 'pending';
+      } catch (error) {
+        if (attempt === maxRetries) {
+          logger.error(`Step ${step.id} failed after ${maxRetries + 1} attempts`, error);
+          return {
+            id: this.generateResultId(),
+            plan_id: planId,
+            step_id: step.id,
+            status: 'failure',
+            started_at: new Date(),
+            completed_at: new Date(),
+            duration: 0,
+            error: {
+              code: 'RETRY_EXHAUSTED',
+              message: `Step failed after ${maxRetries + 1} attempts: ${(error as Error).message}`,
+              stack_trace: (error as Error).stack,
+            },
+          };
+        }
+        logger.warn(`Step ${step.id} threw error (attempt ${attempt + 1}/${maxRetries + 1}), retrying...`);
+        await this.delay(1000 * Math.pow(2, attempt));
+        step.status = 'pending';
+      }
+    }
+    // Should not reach here, but satisfy TypeScript
+    throw new Error('Unexpected retry loop exit');
+  }
+
+  /**
+   * Delay helper for retry backoff
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -265,7 +329,7 @@ export class Executor {
         completed_at: completedAt,
         duration: step.duration!,
         error: {
-          code: 'STEP_EXECUTION_ERROR',
+          code: error instanceof NonRetryableError ? 'NON_RETRYABLE_ERROR' : 'STEP_EXECUTION_ERROR',
           message: (error as Error).message,
           stack_trace: (error as Error).stack,
         },
@@ -307,18 +371,18 @@ export class Executor {
 
     // Validate provider
     if (!['aws', 'gcp', 'azure'].includes(provider as string)) {
-      throw new Error(`Invalid provider: ${provider}`);
+      throw new NonRetryableError(`Invalid provider: ${provider}`);
     }
 
     // Validate components
     if (!Array.isArray(components) || components.length === 0) {
-      throw new Error('No components specified');
+      throw new NonRetryableError('No components specified');
     }
 
     const validComponents = ['vpc', 'eks', 'rds', 's3', 'gke', 'gcs', 'aks'];
     for (const component of components) {
       if (!validComponents.includes(component)) {
-        throw new Error(`Invalid component: ${component}`);
+        throw new NonRetryableError(`Invalid component: ${component}`);
       }
     }
 

@@ -199,6 +199,17 @@ export class OpenAIProvider extends BaseProvider {
     return limits[model] || 4096;
   }
 
+  async listModels(): Promise<string[]> {
+    return [
+      'gpt-4o',
+      'gpt-4o-2024-11-20',
+      'gpt-4o-mini',
+      'gpt-4o-mini-2024-07-18',
+      'gpt-4-turbo',
+      'gpt-4',
+    ];
+  }
+
   /**
    * Convert messages to OpenAI format
    */
