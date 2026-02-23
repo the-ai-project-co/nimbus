@@ -5,6 +5,8 @@
     "moduleResolution": "bundler",
     "lib": ["ESNext"],
     "types": ["bun-types"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -15,16 +17,8 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": ".",
-    "paths": {
-      "@nimbus/shared-types": ["./shared/types/src"],
-      "@nimbus/shared-types/*": ["./shared/types/src/*"],
-      "@nimbus/shared-utils": ["./shared/utils/src"],
-      "@nimbus/shared-utils/*": ["./shared/utils/src/*"],
-      "@nimbus/shared-clients": ["./shared/clients/src"],
-      "@nimbus/shared-clients/*": ["./shared/clients/src/*"]
-    }
+    "rootDir": "."
   },
-  "include": ["services/**/*", "shared/**/*", "scripts/**/*"],
+  "include": ["src/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist", "coverage", "**/node_modules", "**/dist"]
 }

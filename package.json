@@ -1,35 +1,35 @@
 {
-  "name": "nimbus",
+  "name": "@nimbus-ai/cli",
   "version": "0.1.0",
-  "private": true,
   "description": "AI-Powered Cloud Engineering Agent",
-  "workspaces": [
-    "services/*",
-    "shared/*"
+  "main": "src/nimbus.ts",
+  "bin": {
+    "nimbus": "src/nimbus.ts"
+  },
+  "files": [
+    "src/",
+    "package.json",
+    "tsconfig.json"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "dev": "./scripts/start-all.sh",
-    "health": "./scripts/check-health.sh",
-    "setup": "./scripts/dev-setup.sh",
-    "clean": "./scripts/clean.sh",
-    "test": "bun test",
-    "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-reporter=text --coverage-threshold=80",
-    "test:coverage:check": "bun test --coverage --coverage-threshold=80",
-    "test:watch": "bun test --watch",
+    "test": "bun test src/__tests__/",
+    "test:coverage": "bun test src/__tests__/ --coverage --coverage-reporter=lcov --coverage-reporter=text --coverage-threshold=80",
+    "test:watch": "bun test src/__tests__/ --watch",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "type-check": "bun run --filter '*' type-check",
-    "build": "bun run --filter '*' build",
-    "build:cli": "cd services/cli-service && bun run build",
+    "type-check": "bun tsc --noEmit",
+    "build": "bun src/build.ts",
     "build:binary": "./scripts/build-binary.sh",
     "build:binary:all": "./scripts/build-binary.sh all",
-    "precommit": "bun run lint && bun run format:check && bun run type-check",
-    "test:e2e:playwright": "npx playwright test"
+    "nimbus": "bun src/nimbus.ts",
+    "precommit": "bun run lint && bun run format:check && bun run type-check"
   },
   "devDependencies": {
-    "@playwright/test": "^1.40.0",
     "@types/bun": "latest",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
@@ -41,8 +41,21 @@
     "bun": ">=1.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.995.0",
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/websocket": "^0.2.8",
-    "elysia": "^1.4.22"
+    "@google/generative-ai": "^0.24.1",
+    "@types/react": "^19.2.14",
+    "elysia": "^1.4.22",
+    "fast-glob": "^3.3.3",
+    "gpt-tokenizer": "^3.4.0",
+    "ink": "^6.8.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "openai": "^6.22.0",
+    "react": "^19.2.4",
+    "simple-git": "^3.32.1",
+    "zod": "^4.3.6"
   }
 }

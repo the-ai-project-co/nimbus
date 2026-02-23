@@ -122,9 +122,7 @@ credentials/
 .Trash-*
 
 # Documentation
-progress/
-docs/
-releases/
+strategy/
 
 # CLAUDE
 .claude/

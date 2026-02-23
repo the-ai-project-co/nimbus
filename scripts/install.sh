@@ -2,10 +2,15 @@
 # Nimbus CLI Installer
 # Usage: curl -fsSL https://nimbus.dev/install.sh | bash
 #
+# Installation methods (in priority order):
+#   1. bun install -g @nimbus-ai/cli  — Full features including rich TUI
+#   2. Pre-built binary       — Lighter weight, readline chat only (no Ink TUI)
+#
 # Environment variables:
-#   NIMBUS_INSTALL_DIR - Installation directory (default: ~/.nimbus)
-#   NIMBUS_VERSION     - Specific version to install (default: latest)
-#   NIMBUS_NO_MODIFY_PATH - Set to 1 to skip PATH modification
+#   NIMBUS_INSTALL_DIR     - Installation directory for binary method (default: ~/.nimbus)
+#   NIMBUS_VERSION         - Specific version to install (default: latest)
+#   NIMBUS_NO_MODIFY_PATH  - Set to 1 to skip PATH modification
+#   NIMBUS_PREFER_BINARY   - Set to 1 to prefer pre-built binary over bun/npm
 
 set -e
 
@@ -54,7 +59,7 @@ detect_platform() {
             PLATFORM="darwin"
             ;;
         MINGW*|MSYS*|CYGWIN*)
-            error "Windows is not supported by this installer. Please use npm install -g @nimbus/cli"
+            PLATFORM="windows"
             ;;
         *)
             error "Unsupported operating system: $OS"
@@ -81,10 +86,6 @@ check_requirements() {
     if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
         error "curl or wget is required but not installed"
     fi
-
-    if ! command -v tar &> /dev/null; then
-        error "tar is required but not installed"
-    fi
 }
 
 # Download file using curl or wget
@@ -103,35 +104,84 @@ download() {
 get_latest_version() {
     if [ "$VERSION" = "latest" ]; then
         info "Fetching latest version..."
-        VERSION=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+        VERSION=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
         if [ -z "$VERSION" ]; then
-            # Fallback to default version
-            VERSION="1.0.0"
+            VERSION="0.1.0"
             warn "Could not fetch latest version, using $VERSION"
         fi
     fi
     info "Installing version: $VERSION"
 }
 
-# Download and extract Nimbus
-install_nimbus() {
+# Install via Bun (preferred — includes Ink TUI)
+install_via_bun() {
+    if ! command -v bun &> /dev/null; then
+        return 1
+    fi
+
+    info "Installing Nimbus via Bun (includes rich terminal UI)..."
+    if bun install -g @nimbus-ai/cli@"$VERSION" 2>/dev/null; then
+        success "Nimbus installed via Bun!"
+        return 0
+    fi
+    return 1
+}
+
+# Install via npm (fallback — includes Ink TUI)
+install_via_npm() {
+    if ! command -v npm &> /dev/null; then
+        return 1
+    fi
+
+    info "Installing Nimbus via npm..."
+    if npm install -g @nimbus-ai/cli@"$VERSION" 2>/dev/null; then
+        success "Nimbus installed via npm!"
+        return 0
+    fi
+    return 1
+}
+
+# Install Bun if not present, then install via Bun
+install_bun_then_nimbus() {
+    info "Bun is not installed. Installing Bun first..."
+    if command -v curl &> /dev/null; then
+        curl -fsSL https://bun.sh/install | bash 2>/dev/null
+    else
+        return 1
+    fi
+
+    # Source Bun into current shell
+    export BUN_INSTALL="$HOME/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+
+    if command -v bun &> /dev/null; then
+        install_via_bun
+        return $?
+    fi
+    return 1
+}
+
+# Download and install pre-built binary (lighter, no Ink TUI)
+install_binary() {
+    if ! command -v tar &> /dev/null; then
+        error "tar is required for binary installation"
+    fi
+
     local temp_dir=$(mktemp -d)
     local archive_name="nimbus-$PLATFORM-$ARCH.tar.gz"
     local download_url="$GITHUB_URL/releases/download/v$VERSION/$archive_name"
 
-    info "Downloading Nimbus..."
+    info "Downloading Nimbus binary..."
+    warn "Note: Pre-built binary does not include the rich Ink terminal UI."
+    warn "For the full experience, install via: bun install -g @nimbus-ai/cli"
 
-    # Try to download release binary
     if download "$download_url" "$temp_dir/$archive_name" 2>/dev/null; then
         info "Extracting..."
         mkdir -p "$INSTALL_DIR"
         tar -xzf "$temp_dir/$archive_name" -C "$INSTALL_DIR"
     else
-        # Fallback: install via npm
-        warn "Pre-built binary not found, installing via npm..."
-        install_via_npm
         rm -rf "$temp_dir"
-        return
+        return 1
     fi
 
     # Set up bin directory
@@ -145,25 +195,25 @@ install_nimbus() {
 
     # Cleanup
     rm -rf "$temp_dir"
-}
 
-# Fallback: install via npm
-install_via_npm() {
-    if ! command -v npm &> /dev/null; then
-        error "npm is required for installation. Please install Node.js first."
-    fi
-
-    info "Installing via npm..."
-    npm install -g @nimbus/cli@$VERSION
-
-    success "Nimbus installed via npm"
-    exit 0
+    success "Nimbus binary installed!"
+    return 0
 }
 
 # Add to PATH
 setup_path() {
     if [ "${NIMBUS_NO_MODIFY_PATH:-0}" = "1" ]; then
         info "Skipping PATH modification (NIMBUS_NO_MODIFY_PATH is set)"
+        return
+    fi
+
+    # Check if nimbus is already on PATH
+    if command -v nimbus &> /dev/null; then
+        return
+    fi
+
+    # For binary installs, add BIN_DIR to PATH
+    if [ ! -d "$BIN_DIR" ]; then
         return
     fi
 
@@ -208,15 +258,24 @@ setup_path() {
 
 # Verify installation
 verify_installation() {
-    if [ -x "$BIN_DIR/nimbus" ]; then
-        local version=$("$BIN_DIR/nimbus" --version 2>/dev/null || echo "unknown")
+    # Check common locations
+    local nimbus_bin=""
+    if command -v nimbus &> /dev/null; then
+        nimbus_bin="$(command -v nimbus)"
+    elif [ -x "$BIN_DIR/nimbus" ]; then
+        nimbus_bin="$BIN_DIR/nimbus"
+    fi
+
+    if [ -n "$nimbus_bin" ]; then
+        local version=$("$nimbus_bin" --version 2>/dev/null || echo "unknown")
         success "Nimbus installed successfully!"
         echo ""
-        echo "  Version: $version"
-        echo "  Location: $BIN_DIR/nimbus"
+        echo "  Version:  $version"
+        echo "  Location: $nimbus_bin"
         echo ""
     else
-        error "Installation verification failed"
+        warn "Installation completed but nimbus is not yet on PATH."
+        echo "  Restart your terminal or run: source ~/.bashrc (or ~/.zshrc)"
     fi
 }
 
@@ -224,22 +283,15 @@ verify_installation() {
 print_next_steps() {
     echo -e "${GREEN}Next steps:${NC}"
     echo ""
-    echo "  1. Restart your terminal or run:"
-    echo "     source ~/.bashrc  # or ~/.zshrc"
+    echo "  1. Restart your terminal (or source your shell config)"
     echo ""
     echo "  2. Verify installation:"
     echo "     nimbus --version"
     echo ""
-    echo "  3. Run system check:"
-    echo "     nimbus doctor"
+    echo "  3. Start using Nimbus:"
+    echo "     nimbus"
     echo ""
-    echo "  4. Initialize a project:"
-    echo "     nimbus init"
-    echo ""
-    echo "  5. Start using Nimbus:"
-    echo "     nimbus chat"
-    echo ""
-    echo "Documentation: $GITHUB_URL/docs"
+    echo "Documentation: $GITHUB_URL"
     echo "Get help: nimbus --help"
     echo ""
 }
@@ -256,8 +308,32 @@ main() {
     detect_platform
     check_requirements
     get_latest_version
-    install_nimbus
-    setup_path
+
+    local installed=false
+
+    if [ "${NIMBUS_PREFER_BINARY:-0}" != "1" ]; then
+        # Try package manager installs first (includes full Ink TUI)
+        if install_via_bun; then
+            installed=true
+        elif install_via_npm; then
+            installed=true
+        elif install_bun_then_nimbus; then
+            installed=true
+        fi
+    fi
+
+    # Fall back to binary download
+    if [ "$installed" = false ]; then
+        if install_binary; then
+            installed=true
+            setup_path
+        fi
+    fi
+
+    if [ "$installed" = false ]; then
+        error "Installation failed. Please install manually: bun install -g @nimbus-ai/cli"
+    fi
+
     verify_installation
     print_next_steps
 }

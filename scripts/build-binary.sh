@@ -18,7 +18,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ENTRY="$ROOT_DIR/services/cli-service/src/index.ts"
+ENTRY="$ROOT_DIR/src/nimbus.ts"
 DIST_DIR="$ROOT_DIR/dist"
 
 mkdir -p "$DIST_DIR"
@@ -92,11 +92,13 @@ create_tarball() {
 create_zip() {
   local binary="$1"
   local zipfile="${binary}.zip"
+  local zipname
+  zipname="$(basename "$zipfile")"
   local staging
   staging="$(mktemp -d)"
   cp "$binary" "${staging}/nimbus.exe"
-  (cd "$staging" && zip -q "$zipfile" "nimbus.exe")
-  mv "${staging}/$(basename "$zipfile")" "$zipfile"
+  (cd "$staging" && zip -q "$zipname" "nimbus.exe")
+  mv "${staging}/${zipname}" "$zipfile"
   rm -rf "$staging"
   echo "  -> $zipfile ($(du -h "$zipfile" | cut -f1))"
   record_checksum "$zipfile"

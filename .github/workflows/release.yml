@@ -7,12 +7,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
-
-env:
-  REGISTRY_GHCR: ghcr.io
-  REGISTRY_DOCKER: docker.io
-  IMAGE_PREFIX: nimbus
 
 jobs:
   test:
@@ -31,10 +25,10 @@ jobs:
         run: bun install
 
       - name: Run tests with coverage
-        run: bun test --coverage
+        run: bun test src/__tests__/ --coverage
 
-      - name: Build all services
-        run: bun run build
+      - name: Build binary
+        run: bun src/build.ts
 
   build-binaries:
     runs-on: ubuntu-latest
@@ -74,71 +68,9 @@ jobs:
           name: binaries
           path: dist/
 
-  docker-publish:
-    runs-on: ubuntu-latest
-    needs: test
-    strategy:
-      matrix:
-        service:
-          - core-engine
-          - llm
-          - generator
-          - state
-          - terraform
-          - k8s
-          - helm
-          - git
-          - github
-          - aws
-          - fs
-          - audit
-          - auth
-          - team
-          - billing
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY_GHCR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY_DOCKER }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile.${{ matrix.service }}
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ steps.version.outputs.version }}
-            ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest
-            ${{ env.REGISTRY_DOCKER }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ steps.version.outputs.version }}
-            ${{ env.REGISTRY_DOCKER }}/${{ github.repository_owner }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   github-release:
     runs-on: ubuntu-latest
-    needs: [build-binaries, docker-publish]
+    needs: build-binaries
 
     steps:
       - name: Checkout code
@@ -203,41 +135,9 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Copy LICENSE to cli-service
-        run: cp LICENSE services/cli-service/LICENSE 2>/dev/null || true
-
-      - name: Build CLI for npm
-        working-directory: services/cli-service
-        run: bun run build:npm
-
-      - name: Verify build output
-        working-directory: services/cli-service
-        run: |
-          echo "Checking dist/index.js exists..."
-          test -f dist/index.js || (echo "ERROR: dist/index.js not found" && exit 1)
-
-          echo "Checking bin/nimbus.mjs exists..."
-          test -f bin/nimbus.mjs || (echo "ERROR: bin/nimbus.mjs not found" && exit 1)
-
-          echo "Checking bin/nimbus.mjs is executable..."
-          test -x bin/nimbus.mjs || (echo "ERROR: bin/nimbus.mjs not executable" && exit 1)
-
-          echo "Checking bin/nimbus.mjs has node shebang..."
-          head -1 bin/nimbus.mjs | grep -q '#!/usr/bin/env node' || (echo "ERROR: bin/nimbus.mjs missing shebang" && exit 1)
-
-          echo "Previewing package contents..."
-          npm pack --dry-run
-
-          echo "Build verification passed."
-
       - name: Prepare package.json for npm publish
-        working-directory: services/cli-service
         run: |
-          # Sync version from the git tag into package.json.
-          # Remove workspace:* devDependencies and internal metadata fields
-          # that npm does not understand. The workspace packages are bundled
-          # into dist/index.js by bun build, so they are not needed as
-          # runtime or dev dependencies in the published package.
+          # Sync version from the git tag and remove private flag for publishing.
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -248,6 +148,9 @@ jobs:
               pkg.version = version;
               console.log('Set version to ' + version);
             }
+
+            // Remove private flag for publishing
+            delete pkg.private;
 
             // Strip workspace protocol entries from devDependencies
             if (pkg.devDependencies) {
@@ -261,15 +164,21 @@ jobs:
               }
             }
 
-            // Remove internal-only metadata
-            delete pkg.bundledWorkspaceDependencies;
-
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
             console.log('Cleaned package.json for npm publish');
           "
 
+      - name: Verify package contents
+        run: |
+          echo "Checking entry point exists..."
+          test -f src/nimbus.ts || (echo "ERROR: src/nimbus.ts not found" && exit 1)
+
+          echo "Previewing package contents..."
+          npm pack --dry-run
+
+          echo "Verification passed."
+
       - name: Publish to npm
-        working-directory: services/cli-service
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
