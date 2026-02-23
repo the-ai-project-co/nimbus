@@ -57,15 +57,27 @@ async function main() {
     const noInitCommands = new Set(['help', 'version', 'doctor', 'onboarding']);
 
     if (!noInitCommands.has(args[0])) {
+      // Show brief startup indicator for interactive commands
+      if (args[0] === 'chat' && process.stderr.isTTY) {
+        process.stderr.write('\x1b[2mStarting Nimbus...\x1b[0m');
+      }
       await initApp();
+      if (args[0] === 'chat' && process.stderr.isTTY) {
+        process.stderr.write('\r\x1b[K');
+      }
     }
 
     // Import and run CLI command router
     const { runCommand } = await import('./cli');
     await runCommand(args);
 
-    // After onboarding, initialize app and launch chat
+    // After onboarding, clear auth cache, initialize app, and launch chat
     if (args[0] === 'onboarding') {
+      // Clear the auth-bridge cache so the router picks up freshly-saved credentials
+      try {
+        const { clearAuthCache } = await import('./llm/auth-bridge');
+        clearAuthCache();
+      } catch { /* non-critical */ }
       await initApp();
       await runCommand(['chat']);
     }

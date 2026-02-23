@@ -48,12 +48,14 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '-M, --model <model>', description: 'Specify LLM model to use' },
       { flag: '--system-prompt <prompt>', description: 'Custom system prompt' },
       { flag: '--show-tokens', description: 'Display token count for each message' },
+      { flag: '--ui <mode>', description: 'UI mode: ink (default rich TUI) or readline (simple)', default: 'ink' },
       { flag: '--non-interactive', description: 'Run in non-interactive mode' },
     ],
     examples: [
       'nimbus chat',
       'nimbus chat -m "How do I create an S3 bucket?"',
       'nimbus chat --model gpt-4',
+      'nimbus chat --ui=readline',
     ],
   },
 

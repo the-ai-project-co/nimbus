@@ -34,10 +34,10 @@ export interface ChatOptions {
  * Chat command handler
  *
  * Usage:
- *   nimbus chat                    - Start interactive chat
+ *   nimbus chat                    - Start interactive chat (Ink TUI)
  *   nimbus chat --model gpt-4o     - Use specific model
  *   nimbus chat -m "Hello"         - Send single message (non-interactive)
- *   nimbus chat --ui=ink           - Use the Ink-based rich terminal UI
+ *   nimbus chat --ui=readline      - Use simple readline interface (no React/Ink)
  */
 export async function chatCommand(options: ChatOptions = {}): Promise<void> {
   // Check for NIMBUS.md and suggest init if missing (non-blocking)
@@ -53,6 +53,25 @@ export async function chatCommand(options: ChatOptions = {}): Promise<void> {
     } catch {
       // Non-critical, ignore
     }
+  }
+
+  // Pre-flight: verify at least one LLM provider is available
+  try {
+    const { getAppContext } = await import('../app');
+    const ctx = getAppContext();
+    if (ctx?.router && ctx.router.getAvailableProviders().length === 0) {
+      ui.newLine();
+      ui.error('No LLM provider configured.');
+      ui.newLine();
+      ui.print('Set up a provider using one of these methods:');
+      ui.print(`  ${ui.bold('nimbus login')}           — interactive setup wizard`);
+      ui.print(`  ${ui.bold('export ANTHROPIC_API_KEY=sk-ant-...')}  — environment variable`);
+      ui.print(`  ${ui.bold('export OPENAI_API_KEY=sk-...')}         — environment variable`);
+      ui.newLine();
+      return;
+    }
+  } catch {
+    // Pre-flight is non-critical — let it fail later with a real error
   }
 
   // Default to Ink TUI, fall back to readline if unavailable or explicitly requested

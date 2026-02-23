@@ -502,6 +502,17 @@ export class ChatUI {
 
     ui.newLine();
 
+    // Show a thinking indicator until the first text chunk arrives
+    process.stdout.write(ui.dim('  Thinking...'));
+    let thinkingCleared = false;
+    const clearThinking = () => {
+      if (!thinkingCleared) {
+        thinkingCleared = true;
+        // Clear the "Thinking..." text
+        process.stdout.write('\r\x1b[K');
+      }
+    };
+
     let fullResponse = '';
     let tokenCount = 0;
     let textStarted = false;
@@ -519,6 +530,7 @@ export class ChatUI {
         contextManager: this.contextManager,
 
         onText: (text) => {
+          clearThinking();
           if (!textStarted) {
             process.stdout.write(ui.color('Nimbus: ', 'blue'));
             textStarted = true;
@@ -528,6 +540,7 @@ export class ChatUI {
         },
 
         onToolCallStart: (info: ToolCallInfo) => {
+          clearThinking();
           // Show tool execution inline as text
           const inputSummary = summarizeToolInput(info.name, info.input);
           process.stdout.write(
@@ -621,6 +634,7 @@ export class ChatUI {
         ui.info('Operation interrupted.');
       }
     } catch (error: any) {
+      clearThinking();
       if (textStarted) {
         process.stdout.write('\n');
       }

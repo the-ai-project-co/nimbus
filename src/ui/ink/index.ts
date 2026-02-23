@@ -100,46 +100,63 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   let streamingContent = '';
 
   /**
-   * Prompt the user for permission via stdio.
-   * Returns a promise that resolves to the user's decision.
+   * Derive a risk level from the tool's permission tier.
+   */
+  function getRiskLevel(tool: ToolDefinition): 'low' | 'medium' | 'high' | 'critical' {
+    switch (tool.permissionTier) {
+      case 'auto_allow': return 'low';
+      case 'ask_once': return 'medium';
+      case 'always_ask': return 'high';
+      case 'blocked': return 'critical';
+      default: return 'medium';
+    }
+  }
+
+  /**
+   * Prompt the user for permission via the Ink PermissionPrompt component.
+   * Uses the imperative API to render the prompt inside the TUI.
    */
   function promptPermission(tool: ToolDefinition, input: unknown): Promise<'allow' | 'deny' | 'block'> {
+    const toolInput = (input && typeof input === 'object')
+      ? input as Record<string, unknown>
+      : {};
+
     return new Promise((resolve) => {
-      const inputSummary = (input && typeof input === 'object')
-        ? Object.entries(input as Record<string, unknown>)
-            .slice(0, 3)
-            .map(([k, v]) => {
-              const s = typeof v === 'string' ? v : JSON.stringify(v);
-              return `  ${k}: ${s.length > 60 ? s.slice(0, 57) + '...' : s}`;
-            })
-            .join('\n')
-        : '';
-      process.stdout.write(
-        `\n\x1b[33m⚠ Permission required\x1b[0m: \x1b[1m${tool.name}\x1b[0m\n` +
-        (inputSummary ? `${inputSummary}\n` : '') +
-        `\x1b[2m[y] Allow  [n] Deny  [a] Allow for session\x1b[0m `,
-      );
-      const onData = (data: Buffer) => {
-        const key = data.toString().trim().toLowerCase();
-        process.stdin.removeListener('data', onData);
-        if (process.stdin.isPaused) process.stdin.pause();
-        process.stdout.write('\n');
-        if (key === 'y' || key === 'yes') {
-          resolve('allow');
-        } else if (key === 'a') {
-          approveForSession(tool, permissionState);
-          const action = (input as Record<string, unknown>)?.action;
-          if (typeof action === 'string') {
-            approveActionForSession(tool.name, action, permissionState);
+      if (!api) {
+        // Imperative API not yet wired — deny by default
+        resolve('deny');
+        return;
+      }
+
+      api.requestPermission({
+        tool: tool.name,
+        input: toolInput,
+        riskLevel: getRiskLevel(tool),
+        onDecide: (decision) => {
+          // Map PermissionPrompt decisions to agent loop decisions
+          switch (decision) {
+            case 'approve':
+              resolve('allow');
+              break;
+            case 'session':
+              approveForSession(tool, permissionState);
+              const action = toolInput.action;
+              if (typeof action === 'string') {
+                approveActionForSession(tool.name, action, permissionState);
+              }
+              resolve('allow');
+              break;
+            case 'approve_all':
+              approveForSession(tool, permissionState);
+              resolve('allow');
+              break;
+            case 'reject':
+            default:
+              resolve('deny');
+              break;
           }
-          resolve('allow');
-        } else {
-          resolve('deny');
-        }
-      };
-      process.stdin.setRawMode?.(false);
-      process.stdin.resume();
-      process.stdin.once('data', onData);
+        },
+      });
     });
   }
 
@@ -328,6 +345,22 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   };
 
   /**
+   * Estimate token count using gpt-tokenizer (falls back to char/4).
+   */
+  let _encode: ((text: string) => unknown[]) | null = null;
+  let _encodeLoaded = false;
+  function estimateTokens(text: string): number {
+    if (!_encodeLoaded) {
+      _encodeLoaded = true;
+      try { _encode = require('gpt-tokenizer').encode; } catch { /* fallback */ }
+    }
+    if (_encode) {
+      try { return _encode(text).length; } catch { /* fallback */ }
+    }
+    return Math.ceil(text.length / 4);
+  }
+
+  /**
    * Handle /context command.
    */
   const onContext = (): ContextCommandResult | null => {
@@ -337,13 +370,13 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
       cwd: process.cwd(),
     });
 
-    const systemTokens = Math.ceil(systemPrompt.length / 4);
+    const systemTokens = estimateTokens(systemPrompt);
     const messageTokens = history.reduce(
-      (sum, m) => sum + Math.ceil((m.content ?? '').length / 4),
+      (sum, m) => sum + estimateTokens(m.content ?? ''),
       0,
     );
     const toolTokens = defaultToolRegistry.getAll().reduce(
-      (sum, t) => sum + Math.ceil(JSON.stringify(t).length / 4),
+      (sum, t) => sum + estimateTokens(JSON.stringify(t)),
       0,
     );
     const total = systemTokens + messageTokens + toolTokens;

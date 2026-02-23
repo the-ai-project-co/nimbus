@@ -39,11 +39,11 @@ describe('version', () => {
     expect(BUILD_DATE.length).toBeGreaterThan(0);
   });
 
-  it('BUILD_DATE is a string placeholder or ISO-like date', () => {
-    // Before a real build the value is the literal placeholder token.
-    // After a build it is an ISO 8601 date string.
-    const isPlaceholder = BUILD_DATE === '__BUILD_DATE__';
+  it('BUILD_DATE is "dev" in development or ISO-like date in builds', () => {
+    // In dev mode the placeholder is detected and replaced with 'dev'.
+    // After a compiled build it is an ISO 8601 date string (YYYY-MM-DD).
+    const isDev = BUILD_DATE === 'dev';
     const isISODate = /^\d{4}-\d{2}-\d{2}/.test(BUILD_DATE);
-    expect(isPlaceholder || isISODate).toBe(true);
+    expect(isDev || isISODate).toBe(true);
   });
 });

@@ -106,7 +106,7 @@ get_latest_version() {
         info "Fetching latest version..."
         VERSION=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
         if [ -z "$VERSION" ]; then
-            VERSION="0.1.0"
+            VERSION="0.2.0"
             warn "Could not fetch latest version, using $VERSION"
         fi
     fi
@@ -134,6 +134,17 @@ install_via_npm() {
     fi
 
     info "Installing Nimbus via npm..."
+
+    # Avoid sudo prompts — check if npm global prefix is user-writable
+    local npm_prefix
+    npm_prefix="$(npm config get prefix 2>/dev/null)"
+    if [ -n "$npm_prefix" ] && [ ! -w "$npm_prefix/lib" ]; then
+        warn "npm global directory ($npm_prefix) is not writable."
+        warn "Consider using 'bun install -g' instead, or fix npm permissions:"
+        warn "  https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally"
+        return 1
+    fi
+
     if npm install -g @nimbus-ai/cli@"$VERSION" 2>/dev/null; then
         success "Nimbus installed via npm!"
         return 0

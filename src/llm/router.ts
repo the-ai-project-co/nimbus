@@ -115,36 +115,55 @@ export class LLMRouter {
   }
 
   /**
-   * Initialize all available providers based on API keys and environment variables
+   * Initialize all available providers based on API keys, auth.json, and environment variables.
+   *
+   * Resolution order per provider:
+   *   1. auth.json (~/.nimbus/auth.json) via the auth-bridge
+   *   2. Environment variables (ANTHROPIC_API_KEY, etc.)
    */
   private initializeProviders(): void {
+    // Lazy-import the auth-bridge to avoid circular deps at module level
+    let isConfigured: (name: string) => boolean;
+    let getApiKey: (name: string) => string | undefined;
+    try {
+      const bridge = require('./auth-bridge');
+      isConfigured = bridge.isProviderConfigured;
+      getApiKey = bridge.getProviderApiKey;
+    } catch {
+      // Auth-bridge unavailable (e.g., test environment) — fall back to env-only
+      isConfigured = () => false;
+      getApiKey = () => undefined;
+    }
+
     // Anthropic
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (process.env.ANTHROPIC_API_KEY || isConfigured('anthropic')) {
       this.providers.set('anthropic', new AnthropicProvider());
       logger.info('Initialized Anthropic provider');
     }
 
     // OpenAI
-    if (process.env.OPENAI_API_KEY) {
+    if (process.env.OPENAI_API_KEY || isConfigured('openai')) {
       this.providers.set('openai', new OpenAIProvider());
       logger.info('Initialized OpenAI provider');
     }
 
     // Google
-    if (process.env.GOOGLE_API_KEY) {
+    if (process.env.GOOGLE_API_KEY || isConfigured('google')) {
       this.providers.set('google', new GoogleProvider());
       logger.info('Initialized Google provider');
     }
 
     // OpenRouter
-    if (process.env.OPENROUTER_API_KEY) {
+    if (process.env.OPENROUTER_API_KEY || isConfigured('openrouter')) {
       this.providers.set('openrouter', new OpenRouterProvider());
       logger.info('Initialized OpenRouter provider');
     }
 
-    // Ollama (always available for local models)
-    this.providers.set('ollama', new OllamaProvider());
-    logger.info('Initialized Ollama provider');
+    // Ollama (only if explicitly configured via auth.json or env var)
+    if (process.env.OLLAMA_BASE_URL || isConfigured('ollama')) {
+      this.providers.set('ollama', new OllamaProvider());
+      logger.info('Initialized Ollama provider');
+    }
 
     // AWS Bedrock (uses IAM credentials from environment / instance profile)
     if (process.env.AWS_BEDROCK_ENABLED === 'true' || process.env.AWS_REGION) {
@@ -153,10 +172,11 @@ export class LLMRouter {
     }
 
     // Groq (OpenAI-compatible)
-    if (process.env.GROQ_API_KEY) {
+    const groqKey = process.env.GROQ_API_KEY || getApiKey('groq');
+    if (groqKey) {
       this.providers.set('groq', new OpenAICompatibleProvider({
         name: 'groq',
-        apiKey: process.env.GROQ_API_KEY,
+        apiKey: groqKey,
         baseURL: 'https://api.groq.com/openai/v1',
         defaultModel: 'llama-3.1-70b-versatile',
       }));
@@ -164,10 +184,11 @@ export class LLMRouter {
     }
 
     // Together AI (OpenAI-compatible)
-    if (process.env.TOGETHER_API_KEY) {
+    const togetherKey = process.env.TOGETHER_API_KEY || getApiKey('together');
+    if (togetherKey) {
       this.providers.set('together', new OpenAICompatibleProvider({
         name: 'together',
-        apiKey: process.env.TOGETHER_API_KEY,
+        apiKey: togetherKey,
         baseURL: 'https://api.together.xyz/v1',
         defaultModel: 'meta-llama/Llama-3.1-70B-Instruct-Turbo',
       }));
@@ -175,10 +196,11 @@ export class LLMRouter {
     }
 
     // DeepSeek (OpenAI-compatible)
-    if (process.env.DEEPSEEK_API_KEY) {
+    const deepseekKey = process.env.DEEPSEEK_API_KEY || getApiKey('deepseek');
+    if (deepseekKey) {
       this.providers.set('deepseek', new OpenAICompatibleProvider({
         name: 'deepseek',
-        apiKey: process.env.DEEPSEEK_API_KEY,
+        apiKey: deepseekKey,
         baseURL: 'https://api.deepseek.com/v1',
         defaultModel: 'deepseek-chat',
       }));
@@ -186,10 +208,11 @@ export class LLMRouter {
     }
 
     // Fireworks AI (OpenAI-compatible)
-    if (process.env.FIREWORKS_API_KEY) {
+    const fireworksKey = process.env.FIREWORKS_API_KEY || getApiKey('fireworks');
+    if (fireworksKey) {
       this.providers.set('fireworks', new OpenAICompatibleProvider({
         name: 'fireworks',
-        apiKey: process.env.FIREWORKS_API_KEY,
+        apiKey: fireworksKey,
         baseURL: 'https://api.fireworks.ai/inference/v1',
         defaultModel: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
       }));
@@ -197,15 +220,23 @@ export class LLMRouter {
     }
 
     // Perplexity (OpenAI-compatible)
-    if (process.env.PERPLEXITY_API_KEY) {
+    const perplexityKey = process.env.PERPLEXITY_API_KEY || getApiKey('perplexity');
+    if (perplexityKey) {
       this.providers.set('perplexity', new OpenAICompatibleProvider({
         name: 'perplexity',
-        apiKey: process.env.PERPLEXITY_API_KEY,
+        apiKey: perplexityKey,
         baseURL: 'https://api.perplexity.ai',
         defaultModel: 'llama-3.1-sonar-large-128k-online',
       }));
       logger.info('Initialized Perplexity provider (OpenAI-compatible)');
     }
+  }
+
+  /**
+   * Get the names of all initialized providers.
+   */
+  getAvailableProviders(): string[] {
+    return [...this.providers.keys()];
   }
 
   /**

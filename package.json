@@ -1,12 +1,13 @@
 {
   "name": "@nimbus-ai/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI-Powered Cloud Engineering Agent",
   "main": "src/nimbus.ts",
   "bin": {
-    "nimbus": "src/nimbus.ts"
+    "nimbus": "bin/nimbus"
   },
   "files": [
+    "bin/",
     "src/",
     "package.json",
     "tsconfig.json"
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.57.0",
@@ -46,7 +48,6 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/websocket": "^0.2.8",
     "@google/generative-ai": "^0.24.1",
-    "@types/react": "^19.2.14",
     "elysia": "^1.4.22",
     "fast-glob": "^3.3.3",
     "gpt-tokenizer": "^3.4.0",

@@ -337,11 +337,19 @@ export const grepTool: ToolDefinition = {
     try {
       const input = grepSchema.parse(raw);
       const searchPath = input.path ?? process.cwd();
-      const includeFlag = input.include
-        ? ` --include=${JSON.stringify(input.include)}`
-        : '';
 
-      const command = `grep -rn${includeFlag} ${JSON.stringify(input.pattern)} ${JSON.stringify(searchPath)}`;
+      // Try ripgrep first (faster, respects .gitignore), fall back to grep
+      let command: string;
+      try {
+        await execAsync('rg --version', { timeout: 2000 });
+        const globFlag = input.include ? ` --glob ${JSON.stringify(input.include)}` : '';
+        command = `rg -n${globFlag} ${JSON.stringify(input.pattern)} ${JSON.stringify(searchPath)}`;
+      } catch {
+        const includeFlag = input.include
+          ? ` --include=${JSON.stringify(input.include)}`
+          : '';
+        command = `grep -rn${includeFlag} ${JSON.stringify(input.pattern)} ${JSON.stringify(searchPath)}`;
+      }
 
       const { stdout } = await execAsync(command, {
         maxBuffer: 10 * 1024 * 1024,
@@ -354,7 +362,7 @@ export const grepTool: ToolDefinition = {
         'code' in error &&
         (error as { code: number }).code === 1
       ) {
-        // grep exit code 1 = no matches (not a real error)
+        // grep/rg exit code 1 = no matches (not a real error)
         return ok('No matches found.');
       }
       const message =

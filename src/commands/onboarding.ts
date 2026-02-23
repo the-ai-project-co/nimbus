@@ -180,6 +180,14 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
       validatedAt: new Date().toISOString(),
     });
 
+    // Create default config.yaml if it doesn't exist
+    try {
+      const { configManager } = await import('../config/manager');
+      if (!configManager.exists()) {
+        configManager.save();
+      }
+    } catch { /* non-critical */ }
+
     // Success message
     ui.newLine();
     ui.box({

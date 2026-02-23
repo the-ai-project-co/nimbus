@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+# Nimbus CLI launcher — tries Bun first, falls back to npx tsx for Node.js users.
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENTRY="$SCRIPT_DIR/../src/nimbus.ts"
+
+if command -v bun >/dev/null 2>&1; then
+  exec bun "$ENTRY" "$@"
+elif command -v npx >/dev/null 2>&1; then
+  exec npx --yes tsx "$ENTRY" "$@"
+else
+  echo "Error: Nimbus requires Bun (https://bun.sh) or Node.js with npx." >&2
+  exit 1
+fi
