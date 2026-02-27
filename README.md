@@ -1,9 +1,12 @@
 # Nimbus
 
-[![npm version](https://img.shields.io/npm/v/@nimbus-ai/cli.svg)](https://www.npmjs.com/package/@nimbus-ai/cli)
-[![license](https://img.shields.io/npm/l/nimbus.svg)](https://github.com/the-ai-project-co/nimbus/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@astron/nimbus.svg)](https://www.npmjs.com/package/@astron/nimbus)
+[![license](https://img.shields.io/github/license/the-ai-project-co/nimbus)](https://github.com/the-ai-project-co/nimbus/blob/main/LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/the-ai-project-co/nimbus)](https://github.com/the-ai-project-co/nimbus/releases)
 [![CI](https://github.com/the-ai-project-co/nimbus/actions/workflows/ci.yml/badge.svg)](https://github.com/the-ai-project-co/nimbus/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
+[![Bun](https://img.shields.io/badge/Bun-%E2%89%A51.0-f472b6.svg)](https://bun.sh/)
+[![Tests](https://img.shields.io/badge/tests-693%20passing-brightgreen.svg)](https://github.com/the-ai-project-co/nimbus/actions)
 
 > AI-powered cloud engineering agent for your terminal
 
@@ -79,9 +82,9 @@ three-mode safety system that separates reading, building, and deploying.
 
 ```bash
 # Install
-npm install -g @nimbus-ai/cli
+npm install -g @astron/nimbus
 # or
-bun install -g @nimbus-ai/cli
+bun install -g @astron/nimbus
 # or via Homebrew
 brew tap the-ai-project-co/tap
 brew install nimbus
@@ -104,7 +107,7 @@ the interactive chat.
 ### Bun (recommended -- fastest, native SQLite)
 
 ```bash
-bun install -g @nimbus-ai/cli
+bun install -g @astron/nimbus
 ```
 
 Bun provides the best experience: native `bun:sqlite` for state management,
@@ -113,7 +116,7 @@ faster startup, and the full Ink TUI out of the box.
 ### npm
 
 ```bash
-npm install -g @nimbus-ai/cli
+npm install -g @astron/nimbus
 ```
 
 Works with Node.js >= 18. Uses `better-sqlite3` as the SQLite backend when
@@ -516,7 +519,7 @@ bun run nimbus -- --help
 ### Test
 
 ```bash
-# Run all tests (510+ tests)
+# Run all tests (693 tests)
 bun test src/__tests__/
 
 # Run with coverage
@@ -590,7 +593,7 @@ src/
   watcher/           Filesystem watcher for live file tracking
 
   build.ts           Binary build script
-  __tests__/         510+ tests
+  __tests__/         693 tests
 ```
 
 ### Key design decisions
@@ -618,7 +621,8 @@ src/
 
 ## Links
 
-- [npm Package](https://www.npmjs.com/package/@nimbus-ai/cli)
+- [npm Package](https://www.npmjs.com/package/@astron/nimbus)
 - [GitHub](https://github.com/the-ai-project-co/nimbus)
 - [Issues](https://github.com/the-ai-project-co/nimbus/issues)
 - [Releases](https://github.com/the-ai-project-co/nimbus/releases)
+- [Homebrew Tap](https://github.com/the-ai-project-co/homebrew-tap)

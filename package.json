@@ -1,5 +1,5 @@
 {
-  "name": "@nimbus-ai/cli",
+  "name": "@astron/nimbus",
   "version": "0.2.0",
   "description": "AI-Powered Cloud Engineering Agent",
   "main": "src/nimbus.ts",
