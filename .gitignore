@@ -8,6 +8,7 @@ dist/
 build/
 *.js.map
 *.d.ts
+!src/types/ambient.d.ts
 *.d.ts.map
 
 # Environment variables
