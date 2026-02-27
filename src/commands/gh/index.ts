@@ -4,6 +4,7 @@
  * CLI commands for interacting with GitHub via the GitHub Tools Service
  */
 
+import { spawn } from 'node:child_process';
 import { githubClient } from '../../clients/github-client';
 import { ui } from '../../wizard/ui';
 
@@ -16,18 +17,26 @@ export interface GhCommandOptions {
 /**
  * Parse owner/repo from git remote or arguments
  */
-async function getOwnerRepo(options: GhCommandOptions): Promise<{ owner: string; repo: string } | null> {
+async function getOwnerRepo(
+  options: GhCommandOptions
+): Promise<{ owner: string; repo: string } | null> {
   if (options.owner && options.repo) {
     return { owner: options.owner, repo: options.repo };
   }
 
   // Try to get from git remote
   try {
-    const proc = Bun.spawn(['git', 'remote', 'get-url', 'origin'], {
-      stdout: 'pipe',
-      stderr: 'pipe',
+    const output = await new Promise<string>((resolve, reject) => {
+      const proc = spawn('git', ['remote', 'get-url', 'origin'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let out = '';
+      proc.stdout?.on('data', (data: Buffer) => {
+        out += data.toString();
+      });
+      proc.on('close', () => resolve(out));
+      proc.on('error', reject);
     });
-    const output = await new Response(proc.stdout).text();
     const match = output.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
     if (match) {
       return { owner: match[1], repo: match[2] };
@@ -66,7 +75,9 @@ export interface PrListOptions extends GhCommandOptions {
  */
 export async function ghPrListCommand(options: PrListOptions = {}): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: 'Fetching pull requests...' });
 
@@ -103,7 +114,7 @@ export async function ghPrListCommand(options: PrListOptions = {}): Promise<void
       { key: 'state', header: 'State' },
       { key: 'updated', header: 'Updated' },
     ],
-    data: result.data.map((pr) => ({
+    data: result.data.map(pr => ({
       number: `#${pr.number}`,
       title: pr.title.substring(0, 50) + (pr.title.length > 50 ? '...' : ''),
       author: pr.user.login,
@@ -126,7 +137,9 @@ export interface PrViewOptions extends GhCommandOptions {
  */
 export async function ghPrViewCommand(options: PrViewOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: `Fetching PR #${options.prNumber}...` });
 
@@ -157,7 +170,7 @@ export async function ghPrViewCommand(options: PrViewOptions): Promise<void> {
   ui.info(`Updated: ${formatDate(pr.updated_at)}`);
 
   if (pr.labels.length > 0) {
-    ui.info(`Labels: ${pr.labels.map((l) => l.name).join(', ')}`);
+    ui.info(`Labels: ${pr.labels.map(l => l.name).join(', ')}`);
   }
 
   if (pr.body) {
@@ -179,17 +192,26 @@ export interface PrCreateOptions extends GhCommandOptions {
  */
 export async function ghPrCreateCommand(options: PrCreateOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   // Get current branch if head not specified
   let head = options.head;
   if (!head) {
     try {
-      const proc = Bun.spawn(['git', 'branch', '--show-current'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
+      const branchOutput = await new Promise<string>((resolve, reject) => {
+        const proc = spawn('git', ['branch', '--show-current'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let out = '';
+        proc.stdout?.on('data', (data: Buffer) => {
+          out += data.toString();
+        });
+        proc.on('close', () => resolve(out));
+        proc.on('error', reject);
       });
-      head = (await new Response(proc.stdout).text()).trim();
+      head = branchOutput.trim();
     } catch {
       ui.error('Could not determine current branch. Use --head option.');
       return;
@@ -227,7 +249,9 @@ export interface PrMergeOptions extends GhCommandOptions {
  */
 export async function ghPrMergeCommand(options: PrMergeOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: `Merging PR #${options.prNumber}...` });
 
@@ -257,7 +281,9 @@ export interface PrReviewOptions extends GhCommandOptions {
  */
 export async function ghPrReviewCommand(options: PrReviewOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: `Reviewing PR #${options.prNumber}...` });
 
@@ -293,7 +319,9 @@ export interface IssueListOptions extends GhCommandOptions {
  */
 export async function ghIssueListCommand(options: IssueListOptions = {}): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: 'Fetching issues...' });
 
@@ -331,13 +359,11 @@ export async function ghIssueListCommand(options: IssueListOptions = {}): Promis
       { key: 'comments', header: 'Comments' },
       { key: 'updated', header: 'Updated' },
     ],
-    data: result.data.map((issue) => ({
+    data: result.data.map(issue => ({
       number: `#${issue.number}`,
       title: issue.title.substring(0, 40) + (issue.title.length > 40 ? '...' : ''),
       author: issue.user.login,
-      state: issue.state === 'open'
-        ? ui.color('open', 'green')
-        : ui.color('closed', 'red'),
+      state: issue.state === 'open' ? ui.color('open', 'green') : ui.color('closed', 'red'),
       comments: String(issue.comments),
       updated: formatDate(issue.updated_at),
     })),
@@ -353,7 +379,9 @@ export interface IssueViewOptions extends GhCommandOptions {
  */
 export async function ghIssueViewCommand(options: IssueViewOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: `Fetching issue #${options.issueNumber}...` });
 
@@ -384,7 +412,7 @@ export async function ghIssueViewCommand(options: IssueViewOptions): Promise<voi
   ui.info(`Updated: ${formatDate(issue.updated_at)}`);
 
   if (issue.labels.length > 0) {
-    ui.info(`Labels: ${issue.labels.map((l) => l.name).join(', ')}`);
+    ui.info(`Labels: ${issue.labels.map(l => l.name).join(', ')}`);
   }
 
   if (issue.body) {
@@ -405,7 +433,9 @@ export interface IssueCreateOptions extends GhCommandOptions {
  */
 export async function ghIssueCreateCommand(options: IssueCreateOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: 'Creating issue...' });
 
@@ -435,11 +465,17 @@ export interface IssueCloseOptions extends GhCommandOptions {
  */
 export async function ghIssueCloseCommand(options: IssueCloseOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: `Closing issue #${options.issueNumber}...` });
 
-  const result = await githubClient.closeIssue(ownerRepo.owner, ownerRepo.repo, options.issueNumber);
+  const result = await githubClient.closeIssue(
+    ownerRepo.owner,
+    ownerRepo.repo,
+    options.issueNumber
+  );
 
   if (!result.success || !result.data) {
     ui.stopSpinnerFail('Failed to close issue');
@@ -461,7 +497,9 @@ export interface IssueCommentOptions extends GhCommandOptions {
  */
 export async function ghIssueCommentCommand(options: IssueCommentOptions): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: 'Adding comment...' });
 
@@ -493,7 +531,9 @@ export interface RepoInfoOptions extends GhCommandOptions {}
  */
 export async function ghRepoInfoCommand(options: RepoInfoOptions = {}): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: 'Fetching repository info...' });
 
@@ -541,7 +581,9 @@ export interface RepoBranchesOptions extends GhCommandOptions {
  */
 export async function ghRepoBranchesCommand(options: RepoBranchesOptions = {}): Promise<void> {
   const ownerRepo = await getOwnerRepo(options);
-  if (!ownerRepo) return;
+  if (!ownerRepo) {
+    return;
+  }
 
   ui.startSpinner({ message: 'Fetching branches...' });
 
@@ -575,7 +617,7 @@ export async function ghRepoBranchesCommand(options: RepoBranchesOptions = {}): 
       { key: 'sha', header: 'SHA' },
       { key: 'protected', header: 'Protected' },
     ],
-    data: result.data.map((branch) => ({
+    data: result.data.map(branch => ({
       name: branch.name,
       sha: branch.commit.sha.substring(0, 7),
       protected: branch.protected ? ui.color('yes', 'yellow') : 'no',
@@ -593,7 +635,7 @@ export async function ghRepoBranchesCommand(options: RepoBranchesOptions = {}): 
 export async function ghCommand(subcommand: string, args: string[]): Promise<void> {
   // Parse common options
   const options: GhCommandOptions = {};
-  let cleanArgs: string[] = [];
+  const cleanArgs: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -678,7 +720,9 @@ export async function ghCommand(subcommand: string, args: string[]): Promise<voi
     if (prSubcommand === 'review') {
       const prNumber = parseInt(cleanArgs[1], 10);
       if (isNaN(prNumber)) {
-        ui.error('Usage: nimbus gh pr review <number> --event APPROVE|REQUEST_CHANGES|COMMENT [--body "..."]');
+        ui.error(
+          'Usage: nimbus gh pr review <number> --event APPROVE|REQUEST_CHANGES|COMMENT [--body "..."]'
+        );
         return;
       }
       const reviewOptions: PrReviewOptions = { ...options, prNumber, event: 'COMMENT' };

@@ -17,9 +17,10 @@ export function generateShareViewer(shared: SharedSession): string {
       const isUser = m.role === 'user';
       const bgColor = isUser ? '#3b82f6' : '#1e293b';
       const align = isUser ? 'flex-end' : 'flex-start';
-      const content = typeof m.content === 'string'
-        ? escapeHtml(m.content)
-        : escapeHtml(JSON.stringify(m.content));
+      const content =
+        typeof m.content === 'string'
+          ? escapeHtml(m.content)
+          : escapeHtml(JSON.stringify(m.content));
 
       return `
         <div style="display:flex;justify-content:${align};margin:8px 0">

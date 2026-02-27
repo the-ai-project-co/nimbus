@@ -27,8 +27,8 @@ const GCE_PRICING: Record<string, number> = {
   // N1 standard
   'n1-standard-1': 34.67,
   'n1-standard-2': 69.35,
-  'n1-standard-4': 138.70,
-  'n1-standard-8': 277.40,
+  'n1-standard-4': 138.7,
+  'n1-standard-8': 277.4,
   'n1-standard-16': 554.79,
   // N2 standard
   'n2-standard-2': 71.54,
@@ -60,17 +60,17 @@ const GCE_PRICING: Record<string, number> = {
 const CLOUD_SQL_PRICING: Record<string, number> = {
   'db-f1-micro': 7.67,
   'db-g1-small': 25.55,
-  'db-n1-standard-1': 51.10,
-  'db-n1-standard-2': 102.20,
-  'db-n1-standard-4': 204.40,
-  'db-n1-standard-8': 408.80,
-  'db-n1-standard-16': 817.60,
-  'db-n1-highmem-2': 117.80,
+  'db-n1-standard-1': 51.1,
+  'db-n1-standard-2': 102.2,
+  'db-n1-standard-4': 204.4,
+  'db-n1-standard-8': 408.8,
+  'db-n1-standard-16': 817.6,
+  'db-n1-highmem-2': 117.8,
   'db-n1-highmem-4': 235.61,
   'db-n1-highmem-8': 471.22,
-  'db-custom-1-3840': 51.10,
-  'db-custom-2-7680': 102.20,
-  'db-custom-4-15360': 204.40,
+  'db-custom-1-3840': 51.1,
+  'db-custom-2-7680': 102.2,
+  'db-custom-4-15360': 204.4,
 };
 
 // ------------------------------------------------------------------
@@ -78,7 +78,7 @@ const CLOUD_SQL_PRICING: Record<string, number> = {
 // ------------------------------------------------------------------
 const DISK_PRICING: Record<string, number> = {
   'pd-standard': 0.04,
-  'pd-balanced': 0.10,
+  'pd-balanced': 0.1,
   'pd-ssd': 0.17,
   'pd-extreme': 0.125,
 };
@@ -137,13 +137,14 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
     // ----- Database -----
     case 'google_sql_database_instance': {
       const tier = attributes.tier || attributes['settings.tier'] || 'db-n1-standard-1';
-      const price = CLOUD_SQL_PRICING[tier] || 51.10;
+      const price = CLOUD_SQL_PRICING[tier] || 51.1;
       const diskSize = attributes.disk_size || attributes['settings.disk_size'] || 10;
       const diskType = attributes.disk_type || attributes['settings.disk_type'] || 'PD_SSD';
       const diskRate = diskType === 'PD_HDD' ? 0.09 : 0.17;
       const diskCost = diskSize * diskRate;
-      const ha = attributes.availability_type === 'REGIONAL' ||
-                 attributes['settings.availability_type'] === 'REGIONAL';
+      const ha =
+        attributes.availability_type === 'REGIONAL' ||
+        attributes['settings.availability_type'] === 'REGIONAL';
       const multiplier = ha ? 2 : 1;
       return {
         monthlyCost: price * multiplier + diskCost,
@@ -153,16 +154,20 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
     }
 
     case 'google_sql_database': {
-      return { monthlyCost: 0, hourlyCost: 0, description: 'Cloud SQL database (no additional cost)' };
+      return {
+        monthlyCost: 0,
+        hourlyCost: 0,
+        description: 'Cloud SQL database (no additional cost)',
+      };
     }
 
     case 'google_spanner_instance': {
       const numNodes = attributes.num_nodes || 1;
       // $0.90/node-hour
-      const cost = numNodes * 0.90 * HOURS_PER_MONTH;
+      const cost = numNodes * 0.9 * HOURS_PER_MONTH;
       return {
         monthlyCost: cost,
-        hourlyCost: numNodes * 0.90,
+        hourlyCost: numNodes * 0.9,
         quantity: numNodes,
         unit: 'nodes',
         description: `Cloud Spanner (${numNodes} nodes)`,
@@ -173,7 +178,7 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
     case 'google_storage_bucket': {
       // GCS standard: ~$0.020/GB, estimate 100GB
       return {
-        monthlyCost: 2.00,
+        monthlyCost: 2.0,
         hourlyCost: 0,
         unit: 'GB',
         description: 'GCS Standard (estimated 100GB baseline)',
@@ -183,7 +188,7 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
     case 'google_compute_disk': {
       const diskType = attributes.type || 'pd-balanced';
       const size = attributes.size || 10;
-      const pricePerGB = DISK_PRICING[diskType] || 0.10;
+      const pricePerGB = DISK_PRICING[diskType] || 0.1;
       return {
         monthlyCost: size * pricePerGB,
         hourlyCost: 0,
@@ -218,8 +223,8 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
     case 'google_compute_global_address': {
       // Static IP: free when in use, $0.010/hr when idle
       return {
-        monthlyCost: 7.30,
-        hourlyCost: 0.010,
+        monthlyCost: 7.3,
+        hourlyCost: 0.01,
         description: 'Static IP (cost if unused)',
       };
     }
@@ -230,14 +235,14 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
       const isAutopilot = attributes.enable_autopilot === true;
       if (isAutopilot) {
         return {
-          monthlyCost: 73.00,
-          hourlyCost: 0.10,
+          monthlyCost: 73.0,
+          hourlyCost: 0.1,
           description: 'GKE Autopilot cluster management',
         };
       }
       return {
-        monthlyCost: 73.00,
-        hourlyCost: 0.10,
+        monthlyCost: 73.0,
+        hourlyCost: 0.1,
         description: 'GKE Standard cluster management',
       };
     }
@@ -266,7 +271,7 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
 
     case 'google_artifact_registry_repository': {
       return {
-        monthlyCost: 1.00,
+        monthlyCost: 1.0,
         hourlyCost: 0,
         description: 'Artifact Registry (estimated 10GB images)',
       };
@@ -318,8 +323,8 @@ export function getGCPPrice(resource: TerraformResource): PricingResult | null {
     case 'google_dataflow_job': {
       // Highly variable; estimate a small job
       return {
-        monthlyCost: 50.00,
-        hourlyCost: 50.00 / HOURS_PER_MONTH,
+        monthlyCost: 50.0,
+        hourlyCost: 50.0 / HOURS_PER_MONTH,
         description: 'Dataflow job (estimated small workload)',
       };
     }

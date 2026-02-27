@@ -108,10 +108,7 @@ async function listBuckets(options: AwsCommandOptions): Promise<void> {
   ui.startSpinner({ message: 'Fetching S3 buckets...' });
 
   try {
-    const result = await runAwsCommand<{ Buckets: S3Bucket[] }>(
-      's3api list-buckets',
-      options
-    );
+    const result = await runAwsCommand<{ Buckets: S3Bucket[] }>('s3api list-buckets', options);
 
     const buckets = result.Buckets || [];
 
@@ -124,7 +121,7 @@ async function listBuckets(options: AwsCommandOptions): Promise<void> {
     }
 
     // Display table
-    ui.print(ui.bold('Name'.padEnd(50) + 'Created'));
+    ui.print(ui.bold(`${'Name'.padEnd(50)}Created`));
     ui.print('-'.repeat(70));
 
     for (const bucket of buckets) {
@@ -143,7 +140,11 @@ async function listBuckets(options: AwsCommandOptions): Promise<void> {
 async function listObjects(bucket: string, options: AwsCommandOptions): Promise<void> {
   // Remove s3:// prefix if present
   const bucketName = bucket.replace(/^s3:\/\//, '').split('/')[0];
-  const prefix = bucket.replace(/^s3:\/\//, '').split('/').slice(1).join('/');
+  const prefix = bucket
+    .replace(/^s3:\/\//, '')
+    .split('/')
+    .slice(1)
+    .join('/');
 
   ui.header(`S3 Objects: ${bucketName}`);
 
@@ -155,10 +156,7 @@ async function listObjects(bucket: string, options: AwsCommandOptions): Promise<
       command += ` --prefix ${prefix}`;
     }
 
-    const result = await runAwsCommand<{ Contents?: S3Object[] }>(
-      command,
-      options
-    );
+    const result = await runAwsCommand<{ Contents?: S3Object[] }>(command, options);
 
     const objects = result.Contents || [];
 
@@ -171,7 +169,7 @@ async function listObjects(bucket: string, options: AwsCommandOptions): Promise<
     }
 
     // Display table
-    ui.print(ui.bold('Key'.padEnd(50) + 'Size'.padEnd(15) + 'Modified'));
+    ui.print(ui.bold(`${'Key'.padEnd(50) + 'Size'.padEnd(15)}Modified`));
     ui.print('-'.repeat(80));
 
     for (const obj of objects) {
@@ -405,7 +403,9 @@ async function runAwsS3Command(command: string, options: AwsCommandOptions): Pro
  * Format bytes to human readable
  */
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) {
+    return '0 B';
+  }
 
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];

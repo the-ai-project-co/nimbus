@@ -10,13 +10,7 @@
 // Planner
 // ==========================================
 export { Planner } from './planner';
-export type {
-  AgentTask,
-  AgentPlan,
-  PlanStep,
-  PlanDependency,
-  Risk,
-} from './planner';
+export type { AgentTask, AgentPlan, PlanStep, PlanDependency, Risk } from './planner';
 
 // ==========================================
 // Orchestrator (also re-exports shared types)
@@ -45,10 +39,7 @@ export { Verifier } from './verifier';
 // Safety Manager
 // ==========================================
 export { SafetyManager } from './safety';
-export type {
-  SafetyCheck,
-  SafetyCheckResult,
-} from './safety';
+export type { SafetyCheck, SafetyCheckResult } from './safety';
 
 // ==========================================
 // Drift Detector
@@ -82,8 +73,4 @@ export type {
 // Diagram Generator
 // ==========================================
 export { DiagramGenerator } from './diagram-generator';
-export type {
-  DiagramComponent,
-  DiagramConnection,
-  DiagramOptions,
-} from './diagram-generator';
+export type { DiagramComponent, DiagramConnection, DiagramOptions } from './diagram-generator';

@@ -18,9 +18,8 @@
  */
 
 import type { LLMRouter } from '../llm/router';
-import type { LLMMessage } from '../llm/types';
-import { ContextManager, estimateTokens } from './context-manager';
-import type { CompactionResult } from './context-manager';
+import { getTextContent, type LLMMessage } from '../llm/types';
+import { ContextManager, estimateTokens, type CompactionResult } from './context-manager';
 
 // ---------------------------------------------------------------------------
 // Public Types
@@ -77,17 +76,15 @@ Rules:
 export async function runCompaction(
   messages: LLMMessage[],
   contextManager: ContextManager,
-  options: CompactionOptions,
+  options: CompactionOptions
 ): Promise<{ messages: LLMMessage[]; result: CompactionResult }> {
-  const { preserved, toSummarize } =
-    contextManager.selectPreservedMessages(messages);
+  const { preserved, toSummarize } = contextManager.selectPreservedMessages(messages);
 
   // Nothing to summarize -- return early
   if (toSummarize.length === 0) {
     const totalTokens = messages.reduce(
-      (sum, m) =>
-        sum + estimateTokens(typeof m.content === 'string' ? m.content : ''),
-      0,
+      (sum, m) => sum + estimateTokens(getTextContent(m.content)),
+      0
     );
     return {
       messages,
@@ -130,14 +127,10 @@ export async function runCompaction(
   }
 
   // Reassemble the compacted message array
-  const compactedMessages = contextManager.buildCompactedMessages(
-    preserved,
-    summary,
-  );
+  const compactedMessages = contextManager.buildCompactedMessages(preserved, summary);
   const compactedTokens = compactedMessages.reduce(
-    (sum, m) =>
-      sum + estimateTokens(typeof m.content === 'string' ? m.content : ''),
-    0,
+    (sum, m) => sum + estimateTokens(getTextContent(m.content)),
+    0
   );
 
   return {
@@ -163,7 +156,7 @@ export async function runCompaction(
  */
 export async function runManualCompaction(
   messages: LLMMessage[],
-  options: CompactionOptions & { maxContextTokens?: number },
+  options: CompactionOptions & { maxContextTokens?: number }
 ): Promise<{ messages: LLMMessage[]; result: CompactionResult }> {
   const contextManager = new ContextManager({
     maxContextTokens: options.maxContextTokens,
@@ -187,31 +180,18 @@ function formatMessagesForSummary(messages: LLMMessage[]): string {
   const parts: string[] = [];
 
   for (const msg of messages) {
-    const role =
-      msg.role === 'user'
-        ? 'User'
-        : msg.role === 'assistant'
-          ? 'Assistant'
-          : 'Tool';
-    const content =
-      typeof msg.content === 'string'
-        ? msg.content
-        : JSON.stringify(msg.content);
+    const role = msg.role === 'user' ? 'User' : msg.role === 'assistant' ? 'Assistant' : 'Tool';
+    const content = getTextContent(msg.content);
 
     // Truncate very long tool outputs to keep summarizer input manageable
-    const truncated =
-      content.length > 2000
-        ? content.slice(0, 2000) + '... [truncated]'
-        : content;
+    const truncated = content.length > 2000 ? `${content.slice(0, 2000)}... [truncated]` : content;
 
     parts.push(`[${role}]: ${truncated}`);
 
     // Include tool call info if present
     if (msg.toolCalls) {
       for (const tc of msg.toolCalls) {
-        parts.push(
-          `  [Tool Call: ${tc.function.name}(${tc.function.arguments.slice(0, 200)})]`,
-        );
+        parts.push(`  [Tool Call: ${tc.function.name}(${tc.function.arguments.slice(0, 200)})]`);
       }
     }
   }
@@ -227,21 +207,19 @@ function formatMessagesForSummary(messages: LLMMessage[]): string {
  * the compaction model cannot be reached.
  */
 function fallbackSummary(messages: LLMMessage[]): string {
-  const userMessages = messages.filter((m) => m.role === 'user');
-  const assistantMessages = messages.filter((m) => m.role === 'assistant');
+  const userMessages = messages.filter(m => m.role === 'user');
+  const assistantMessages = messages.filter(m => m.role === 'assistant');
 
   const parts: string[] = ['**Conversation Summary (auto-generated)**\n'];
   parts.push(
-    `- ${userMessages.length} user messages and ${assistantMessages.length} assistant responses`,
+    `- ${userMessages.length} user messages and ${assistantMessages.length} assistant responses`
   );
 
   // Extract key topics from user messages
   for (const msg of userMessages.slice(0, 5)) {
-    const content = typeof msg.content === 'string' ? msg.content : '';
+    const content = getTextContent(msg.content);
     if (content.length > 0) {
-      parts.push(
-        `- User asked: "${content.slice(0, 150)}${content.length > 150 ? '...' : ''}"`,
-      );
+      parts.push(`- User asked: "${content.slice(0, 150)}${content.length > 150 ? '...' : ''}"`);
     }
   }
 

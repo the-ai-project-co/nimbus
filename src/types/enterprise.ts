@@ -142,16 +142,22 @@ export interface UsageSummary {
     tokensUsed: number;
     costUsd: number;
   };
-  byOperationType: Record<string, {
-    count: number;
-    tokensUsed: number;
-    costUsd: number;
-  }>;
-  byUser?: Record<string, {
-    count: number;
-    tokensUsed: number;
-    costUsd: number;
-  }>;
+  byOperationType: Record<
+    string,
+    {
+      count: number;
+      tokensUsed: number;
+      costUsd: number;
+    }
+  >;
+  byUser?: Record<
+    string,
+    {
+      count: number;
+      tokensUsed: number;
+      costUsd: number;
+    }
+  >;
 }
 
 // ==================== Audit Types ====================

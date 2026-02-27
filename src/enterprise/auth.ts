@@ -195,7 +195,9 @@ export async function pollDeviceCode(deviceCode: string): Promise<DevicePollResp
  * Associates the given userId with the device code so that the next poll
  * by the CLI will yield an access token.
  */
-export async function verifyDeviceCode(request: DeviceVerifyRequest): Promise<{ verified: boolean }> {
+export async function verifyDeviceCode(
+  request: DeviceVerifyRequest
+): Promise<{ verified: boolean }> {
   const { userCode, userId } = request;
 
   if (!userCode || !userId) {
@@ -224,7 +226,7 @@ export async function verifyDeviceCode(request: DeviceVerifyRequest): Promise<{ 
         AND expires_at > CURRENT_TIMESTAMP`
   );
 
-  const result = stmt.run(userId, userCode.toUpperCase());
+  const result = stmt.run(userId, userCode.toUpperCase()) as { changes: number };
 
   if (result.changes === 0) {
     throw new Error('Invalid or expired user code');

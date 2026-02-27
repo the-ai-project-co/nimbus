@@ -101,7 +101,7 @@ describe('loadHooksConfig', () => {
   PostToolUse:
     - match: ".*"
       command: ".nimbus/hooks/post-all.sh"
-`,
+`
     );
 
     const config = loadHooksConfig(tmpDir);
@@ -123,7 +123,7 @@ describe('loadHooksConfig', () => {
   InvalidEvent:
     - match: ".*"
       command: "echo hi"
-`,
+`
     );
 
     expect(() => loadHooksConfig(tmpDir)).toThrow(/unknown hook event/);
@@ -136,7 +136,7 @@ describe('loadHooksConfig', () => {
   PreToolUse:
     - match: ".*"
       command: "echo hi"
-`,
+`
     );
 
     expect(() => loadHooksConfig(tmpDir)).toThrow(/missing top-level "hooks" key/);
@@ -174,7 +174,7 @@ describe('validateHookDefinition', () => {
     };
     const errors = validateHookDefinition(hook);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.includes('not a valid regex'))).toBe(true);
+    expect(errors.some(e => e.includes('not a valid regex'))).toBe(true);
   });
 
   test('catches empty command', () => {
@@ -184,7 +184,7 @@ describe('validateHookDefinition', () => {
     };
     const errors = validateHookDefinition(hook);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.includes('command'))).toBe(true);
+    expect(errors.some(e => e.includes('command'))).toBe(true);
   });
 
   test('catches empty match', () => {
@@ -194,7 +194,7 @@ describe('validateHookDefinition', () => {
     } as HookDefinition;
     const errors = validateHookDefinition(hook);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.includes('match'))).toBe(true);
+    expect(errors.some(e => e.includes('match'))).toBe(true);
   });
 
   test('catches negative timeout', () => {
@@ -205,7 +205,7 @@ describe('validateHookDefinition', () => {
     };
     const errors = validateHookDefinition(hook);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.includes('timeout'))).toBe(true);
+    expect(errors.some(e => e.includes('timeout'))).toBe(true);
   });
 
   test('catches zero timeout', () => {
@@ -216,7 +216,7 @@ describe('validateHookDefinition', () => {
     };
     const errors = validateHookDefinition(hook);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.includes('timeout'))).toBe(true);
+    expect(errors.some(e => e.includes('timeout'))).toBe(true);
   });
 });
 
@@ -242,7 +242,7 @@ describe('HookEngine.hasHooks', () => {
   PreToolUse:
     - match: "edit_file|write_file"
       command: "echo pre"
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -257,7 +257,7 @@ describe('HookEngine.hasHooks', () => {
   PreToolUse:
     - match: "edit_file|write_file"
       command: "echo pre"
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -277,7 +277,7 @@ describe('HookEngine.hasHooks', () => {
   PreToolUse:
     - match: "edit_file"
       command: "echo pre"
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -308,7 +308,7 @@ describe('HookEngine.getMatchingHooks', () => {
       command: "echo second"
     - match: "bash"
       command: "echo bash-only"
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -325,7 +325,7 @@ describe('HookEngine.getMatchingHooks', () => {
   PreToolUse:
     - match: "edit_file"
       command: "echo first"
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -346,7 +346,7 @@ describe('HookEngine.getMatchingHooks', () => {
   PostToolUse:
     - match: ".*"
       command: "echo all"
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -413,7 +413,7 @@ describe('HookEngine execution with real scripts', () => {
     - match: "edit_file"
       command: "${scriptPath}"
       timeout: 10000
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -424,10 +424,7 @@ describe('HookEngine execution with real scripts', () => {
 
   test('PreToolUse hook with exit 2 blocks the tool', async () => {
     const scriptPath = path.join(tmpDir, '.nimbus', 'hooks', 'block.sh');
-    writeScript(
-      scriptPath,
-      '#!/bin/sh\necho "Blocked by policy" >&2\nexit 2\n',
-    );
+    writeScript(scriptPath, '#!/bin/sh\necho "Blocked by policy" >&2\nexit 2\n');
 
     writeHooksYaml(
       tmpDir,
@@ -436,7 +433,7 @@ describe('HookEngine execution with real scripts', () => {
     - match: "edit_file"
       command: "${scriptPath}"
       timeout: 10000
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -463,7 +460,7 @@ describe('HookEngine execution with real scripts', () => {
     - match: ".*"
       command: "${logPath}"
       timeout: 10000
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -487,7 +484,7 @@ describe('HookEngine execution with real scripts', () => {
     - match: "bash"
       command: "${scriptPath}"
       timeout: 10000
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -510,7 +507,7 @@ describe('HookEngine execution with real scripts', () => {
     - match: "edit_file"
       command: "${scriptPath}"
       timeout: 10000
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -526,10 +523,7 @@ describe('HookEngine execution with real scripts', () => {
     // This script writes stdin to a file so we can verify it
     const outputFile = path.join(tmpDir, 'stdin-capture.json');
     const scriptPath = path.join(tmpDir, '.nimbus', 'hooks', 'capture.sh');
-    writeScript(
-      scriptPath,
-      `#!/bin/sh\ncat > "${outputFile}"\nexit 0\n`,
-    );
+    writeScript(scriptPath, `#!/bin/sh\ncat > "${outputFile}"\nexit 0\n`);
 
     writeHooksYaml(
       tmpDir,
@@ -538,7 +532,7 @@ describe('HookEngine execution with real scripts', () => {
     - match: "terraform"
       command: "${scriptPath}"
       timeout: 10000
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);
@@ -565,7 +559,7 @@ describe('HookEngine execution with real scripts', () => {
     - match: "edit_file"
       command: "${scriptPath}"
       timeout: 10000
-`,
+`
     );
 
     const engine = new HookEngine(tmpDir);

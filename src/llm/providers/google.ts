@@ -3,16 +3,25 @@
  * Supports Gemini 2.0 Flash, Gemini 1.5 Pro
  */
 
-import { GoogleGenerativeAI, GenerativeModel, Content } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  SchemaType,
+  type GenerativeModel,
+  type Content,
+  type EnhancedGenerateContentResponse,
+  type FunctionDeclaration,
+  type FunctionDeclarationSchema,
+} from '@google/generative-ai';
 import {
   BaseProvider,
-  CompletionRequest,
-  LLMMessage,
-  LLMResponse,
-  StreamChunk,
-  ToolCall,
-  ToolCompletionRequest,
-  ToolDefinition,
+  getTextContent,
+  type CompletionRequest,
+  type LLMMessage,
+  type LLMResponse,
+  type StreamChunk,
+  type ToolCall,
+  type ToolCompletionRequest,
+  type ToolDefinition,
 } from '../types';
 import { getProviderApiKey } from '../auth-bridge';
 
@@ -25,7 +34,9 @@ export class GoogleProvider extends BaseProvider {
     super();
     const key = apiKey || getProviderApiKey('google') || process.env.GOOGLE_API_KEY;
     if (!key) {
-      throw new Error('Google API key is required. Run `nimbus login` to configure, set GOOGLE_API_KEY environment variable, or pass it to the constructor.');
+      throw new Error(
+        'Google API key is required. Run `nimbus login` to configure, set GOOGLE_API_KEY environment variable, or pass it to the constructor.'
+      );
     }
     this.client = new GoogleGenerativeAI(key);
   }
@@ -41,13 +52,23 @@ export class GoogleProvider extends BaseProvider {
         temperature: request.temperature,
         maxOutputTokens: request.maxTokens,
         stopSequences: request.stopSequences,
-        responseMimeType: request.responseFormat?.type === 'json_object' ? 'application/json' : 'text/plain',
+        responseMimeType:
+          request.responseFormat?.type === 'json_object' ? 'application/json' : 'text/plain',
       },
     });
 
     const response = result.response;
+    // response.text() throws when the response contains no text parts
+    // (e.g. tool-only responses). Safely extract text content.
+    let content = '';
+    try {
+      content = response.text();
+    } catch {
+      /* no text parts */
+    }
+
     return {
-      content: response.text(),
+      content,
       usage: {
         promptTokens: response.usageMetadata?.promptTokenCount || 0,
         completionTokens: response.usageMetadata?.candidatesTokenCount || 0,
@@ -75,7 +96,12 @@ export class GoogleProvider extends BaseProvider {
     let usage: StreamChunk['usage'] | undefined;
 
     for await (const chunk of result.stream) {
-      const text = chunk.text();
+      let text = '';
+      try {
+        text = chunk.text();
+      } catch {
+        /* no text parts in this chunk */
+      }
       if (text) {
         yield {
           content: text,
@@ -117,8 +143,16 @@ export class GoogleProvider extends BaseProvider {
     const response = result.response;
     const toolCalls = this.extractToolCalls(response);
 
+    // response.text() throws when the response contains only tool calls
+    let textContent = '';
+    try {
+      textContent = response.text();
+    } catch {
+      /* tool-only response */
+    }
+
     return {
-      content: response.text() || '',
+      content: textContent,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       usage: {
         promptTokens: response.usageMetadata?.promptTokenCount || 0,
@@ -127,6 +161,75 @@ export class GoogleProvider extends BaseProvider {
       },
       model: request.model || this.defaultModel,
       finishReason: this.mapGeminiFinishReason(response.candidates?.[0]?.finishReason),
+    };
+  }
+
+  async *streamWithTools(request: ToolCompletionRequest): AsyncIterable<StreamChunk> {
+    const model = this.getModel(request.model || this.defaultModel);
+    const { contents, systemInstruction } = this.convertMessages(request.messages);
+
+    const result = await model.generateContentStream({
+      contents,
+      systemInstruction,
+      tools: [
+        {
+          functionDeclarations: this.convertTools(request.tools),
+        },
+      ],
+      generationConfig: {
+        temperature: request.temperature,
+        maxOutputTokens: request.maxTokens,
+      },
+    });
+
+    let usage: StreamChunk['usage'] | undefined;
+    const toolCalls: ToolCall[] = [];
+
+    for await (const chunk of result.stream) {
+      let text = '';
+      try {
+        text = chunk.text();
+      } catch {
+        /* no text parts in this chunk */
+      }
+      if (text) {
+        yield {
+          content: text,
+          done: false,
+        };
+      }
+
+      // Accumulate tool calls from chunk parts
+      const candidate = chunk.candidates?.[0];
+      if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.functionCall) {
+            toolCalls.push({
+              id: crypto.randomUUID(),
+              type: 'function',
+              function: {
+                name: part.functionCall.name,
+                arguments: JSON.stringify(part.functionCall.args),
+              },
+            });
+          }
+        }
+      }
+
+      // Capture usage metadata from the chunk if available
+      if (chunk.usageMetadata) {
+        usage = {
+          promptTokens: chunk.usageMetadata.promptTokenCount || 0,
+          completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
+          totalTokens: chunk.usageMetadata.totalTokenCount || 0,
+        };
+      }
+    }
+
+    yield {
+      done: true,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      usage,
     };
   }
 
@@ -172,7 +275,7 @@ export class GoogleProvider extends BaseProvider {
     const systemInstruction = this.extractSystemPrompt(messages);
     const nonSystemMessages = this.filterSystemMessages(messages);
 
-    const contents: Content[] = nonSystemMessages.map((m) => {
+    const contents: Content[] = nonSystemMessages.map(m => {
       if (m.role === 'tool') {
         // Tool response
         return {
@@ -182,7 +285,7 @@ export class GoogleProvider extends BaseProvider {
               functionResponse: {
                 name: m.name || 'unknown',
                 response: {
-                  result: m.content,
+                  result: getTextContent(m.content),
                 },
               },
             },
@@ -192,17 +295,18 @@ export class GoogleProvider extends BaseProvider {
 
       if (m.toolCalls && m.toolCalls.length > 0) {
         // Message with tool calls
+        const textContent = getTextContent(m.content);
         return {
           role: 'model',
           parts: [
-            ...(m.content
+            ...(textContent
               ? [
                   {
-                    text: m.content,
+                    text: textContent,
                   },
                 ]
               : []),
-            ...m.toolCalls.map((tc) => {
+            ...m.toolCalls.map(tc => {
               try {
                 return {
                   functionCall: {
@@ -211,7 +315,10 @@ export class GoogleProvider extends BaseProvider {
                   },
                 };
               } catch (error) {
-                console.error(`Failed to parse tool call arguments for ${tc.function.name}:`, error);
+                console.error(
+                  `Failed to parse tool call arguments for ${tc.function.name}:`,
+                  error
+                );
                 return {
                   functionCall: {
                     name: tc.function.name,
@@ -227,7 +334,7 @@ export class GoogleProvider extends BaseProvider {
       // Regular message
       return {
         role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
+        parts: [{ text: getTextContent(m.content) }],
       };
     });
 
@@ -235,23 +342,26 @@ export class GoogleProvider extends BaseProvider {
   }
 
   /**
-   * Convert tool definitions to Gemini format
+   * Convert tool definitions to Gemini format.
+   * The JSONSchema from tool definitions is structurally compatible with
+   * FunctionDeclarationSchema but TypeScript cannot verify property-level
+   * assignability, so we cast the parameters object.
    */
-  private convertTools(tools: ToolDefinition[]): any[] {
-    return tools.map((t) => ({
+  private convertTools(tools: ToolDefinition[]): FunctionDeclaration[] {
+    return tools.map(t => ({
       name: t.function.name,
       description: t.function.description,
       parameters: {
         ...t.function.parameters,
-        type: 'OBJECT' as any,
-      },
+        type: SchemaType.OBJECT,
+      } as FunctionDeclarationSchema,
     }));
   }
 
   /**
    * Extract tool calls from Gemini response
    */
-  private extractToolCalls(response: any): ToolCall[] {
+  private extractToolCalls(response: EnhancedGenerateContentResponse): ToolCall[] {
     const toolCalls: ToolCall[] = [];
     const candidate = response.candidates?.[0];
 
@@ -259,7 +369,7 @@ export class GoogleProvider extends BaseProvider {
       for (const part of candidate.content.parts) {
         if (part.functionCall) {
           toolCalls.push({
-            id: `call_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            id: crypto.randomUUID(),
             type: 'function',
             function: {
               name: part.functionCall.name,
@@ -277,7 +387,9 @@ export class GoogleProvider extends BaseProvider {
    * Map Gemini finish reason to standard format
    */
   private mapGeminiFinishReason(reason: string | undefined): LLMResponse['finishReason'] {
-    if (!reason) return 'stop';
+    if (!reason) {
+      return 'stop';
+    }
 
     switch (reason) {
       case 'STOP':

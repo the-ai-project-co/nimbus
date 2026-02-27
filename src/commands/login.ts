@@ -62,7 +62,7 @@ export async function loginCommand(options: LoginOptions = {}): Promise<boolean>
       configuredProviders: [],
     },
     steps: createWizardSteps(),
-    onEvent: (event) => {
+    onEvent: event => {
       logger.debug('Wizard event', { type: event.type });
     },
   });
@@ -112,7 +112,7 @@ function createWizardSteps(): WizardStep<LoginWizardContext>[] {
       id: 'set-default',
       title: 'Set Default Provider',
       execute: setDefaultStep,
-      condition: (ctx) => ctx.configuredProviders.length > 1,
+      condition: ctx => ctx.configuredProviders.length > 1,
     },
 
     // Step 5: Complete
@@ -127,7 +127,7 @@ function createWizardSteps(): WizardStep<LoginWizardContext>[] {
 /**
  * Step 1: Welcome
  */
-async function welcomeStep(ctx: LoginWizardContext): Promise<StepResult> {
+async function welcomeStep(_ctx: LoginWizardContext): Promise<StepResult> {
   ui.newLine();
   ui.box({
     title: 'Welcome to Nimbus',
@@ -177,7 +177,7 @@ async function welcomeStep(ctx: LoginWizardContext): Promise<StepResult> {
 /**
  * Step 2: GitHub Identity (optional)
  */
-async function githubIdentityStep(ctx: LoginWizardContext): Promise<StepResult> {
+async function githubIdentityStep(_ctx: LoginWizardContext): Promise<StepResult> {
   ui.section('GitHub Identity (Optional)');
 
   // Check if already authenticated
@@ -248,7 +248,9 @@ async function githubIdentityStep(ctx: LoginWizardContext): Promise<StepResult> 
     // Fetch user profile
     ui.startSpinner({ message: 'Fetching user profile...' });
     const identity = await completeGitHubAuth(accessToken);
-    ui.stopSpinnerSuccess(`Signed in as ${identity.username}${identity.name ? ` (${identity.name})` : ''}`);
+    ui.stopSpinnerSuccess(
+      `Signed in as ${identity.username}${identity.name ? ` (${identity.name})` : ''}`
+    );
 
     // Save identity
     authStore.setIdentity(identity);
@@ -274,7 +276,7 @@ async function githubIdentityStep(ctx: LoginWizardContext): Promise<StepResult> 
 /**
  * Step 3: LLM Provider Configuration Loop
  */
-async function providersLoopStep(ctx: LoginWizardContext): Promise<StepResult> {
+async function providersLoopStep(_ctx: LoginWizardContext): Promise<StepResult> {
   ui.section('LLM Provider Configuration');
   ui.print('Configure at least one LLM provider to use Nimbus.');
   ui.newLine();
@@ -289,7 +291,7 @@ async function providersLoopStep(ctx: LoginWizardContext): Promise<StepResult> {
 
   while (addMore) {
     // Build provider options
-    const providerOptions = getProviderNames().map((name) => {
+    const providerOptions = getProviderNames().map(name => {
       const info = getProviderInfo(name);
       const isConfigured = configuredNames.has(name);
 
@@ -424,7 +426,7 @@ async function providersLoopStep(ctx: LoginWizardContext): Promise<StepResult> {
 
     // Select model
     ui.newLine();
-    const modelOptions = providerInfo.models.map((m) => ({
+    const modelOptions = providerInfo.models.map(m => ({
       value: m.id,
       label: m.name + (m.isDefault ? ' (default)' : ''),
     }));
@@ -489,7 +491,7 @@ async function providersLoopStep(ctx: LoginWizardContext): Promise<StepResult> {
 async function setDefaultStep(ctx: LoginWizardContext): Promise<StepResult> {
   ui.section('Set Default Provider');
 
-  const providerOptions = ctx.configuredProviders.map((p) => {
+  const providerOptions = ctx.configuredProviders.map(p => {
     const info = getProviderInfo(p.name);
     return {
       value: p.name,
@@ -529,7 +531,9 @@ async function completeStep(ctx: LoginWizardContext): Promise<StepResult> {
 
   // Identity section
   if (ctx.githubIdentity) {
-    content.push(`Identity: ${ctx.githubIdentity.username}${ctx.githubIdentity.name ? ` (${ctx.githubIdentity.name})` : ''}`);
+    content.push(
+      `Identity: ${ctx.githubIdentity.username}${ctx.githubIdentity.name ? ` (${ctx.githubIdentity.name})` : ''}`
+    );
   } else {
     content.push('Identity: (not configured)');
   }
@@ -588,7 +592,9 @@ async function runNonInteractive(options: LoginOptions): Promise<boolean> {
     // Try environment variable
     apiKey = process.env[providerInfo.envVarName || ''];
     if (!apiKey) {
-      ui.error(`API key is required. Set --api-key or ${providerInfo.envVarName} environment variable.`);
+      ui.error(
+        `API key is required. Set --api-key or ${providerInfo.envVarName} environment variable.`
+      );
       return false;
     }
   }

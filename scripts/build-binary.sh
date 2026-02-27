@@ -27,18 +27,29 @@ CHECKSUMS_FILE="$DIST_DIR/checksums.txt"
 
 TARGET="${1:-current}"
 
-# Packages that must be excluded from the standalone bundle.
-# ink (React-based terminal UI) uses top-level await and react-devtools-core
-# which cannot be statically compiled. The CLI provides graceful fallbacks
-# when these packages are unavailable at runtime, so excluding them is safe.
-EXTERNALS=(
-  --external react-devtools-core
-  --external ink
-  --external ink-text-input
-  --external ink-spinner
-  --external ink-select-input
-  --external react
-)
+# All packages including Ink/React are bundled for the full TUI experience.
+# The build script (src/build.ts) creates a react-devtools-core stub before
+# building so the optional Ink dependency resolves cleanly.
+# NOTE: When using this shell script directly, create the stub first or use
+# src/build.ts which handles it automatically.
+EXTERNALS=()
+
+# Create a stub for react-devtools-core (optional Ink dependency)
+STUB_DIR="$ROOT_DIR/node_modules/react-devtools-core"
+STUB_CREATED=0
+if [ ! -d "$STUB_DIR" ]; then
+  mkdir -p "$STUB_DIR"
+  echo '{"name":"react-devtools-core","version":"0.0.0","main":"index.js"}' > "$STUB_DIR/package.json"
+  echo 'module.exports = { initialize() {}, connectToDevTools() {} };' > "$STUB_DIR/index.js"
+  STUB_CREATED=1
+fi
+
+cleanup_stub() {
+  if [ "$STUB_CREATED" -eq 1 ] && [ -d "$STUB_DIR" ]; then
+    rm -rf "$STUB_DIR"
+  fi
+}
+trap cleanup_stub EXIT
 
 build_for_target() {
   local target="$1"

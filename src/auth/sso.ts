@@ -79,11 +79,8 @@ export class SSODeviceFlow {
    * Wait for authorization by polling
    * Returns access token when user completes authorization
    */
-  async waitForAuthorization(
-    onPoll?: () => void,
-    abortSignal?: AbortSignal
-  ): Promise<string> {
-    while (true) {
+  async waitForAuthorization(onPoll?: () => void, abortSignal?: AbortSignal): Promise<string> {
+    for (;;) {
       if (abortSignal?.aborted) {
         throw new Error('Authorization cancelled');
       }

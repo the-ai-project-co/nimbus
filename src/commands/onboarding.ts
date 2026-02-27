@@ -7,11 +7,7 @@
  */
 
 import { AuthStore } from '../auth/store';
-import {
-  PROVIDER_REGISTRY,
-  getDefaultModel,
-  validateProviderApiKey,
-} from '../auth/providers';
+import { PROVIDER_REGISTRY, getDefaultModel, validateProviderApiKey } from '../auth/providers';
 import type { LLMProviderName } from '../auth/types';
 import { ui } from '../wizard/ui';
 import { select, input } from '../wizard/prompts';
@@ -29,13 +25,21 @@ export interface OnboardingOptions {
  */
 export function needsOnboarding(): boolean {
   const store = new AuthStore();
-  if (store.exists()) return false;
+  if (store.exists()) {
+    return false;
+  }
 
   const hasEnvKey = !!(
     process.env.ANTHROPIC_API_KEY ||
     process.env.OPENAI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
-    process.env.OPENROUTER_API_KEY
+    process.env.OPENROUTER_API_KEY ||
+    process.env.GROQ_API_KEY ||
+    process.env.TOGETHER_API_KEY ||
+    process.env.DEEPSEEK_API_KEY ||
+    process.env.FIREWORKS_API_KEY ||
+    process.env.PERPLEXITY_API_KEY ||
+    process.env.AWS_ACCESS_KEY_ID
   );
 
   return !hasEnvKey;
@@ -45,7 +49,9 @@ export function needsOnboarding(): boolean {
  * Run the first-run onboarding wizard.
  */
 export async function onboardingCommand(options: OnboardingOptions = {}): Promise<void> {
-  if (options.skip) return;
+  if (options.skip) {
+    return;
+  }
 
   const store = new AuthStore();
 
@@ -64,6 +70,8 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
     ui.print('  export OPENAI_API_KEY=sk-...');
     ui.print('  export GOOGLE_API_KEY=...');
     ui.print('  export OPENROUTER_API_KEY=sk-or-...');
+    ui.print('  export GROQ_API_KEY=gsk_...');
+    ui.print('  export DEEPSEEK_API_KEY=sk-...');
     ui.newLine();
     ui.info('Or run "nimbus login" in an interactive terminal.');
     ui.newLine();
@@ -89,7 +97,7 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
     ui.newLine();
 
     // Provider selection
-    const providerOptions = Object.values(PROVIDER_REGISTRY).map((p) => ({
+    const providerOptions = Object.values(PROVIDER_REGISTRY).map(p => ({
       label: p.displayName,
       value: p.name,
       description: p.description,
@@ -186,7 +194,9 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
       if (!configManager.exists()) {
         configManager.save();
       }
-    } catch { /* non-critical */ }
+    } catch {
+      /* non-critical */
+    }
 
     // Success message
     ui.newLine();
@@ -196,7 +206,7 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
         `Provider: ${providerInfo.displayName}`,
         `Model:    ${defaultModel}`,
         '',
-        'You\'re ready to go! Starting interactive chat...',
+        "You're ready to go! Starting interactive chat...",
       ],
       style: 'rounded',
       borderColor: 'green',

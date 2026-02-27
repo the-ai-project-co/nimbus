@@ -68,10 +68,18 @@ export class K8sClient {
   ): Promise<K8sGetResult> {
     const params = new URLSearchParams();
     params.set('resource', resource);
-    if (options?.namespace) params.set('namespace', options.namespace);
-    if (options?.name) params.set('name', options.name);
-    if (options?.output) params.set('output', options.output);
-    if (options?.labels) params.set('labels', JSON.stringify(options.labels));
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
+    if (options?.name) {
+      params.set('name', options.name);
+    }
+    if (options?.output) {
+      params.set('output', options.output);
+    }
+    if (options?.labels) {
+      params.set('labels', JSON.stringify(options.labels));
+    }
 
     const response = await this.client.get<K8sGetResult>(`/api/k8s/get?${params.toString()}`);
     if (response.success && response.data) {
@@ -90,7 +98,10 @@ export class K8sClient {
       dryRun?: boolean;
     }
   ): Promise<K8sApplyResult> {
-    const response = await this.client.post<K8sApplyResult>('/api/k8s/apply', { manifests, ...options });
+    const response = await this.client.post<K8sApplyResult>('/api/k8s/apply', {
+      manifests,
+      ...options,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -108,7 +119,11 @@ export class K8sClient {
       force?: boolean;
     }
   ): Promise<K8sDeleteResult> {
-    const response = await this.client.post<K8sDeleteResult>('/api/k8s/delete', { resource, name, ...options });
+    const response = await this.client.post<K8sDeleteResult>('/api/k8s/delete', {
+      resource,
+      name,
+      ...options,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -130,10 +145,18 @@ export class K8sClient {
   ): Promise<K8sLogsResult> {
     const params = new URLSearchParams();
     params.set('pod', podName);
-    if (options?.namespace) params.set('namespace', options.namespace);
-    if (options?.container) params.set('container', options.container);
-    if (options?.tail) params.set('tail', String(options.tail));
-    if (options?.since) params.set('since', options.since);
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
+    if (options?.container) {
+      params.set('container', options.container);
+    }
+    if (options?.tail) {
+      params.set('tail', String(options.tail));
+    }
+    if (options?.since) {
+      params.set('since', options.since);
+    }
 
     const response = await this.client.get<K8sLogsResult>(`/api/k8s/logs?${params.toString()}`);
     if (response.success && response.data) {
@@ -153,9 +176,13 @@ export class K8sClient {
     const params = new URLSearchParams();
     params.set('resource', resource);
     params.set('name', name);
-    if (options?.namespace) params.set('namespace', options.namespace);
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
 
-    const response = await this.client.get<{ success: boolean; output: string; error?: string }>(`/api/k8s/describe?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; output: string; error?: string }>(
+      `/api/k8s/describe?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -171,7 +198,10 @@ export class K8sClient {
     replicas: number,
     options?: { namespace?: string }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/scale', { resource, name, replicas, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/scale',
+      { resource, name, replicas, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -189,7 +219,10 @@ export class K8sClient {
       container?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/exec', { pod, command, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/exec',
+      { pod, command, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -208,7 +241,10 @@ export class K8sClient {
       revision?: number;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/rollout', { action, resource, name, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/rollout',
+      { action, resource, name, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -218,17 +254,23 @@ export class K8sClient {
   /**
    * Get events from a namespace
    */
-  async events(
-    options?: {
-      namespace?: string;
-      fieldSelector?: string;
-    }
-  ): Promise<{ success: boolean; events: Array<Record<string, string>>; error?: string }> {
+  async events(options?: {
+    namespace?: string;
+    fieldSelector?: string;
+  }): Promise<{ success: boolean; events: Array<Record<string, string>>; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.namespace) params.set('namespace', options.namespace);
-    if (options?.fieldSelector) params.set('fieldSelector', options.fieldSelector);
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
+    if (options?.fieldSelector) {
+      params.set('fieldSelector', options.fieldSelector);
+    }
 
-    const response = await this.client.get<{ success: boolean; events: Array<Record<string, string>>; error?: string }>(`/api/k8s/events?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      events: Array<Record<string, string>>;
+      error?: string;
+    }>(`/api/k8s/events?${params.toString()}`);
     if (response.success && response.data) {
       return response.data;
     }
@@ -247,7 +289,10 @@ export class K8sClient {
       context?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/port-forward', { pod, ports, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/port-forward',
+      { pod, ports, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -262,10 +307,18 @@ export class K8sClient {
     context?: string;
   }): Promise<{ success: boolean; namespaces: string[]; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.kubeconfig) params.set('kubeconfig', options.kubeconfig);
-    if (options?.context) params.set('context', options.context);
+    if (options?.kubeconfig) {
+      params.set('kubeconfig', options.kubeconfig);
+    }
+    if (options?.context) {
+      params.set('context', options.context);
+    }
     const query = params.toString() ? `?${params.toString()}` : '';
-    const response = await this.client.get<{ success: boolean; namespaces: string[]; error?: string }>(`/api/k8s/namespaces${query}`);
+    const response = await this.client.get<{
+      success: boolean;
+      namespaces: string[];
+      error?: string;
+    }>(`/api/k8s/namespaces${query}`);
     if (response.success && response.data) {
       return response.data;
     }
@@ -282,7 +335,10 @@ export class K8sClient {
       context?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/namespace', { name, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/namespace',
+      { name, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -299,7 +355,10 @@ export class K8sClient {
       context?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/namespace/delete', { name, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/namespace/delete',
+      { name, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -316,17 +375,38 @@ export class K8sClient {
       kubeconfig?: string;
       context?: string;
     }
-  ): Promise<{ success: boolean; output: string; items: Array<Record<string, string>>; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    output: string;
+    items: Array<Record<string, string>>;
+    error?: string;
+  }> {
     const params = new URLSearchParams();
-    if (options?.namespace) params.set('namespace', options.namespace);
-    if (options?.kubeconfig) params.set('kubeconfig', options.kubeconfig);
-    if (options?.context) params.set('context', options.context);
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
+    if (options?.kubeconfig) {
+      params.set('kubeconfig', options.kubeconfig);
+    }
+    if (options?.context) {
+      params.set('context', options.context);
+    }
     const query = params.toString() ? `?${params.toString()}` : '';
-    const response = await this.client.get<{ success: boolean; output: string; items: Array<Record<string, string>>; error?: string }>(`/api/k8s/top/${resourceType}${query}`);
+    const response = await this.client.get<{
+      success: boolean;
+      output: string;
+      items: Array<Record<string, string>>;
+      error?: string;
+    }>(`/api/k8s/top/${resourceType}${query}`);
     if (response.success && response.data) {
       return response.data;
     }
-    return { success: false, output: '', items: [], error: response.error?.message || 'Unknown error' };
+    return {
+      success: false,
+      output: '',
+      items: [],
+      error: response.error?.message || 'Unknown error',
+    };
   }
 
   /**
@@ -343,7 +423,10 @@ export class K8sClient {
       context?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/patch', { resource, name, patch, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/patch',
+      { resource, name, patch, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -364,7 +447,10 @@ export class K8sClient {
       context?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/label', { resource, name, labels, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/label',
+      { resource, name, labels, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -385,7 +471,10 @@ export class K8sClient {
       context?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/k8s/annotate', { resource, name, annotations, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/k8s/annotate',
+      { resource, name, annotations, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }

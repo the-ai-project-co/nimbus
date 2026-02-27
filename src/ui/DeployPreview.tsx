@@ -29,8 +29,8 @@ export interface DeployPreviewProps {
 
 /** Map change action to a prefix character and colour. */
 const ACTION_DISPLAY: Record<DeployChange['action'], { prefix: string; color: string }> = {
-  create:  { prefix: '+', color: 'green' },
-  modify:  { prefix: '~', color: 'yellow' },
+  create: { prefix: '+', color: 'green' },
+  modify: { prefix: '~', color: 'yellow' },
   destroy: { prefix: '-', color: 'red' },
   replace: { prefix: '-/+', color: 'magenta' },
 };
@@ -82,7 +82,7 @@ function ChangeRow({ change }: { change: DeployChange }) {
  * action key legend.
  */
 export function DeployPreview({ preview, onDecide }: DeployPreviewProps) {
-  useInput((input) => {
+  useInput(input => {
     switch (input) {
       case 'a':
         onDecide('approve');
@@ -99,13 +99,7 @@ export function DeployPreview({ preview, onDecide }: DeployPreviewProps) {
   const counts = summaryCounts(preview.changes);
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="double"
-      borderColor="yellow"
-      paddingX={1}
-      paddingY={1}
-    >
+    <Box flexDirection="column" borderStyle="double" borderColor="yellow" paddingX={1} paddingY={1}>
       {/* Title */}
       <Box marginBottom={1}>
         <Text bold color="yellow">
@@ -117,9 +111,9 @@ export function DeployPreview({ preview, onDecide }: DeployPreviewProps) {
       {/* Summary counts */}
       <Box marginBottom={1}>
         <Text color="green">+{counts.add} to add</Text>
-        <Text>  </Text>
+        <Text> </Text>
         <Text color="yellow">~{counts.change} to change</Text>
-        <Text>  </Text>
+        <Text> </Text>
         <Text color="red">-{counts.destroy} to destroy</Text>
       </Box>
 
@@ -128,9 +122,7 @@ export function DeployPreview({ preview, onDecide }: DeployPreviewProps) {
         {preview.changes.map((change, idx) => (
           <ChangeRow key={idx} change={change} />
         ))}
-        {preview.changes.length === 0 && (
-          <Text dimColor>No resource changes detected.</Text>
-        )}
+        {preview.changes.length === 0 && <Text dimColor>No resource changes detected.</Text>}
       </Box>
 
       {/* Cost impact */}
@@ -159,11 +151,17 @@ export function DeployPreview({ preview, onDecide }: DeployPreviewProps) {
 
       {/* Action keys */}
       <Box marginTop={1}>
-        <Text color="green" bold>[a]</Text>
-        <Text> Approve  </Text>
-        <Text color="red" bold>[r]</Text>
-        <Text> Reject  </Text>
-        <Text color="cyan" bold>[p]</Text>
+        <Text color="green" bold>
+          [a]
+        </Text>
+        <Text> Approve </Text>
+        <Text color="red" bold>
+          [r]
+        </Text>
+        <Text> Reject </Text>
+        <Text color="cyan" bold>
+          [p]
+        </Text>
         <Text> Show full plan</Text>
       </Box>
     </Box>

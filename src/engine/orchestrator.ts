@@ -1,9 +1,8 @@
 import { logger } from '../utils';
-import { Planner } from './planner';
+import { Planner, type AgentTask, type AgentPlan } from './planner';
 import { Executor } from './executor';
 import { Verifier } from './verifier';
 import { SafetyManager } from './safety';
-import type { AgentTask, AgentPlan } from './planner';
 
 // ==========================================
 // Re-export shared types for use by executor and other modules
@@ -77,8 +76,16 @@ export interface VerificationCheck {
 export interface AgentEvent {
   id: string;
   task_id: string;
-  type: 'task_created' | 'plan_generated' | 'plan_approved' | 'execution_started' |
-        'step_completed' | 'verification_completed' | 'task_completed' | 'task_failed' | 'task_cancelled';
+  type:
+    | 'task_created'
+    | 'plan_generated'
+    | 'plan_approved'
+    | 'execution_started'
+    | 'step_completed'
+    | 'verification_completed'
+    | 'task_completed'
+    | 'task_failed'
+    | 'task_cancelled';
   timestamp: Date;
   data?: Record<string, unknown>;
   user_id?: string;
@@ -197,7 +204,7 @@ export class AgentOrchestrator {
         task.status = 'failed';
         task.result = {
           success: false,
-          errors: safetyChecks.blockers.map((b) => b.message),
+          errors: safetyChecks.blockers.map(b => b.message),
         };
         task.updated_at = new Date();
 
@@ -248,15 +255,13 @@ export class AgentOrchestrator {
       task.execution.execution_id = executionResults[0]?.id;
 
       // Check if execution succeeded
-      const executionFailed = executionResults.some((r) => r.status === 'failure');
+      const executionFailed = executionResults.some(r => r.status === 'failure');
 
       if (executionFailed) {
         task.status = 'failed';
         task.result = {
           success: false,
-          errors: executionResults
-            .filter((r) => r.error)
-            .map((r) => r.error!.message),
+          errors: executionResults.filter(r => r.error).map(r => r.error!.message),
         };
         task.updated_at = new Date();
 
@@ -319,7 +324,7 @@ export class AgentOrchestrator {
       task.result = {
         success: true,
         outputs: executionResults.reduce((acc, r) => ({ ...acc, ...r.outputs }), {}),
-        artifacts: executionResults.flatMap((r) => r.artifacts?.map((a) => a.name) || []),
+        artifacts: executionResults.flatMap(r => r.artifacts?.map(a => a.name) || []),
       };
 
       plan.status = 'completed';
@@ -405,15 +410,13 @@ export class AgentOrchestrator {
     const executionResults = await this.executor.executePlan(plan);
 
     // Check if execution succeeded
-    const executionFailed = executionResults.some((r) => r.status === 'failure');
+    const executionFailed = executionResults.some(r => r.status === 'failure');
 
     if (executionFailed) {
       task.status = 'failed';
       task.result = {
         success: false,
-        errors: executionResults
-          .filter((r) => r.error)
-          .map((r) => r.error!.message),
+        errors: executionResults.filter(r => r.error).map(r => r.error!.message),
       };
       task.updated_at = new Date();
 
@@ -435,7 +438,7 @@ export class AgentOrchestrator {
     task.result = {
       success: true,
       outputs: executionResults.reduce((acc, r) => ({ ...acc, ...r.outputs }), {}),
-      artifacts: executionResults.flatMap((r) => r.artifacts?.map((a) => a.name) || []),
+      artifacts: executionResults.flatMap(r => r.artifacts?.map(a => a.name) || []),
     };
 
     this.emitEvent({
@@ -482,15 +485,15 @@ export class AgentOrchestrator {
     let tasks = Array.from(this.tasks.values());
 
     if (filters?.user_id) {
-      tasks = tasks.filter((t) => t.user_id === filters.user_id);
+      tasks = tasks.filter(t => t.user_id === filters.user_id);
     }
 
     if (filters?.status) {
-      tasks = tasks.filter((t) => t.status === filters.status);
+      tasks = tasks.filter(t => t.status === filters.status);
     }
 
     if (filters?.type) {
-      tasks = tasks.filter((t) => t.type === filters.type);
+      tasks = tasks.filter(t => t.type === filters.type);
     }
 
     return tasks.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
@@ -526,7 +529,7 @@ export class AgentOrchestrator {
    * Get task events
    */
   getTaskEvents(taskId: string): AgentEvent[] {
-    return this.events.filter((e) => e.task_id === taskId);
+    return this.events.filter(e => e.task_id === taskId);
   }
 
   /**

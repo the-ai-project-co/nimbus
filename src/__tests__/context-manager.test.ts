@@ -8,11 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test';
-import {
-  ContextManager,
-  estimateTokens,
-  estimateMessageTokens,
-} from '../agent/context-manager';
+import { ContextManager, estimateTokens, estimateMessageTokens } from '../agent/context-manager';
 import type { LLMMessage } from '../llm/types';
 
 // ---------------------------------------------------------------------------
@@ -106,9 +102,7 @@ describe('estimateMessageTokens', () => {
         },
       ],
     };
-    expect(estimateMessageTokens(doubleCalls)).toBeGreaterThan(
-      estimateMessageTokens(singleCall),
-    );
+    expect(estimateMessageTokens(doubleCalls)).toBeGreaterThan(estimateMessageTokens(singleCall));
   });
 });
 
@@ -134,18 +128,14 @@ describe('ContextManager', () => {
   describe('shouldCompact', () => {
     it('should return false when usage is below threshold', () => {
       const systemPrompt = 'You are a helpful assistant.';
-      const messages: LLMMessage[] = [
-        { role: 'user', content: 'Hello' },
-      ];
+      const messages: LLMMessage[] = [{ role: 'user', content: 'Hello' }];
       expect(cm.shouldCompact(systemPrompt, messages, 50)).toBe(false);
     });
 
     it('should return true when usage exceeds threshold', () => {
       // ~850 tokens from system prompt alone
       const systemPrompt = 'x'.repeat(3400);
-      const messages: LLMMessage[] = [
-        { role: 'user', content: 'Hello' },
-      ];
+      const messages: LLMMessage[] = [{ role: 'user', content: 'Hello' }];
       // 850 + ~6 + 50 = 906 -> 90.6% of 1000 > 85%
       expect(cm.shouldCompact(systemPrompt, messages, 50)).toBe(true);
     });
@@ -166,8 +156,7 @@ describe('ContextManager', () => {
 
   describe('calculateUsage', () => {
     it('should break down context usage', () => {
-      const systemPrompt =
-        'Base prompt. # NIMBUS.md\nProject instructions here.';
+      const systemPrompt = 'Base prompt. # NIMBUS.md\nProject instructions here.';
       const messages: LLMMessage[] = [
         { role: 'user', content: 'What is this project?' },
         { role: 'assistant', content: 'It is a cloud tool.' },
@@ -182,7 +171,7 @@ describe('ContextManager', () => {
         breakdown.systemPrompt +
           breakdown.nimbusInstructions +
           breakdown.messages +
-          breakdown.toolDefinitions,
+          breakdown.toolDefinitions
       );
       expect(breakdown.budget).toBe(1000);
       expect(breakdown.usagePercent).toBeGreaterThanOrEqual(0);
@@ -215,25 +204,23 @@ describe('ContextManager', () => {
         { role: 'user', content: 'A' },
         { role: 'assistant', content: 'B' },
       ];
-      const { preserved, toSummarize } =
-        cm.selectPreservedMessages(messages);
+      const { preserved, toSummarize } = cm.selectPreservedMessages(messages);
       expect(preserved).toHaveLength(2);
       expect(toSummarize).toHaveLength(0);
     });
 
     it('should split messages when count > threshold', () => {
       const messages: LLMMessage[] = [
-        { role: 'user', content: 'First' },       // preserved (first)
-        { role: 'assistant', content: 'Second' },  // summarize
-        { role: 'user', content: 'Third' },        // summarize
-        { role: 'assistant', content: 'Fourth' },  // summarize
-        { role: 'user', content: 'Fifth' },        // summarize
-        { role: 'assistant', content: 'Sixth' },   // preserved (recent)
-        { role: 'user', content: 'Seventh' },      // preserved (recent)
-        { role: 'assistant', content: 'Eighth' },  // preserved (recent)
+        { role: 'user', content: 'First' }, // preserved (first)
+        { role: 'assistant', content: 'Second' }, // summarize
+        { role: 'user', content: 'Third' }, // summarize
+        { role: 'assistant', content: 'Fourth' }, // summarize
+        { role: 'user', content: 'Fifth' }, // summarize
+        { role: 'assistant', content: 'Sixth' }, // preserved (recent)
+        { role: 'user', content: 'Seventh' }, // preserved (recent)
+        { role: 'assistant', content: 'Eighth' }, // preserved (recent)
       ];
-      const { preserved, toSummarize } =
-        cm.selectPreservedMessages(messages);
+      const { preserved, toSummarize } = cm.selectPreservedMessages(messages);
       expect(preserved).toHaveLength(4); // first + 3 recent
       expect(toSummarize).toHaveLength(4);
       expect(preserved[0].content).toBe('First');
@@ -254,9 +241,7 @@ describe('ContextManager', () => {
       ];
       const { preserved } = cm.selectPreservedMessages(messages);
       const summaryMsg = preserved.find(
-        (m) =>
-          typeof m.content === 'string' &&
-          m.content.startsWith('[Context Summary]'),
+        m => typeof m.content === 'string' && m.content.startsWith('[Context Summary]')
       );
       expect(summaryMsg).toBeDefined();
     });
@@ -278,7 +263,7 @@ describe('ContextManager', () => {
         { role: 'assistant', content: 'F' },
       ];
       const { preserved } = cm.selectPreservedMessages(messages);
-      const toolMsg = preserved.find((m) => m.role === 'tool');
+      const toolMsg = preserved.find(m => m.role === 'tool');
       expect(toolMsg).toBeDefined();
     });
   });
@@ -311,9 +296,7 @@ describe('ContextManager', () => {
     });
 
     it('should handle single preserved message', () => {
-      const preserved: LLMMessage[] = [
-        { role: 'user', content: 'Only one' },
-      ];
+      const preserved: LLMMessage[] = [{ role: 'user', content: 'Only one' }];
       const result = cm.buildCompactedMessages(preserved, 'Summary');
       expect(result).toHaveLength(2);
       expect(result[0].content).toBe('Only one');
@@ -377,13 +360,18 @@ describe('Slash Command Parsing', () => {
     args?: string;
   } {
     const trimmed = text.trim();
-    if (trimmed === '/compact') return { command: 'compact' };
-    if (trimmed.startsWith('/compact '))
+    if (trimmed === '/compact') {
+      return { command: 'compact' };
+    }
+    if (trimmed.startsWith('/compact ')) {
       return {
         command: 'compact',
         args: trimmed.slice('/compact '.length).trim(),
       };
-    if (trimmed === '/context') return { command: 'context' };
+    }
+    if (trimmed === '/context') {
+      return { command: 'context' };
+    }
     return { command: null };
   }
 

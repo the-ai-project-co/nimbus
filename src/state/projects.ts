@@ -5,7 +5,7 @@
  * listProjects, and deleteProject.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape returned by project query helpers. */
@@ -26,7 +26,13 @@ export interface ProjectRecord {
 /**
  * Persist or update a project.  Uses INSERT ... ON CONFLICT to upsert.
  */
-export function saveProject(id: string, name: string, projectPath: string, config: any, db?: Database): void {
+export function saveProject(
+  id: string,
+  name: string,
+  projectPath: string,
+  config: any,
+  db?: Database
+): void {
   const d = db || getDb();
   const stmt = d.prepare(`
     INSERT INTO projects (id, name, path, config, last_scanned, created_at, updated_at)

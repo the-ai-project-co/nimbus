@@ -89,7 +89,7 @@ const PLAN_CATALOG: Record<string, PlanDetails> = {
 };
 
 const VALID_PLANS = ['free', 'pro', 'enterprise'] as const;
-type ValidPlan = typeof VALID_PLANS[number];
+type ValidPlan = (typeof VALID_PLANS)[number];
 
 // ---------------------------------------------------------------------------
 // Plan quota definitions (preserved verbatim from billing-service/src/routes/usage.ts)
@@ -123,7 +123,8 @@ const PLAN_QUOTAS: Record<string, PlanQuota> = {
 // Response type definitions (mirrors @nimbus/shared-types shapes)
 // ---------------------------------------------------------------------------
 
-export type TeamPlan = ValidPlan;
+/** Alias for the billing-specific plan type, re-exported from teams.ts */
+type TeamPlan = ValidPlan;
 
 export interface BillingStatus {
   plan: TeamPlan;
@@ -276,9 +277,27 @@ export interface EnhancedUsageSummary {
   dailyBreakdown: Array<{ date: string; operations: number; tokensUsed: number; costUsd: number }>;
   quota: {
     plan: string;
-    tokens: { used: number; limit: number; remaining: number; percentUsed: number; unlimited: boolean };
-    operations: { used: number; limit: number; remaining: number; percentUsed: number; unlimited: boolean };
-    cost: { accrued: number; cap: number; remaining: number; percentUsed: number; unlimited: boolean };
+    tokens: {
+      used: number;
+      limit: number;
+      remaining: number;
+      percentUsed: number;
+      unlimited: boolean;
+    };
+    operations: {
+      used: number;
+      limit: number;
+      remaining: number;
+      percentUsed: number;
+      unlimited: boolean;
+    };
+    cost: {
+      accrued: number;
+      cap: number;
+      remaining: number;
+      percentUsed: number;
+      unlimited: boolean;
+    };
   };
   rateLimit: {
     requestsPerMinute: number;
@@ -318,7 +337,7 @@ function buildStripeSubscription(
   periodEnd: Date,
   seats: number,
   canceled: boolean = false,
-  canceledAt: Date | null = null,
+  canceledAt: Date | null = null
 ): StripeSubscriptionResponse['stripe'] {
   const planDetails = PLAN_CATALOG[plan] || PLAN_CATALOG.pro;
   const createdTimestamp = Math.floor((periodStart.getTime() - 5000) / 1000);
@@ -436,7 +455,7 @@ function buildQuota(
   plan: string,
   totalTokens: number,
   totalOperations: number,
-  totalCost: number,
+  totalCost: number
 ): EnhancedUsageSummary['quota'] {
   const quota = PLAN_QUOTAS[plan] || PLAN_QUOTAS.free;
   const unlimited = plan === 'enterprise';
@@ -451,21 +470,33 @@ function buildQuota(
       used: totalTokens,
       limit: unlimited ? -1 : tokensLimit,
       remaining: unlimited ? -1 : Math.max(0, tokensLimit - totalTokens),
-      percentUsed: unlimited ? 0 : tokensLimit > 0 ? Math.min(100, Math.round((totalTokens / tokensLimit) * 100 * 100) / 100) : 0,
+      percentUsed: unlimited
+        ? 0
+        : tokensLimit > 0
+          ? Math.min(100, Math.round((totalTokens / tokensLimit) * 100 * 100) / 100)
+          : 0,
       unlimited,
     },
     operations: {
       used: totalOperations,
       limit: unlimited ? -1 : opsLimit,
       remaining: unlimited ? -1 : Math.max(0, opsLimit - totalOperations),
-      percentUsed: unlimited ? 0 : opsLimit > 0 ? Math.min(100, Math.round((totalOperations / opsLimit) * 100 * 100) / 100) : 0,
+      percentUsed: unlimited
+        ? 0
+        : opsLimit > 0
+          ? Math.min(100, Math.round((totalOperations / opsLimit) * 100 * 100) / 100)
+          : 0,
       unlimited,
     },
     cost: {
       accrued: Math.round(totalCost * 100) / 100,
       cap: unlimited ? -1 : costCap,
       remaining: unlimited ? -1 : Math.max(0, Math.round((costCap - totalCost) * 100) / 100),
-      percentUsed: unlimited ? 0 : costCap > 0 ? Math.min(100, Math.round((totalCost / costCap) * 100 * 100) / 100) : 0,
+      percentUsed: unlimited
+        ? 0
+        : costCap > 0
+          ? Math.min(100, Math.round((totalCost / costCap) * 100 * 100) / 100)
+          : 0,
       unlimited,
     },
   };
@@ -527,10 +558,12 @@ export async function getBillingStatus(teamId: string): Promise<BillingStatus> {
     plan: subscription.plan as TeamPlan,
     status: subscription.status as BillingStatus['status'],
     currentPeriodStart: subscription.currentPeriodStart || new Date().toISOString(),
-    currentPeriodEnd: subscription.currentPeriodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    currentPeriodEnd:
+      subscription.currentPeriodEnd ||
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     cancelAtPeriodEnd: subscription.status === 'canceled',
     seats: {
-      used: 1,   // seat tracking not available in the unified schema; caller can augment
+      used: 1, // seat tracking not available in the unified schema; caller can augment
       total: PLAN_CATALOG[subscription.plan]?.seats_included ?? 5,
     },
   };
@@ -575,7 +608,7 @@ export async function subscribe(request: SubscribeRequest): Promise<StripeSubscr
       plan,
       'active',
       periodStart.toISOString(),
-      periodEnd.toISOString(),
+      periodEnd.toISOString()
     );
   }
 
@@ -588,7 +621,7 @@ export async function subscribe(request: SubscribeRequest): Promise<StripeSubscr
     stripeCustomerId,
     periodStart,
     periodEnd,
-    seatsTotal,
+    seatsTotal
   );
 
   return {
@@ -694,7 +727,7 @@ export async function recordUsage(request: RecordUsageRequest): Promise<UsageRec
  */
 export async function getUsage(
   teamId: string,
-  period: 'day' | 'week' | 'month' = 'month',
+  period: 'day' | 'week' | 'month' = 'month'
 ): Promise<EnhancedUsageSummary> {
   const now = new Date();
   let since: Date;
@@ -722,7 +755,8 @@ export async function getUsage(
   let totalOperations = 0;
   let totalTokens = 0;
   let totalCost = 0;
-  const byOperationType: Record<string, { count: number; tokensUsed: number; costUsd: number }> = {};
+  const byOperationType: Record<string, { count: number; tokensUsed: number; costUsd: number }> =
+    {};
 
   for (const row of summaryRows) {
     totalOperations += row.count;

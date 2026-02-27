@@ -55,8 +55,12 @@ export interface ActivityFilter {
  * Format a duration in milliseconds as a human-friendly string.
  */
 function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+  if (ms < 60_000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
   const minutes = Math.floor(ms / 60_000);
   const seconds = ((ms % 60_000) / 1000).toFixed(0);
   return `${minutes}m ${seconds}s`;
@@ -79,8 +83,10 @@ function formatTimestamp(date: Date): string {
  * Truncate a string to maxLen characters, appending an ellipsis if needed.
  */
 function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 3) + '...';
+  if (str.length <= maxLen) {
+    return str;
+  }
+  return `${str.slice(0, maxLen - 3)}...`;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,11 +240,7 @@ export class ActivityLog {
 
     const verbose = options?.verbose ?? false;
 
-    const lines: string[] = [
-      `Activity Log (${entries.length} entries)`,
-      '='.repeat(60),
-      '',
-    ];
+    const lines: string[] = [`Activity Log (${entries.length} entries)`, '='.repeat(60), ''];
 
     for (const entry of entries) {
       const status = entry.result.isError ? '[ERROR]' : '[OK]   ';
@@ -274,9 +276,7 @@ export class ActivityLog {
     const avgDuration = entries.length > 0 ? Math.round(totalDuration / entries.length) : 0;
 
     lines.push('-'.repeat(60));
-    lines.push(
-      `${entries.length} calls, ${errorCount} errors, avg ${formatDuration(avgDuration)}`,
-    );
+    lines.push(`${entries.length} calls, ${errorCount} errors, avg ${formatDuration(avgDuration)}`);
 
     return lines.join('\n');
   }

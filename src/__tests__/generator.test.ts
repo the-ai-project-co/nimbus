@@ -10,20 +10,13 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import {
-  TerraformProjectGenerator,
-  type TerraformProjectConfig,
-} from '../generator/terraform';
+import { TerraformProjectGenerator, type TerraformProjectConfig } from '../generator/terraform';
 import {
   KubernetesGenerator,
   createKubernetesGenerator,
   type K8sGeneratorConfig,
 } from '../generator/kubernetes';
-import {
-  HelmGenerator,
-  createHelmGenerator,
-  type HelmChartConfig,
-} from '../generator/helm';
+import { HelmGenerator, createHelmGenerator, type HelmChartConfig } from '../generator/helm';
 import { BestPracticesEngine } from '../generator/best-practices';
 
 // ---------------------------------------------------------------------------
@@ -227,7 +220,10 @@ describe('KubernetesGenerator', () => {
   });
 
   it('generates HPA manifest when hpa.enabled is true', () => {
-    const gen = new KubernetesGenerator({ ...baseK8sConfig, hpa: { enabled: true, minReplicas: 2, maxReplicas: 10 } });
+    const gen = new KubernetesGenerator({
+      ...baseK8sConfig,
+      hpa: { enabled: true, minReplicas: 2, maxReplicas: 10 },
+    });
     const manifests = gen.generate();
     const hpa = manifests.find(m => m.kind === 'HorizontalPodAutoscaler');
 

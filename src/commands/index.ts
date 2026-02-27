@@ -4,10 +4,7 @@
  * Exports all available CLI commands
  */
 
-export {
-  generateTerraformCommand,
-  type GenerateTerraformOptions,
-} from './generate-terraform';
+export { generateTerraformCommand, type GenerateTerraformOptions } from './generate-terraform';
 
 export {
   awsDiscoverCommand,
@@ -201,10 +198,7 @@ export {
 } from './billing';
 
 // Enterprise: Usage command
-export {
-  usageCommand,
-  parseUsageOptions,
-} from './usage';
+export { usageCommand, parseUsageOptions } from './usage';
 
 // Enterprise: Audit commands
 export {
@@ -216,10 +210,7 @@ export {
 } from './audit';
 
 // Analyze command
-export {
-  analyzeCommand,
-  parseAnalyzeOptions,
-} from './analyze';
+export { analyzeCommand, parseAnalyzeOptions } from './analyze';
 
 // Generate commands
 export {
@@ -272,16 +263,10 @@ export {
 } from './plan';
 
 // Questionnaire command
-export {
-  questionnaireCommand,
-  type QuestionnaireOptions,
-} from './questionnaire';
+export { questionnaireCommand, type QuestionnaireOptions } from './questionnaire';
 
 // Preview command
-export {
-  previewCommand,
-  type PreviewOptions,
-} from './preview';
+export { previewCommand, type PreviewOptions } from './preview';
 
 // Demo command
 export {
@@ -293,25 +278,13 @@ export {
 } from './demo';
 
 // AWS CLI commands
-export {
-  awsCommand,
-  parseAwsOptions,
-  type AwsCommandOptions,
-} from './aws';
+export { awsCommand, parseAwsOptions, type AwsCommandOptions } from './aws';
 
 // GCP CLI commands
-export {
-  gcpCommand,
-  parseGcpOptions,
-  type GcpCommandOptions,
-} from './gcp';
+export { gcpCommand, parseGcpOptions, type GcpCommandOptions } from './gcp';
 
 // Azure CLI commands
-export {
-  azureCommand,
-  parseAzureOptions,
-  type AzureCommandOptions,
-} from './azure';
+export { azureCommand, parseAzureOptions, type AzureCommandOptions } from './azure';
 
 // Drift detection and remediation commands
 export {
@@ -336,18 +309,10 @@ export {
 } from './cost';
 
 // Import command
-export {
-  importCommand,
-  parseImportOptions,
-  type ImportOptions,
-} from './import';
+export { importCommand, parseImportOptions, type ImportOptions } from './import';
 
 // Feedback command
-export {
-  feedbackCommand,
-  parseFeedbackOptions,
-  type FeedbackOptions,
-} from './feedback';
+export { feedbackCommand, parseFeedbackOptions, type FeedbackOptions } from './feedback';
 
 // File system commands
 export {
@@ -362,28 +327,16 @@ export {
 } from './fs';
 
 // Resume command (checkpoint/resume system)
-export {
-  resumeCommand,
-  type ResumeOptions,
-} from './resume';
+export { resumeCommand, type ResumeOptions } from './resume';
 
 // Template commands
-export {
-  templateCommand,
-  type TemplateCommandOptions,
-} from './template';
+export { templateCommand, type TemplateCommandOptions } from './template';
 
 // Auth profile commands
-export {
-  authProfileCommand,
-} from './auth-profile';
+export { authProfileCommand } from './auth-profile';
 
 // Onboarding command
-export {
-  onboardingCommand,
-  needsOnboarding,
-  type OnboardingOptions,
-} from './onboarding';
+export { onboardingCommand, needsOnboarding, type OnboardingOptions } from './onboarding';
 
 // ===== Top-Level Aliases =====
 // These re-exports provide short-form access to common commands

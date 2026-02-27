@@ -285,7 +285,7 @@ export class CostTracker {
         if (llm.length > 0) {
           const llmTotal = llm.reduce((s, e) => s + e.amount, 0);
           lines.push(
-            `    LLM:   ${formatUSD(llmTotal)} (${llm.length} calls, ${totalInputTokens} in / ${totalOutputTokens} out tokens)`,
+            `    LLM:   ${formatUSD(llmTotal)} (${llm.length} calls, ${totalInputTokens} in / ${totalOutputTokens} out tokens)`
           );
         }
 

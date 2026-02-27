@@ -6,7 +6,7 @@
  * that operate against the unified Nimbus database.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape returned by team queries. */
@@ -50,7 +50,7 @@ export function createTeam(
   name: string,
   ownerId: string,
   plan: string = 'free',
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -113,7 +113,7 @@ export function addTeamMember(
   teamId: string,
   userId: string,
   role: string = 'member',
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -166,7 +166,7 @@ export function createUser(
   email?: string,
   name?: string,
   avatarUrl?: string,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`

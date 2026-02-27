@@ -160,10 +160,11 @@ function checkInfracost(): boolean {
  */
 function runInfracostBreakdown(directory: string): CostEstimate | null {
   try {
-    const result = execSync(
-      `infracost breakdown --path "${directory}" --format json`,
-      { stdio: 'pipe', encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
-    );
+    const result = execSync(`infracost breakdown --path "${directory}" --format json`, {
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
     return JSON.parse(result) as CostEstimate;
   } catch (error) {
     return null;
@@ -212,13 +213,14 @@ function getMockCostHistory(options: CostHistoryOptions): CostHistoryEntry[] {
     const dateStr = date.toISOString().split('T')[0];
 
     for (const service of services) {
-      const baseCost = {
-        EC2: 45,
-        RDS: 35,
-        S3: 5,
-        Lambda: 10,
-        CloudWatch: 3,
-      }[service] || 10;
+      const baseCost =
+        {
+          EC2: 45,
+          RDS: 35,
+          S3: 5,
+          Lambda: 10,
+          CloudWatch: 3,
+        }[service] || 10;
 
       // Add some variance
       const variance = (Math.random() - 0.5) * baseCost * 0.2;
@@ -228,7 +230,7 @@ function getMockCostHistory(options: CostHistoryOptions): CostHistoryEntry[] {
         date: dateStr,
         service,
         cost: parseFloat(cost.toFixed(2)),
-        change: parseFloat((variance).toFixed(2)),
+        change: parseFloat(variance.toFixed(2)),
       });
     }
   }
@@ -252,7 +254,9 @@ function displayCostEstimate(estimate: CostEstimate, detailed: boolean = false):
   ui.newLine();
 
   // Summary
-  ui.print(`  ${ui.bold('Monthly Cost:')} ${ui.color(formatCurrency(estimate.totalMonthlyCost), 'cyan')}`);
+  ui.print(
+    `  ${ui.bold('Monthly Cost:')} ${ui.color(formatCurrency(estimate.totalMonthlyCost), 'cyan')}`
+  );
   ui.print(`  ${ui.bold('Hourly Cost:')}  ${formatCurrency(estimate.totalHourlyCost)}`);
 
   if (estimate.diffTotalMonthlyCost !== 0) {
@@ -284,7 +288,9 @@ function displayCostEstimate(estimate: CostEstimate, detailed: boolean = false):
       const byType: Record<string, CostResource[]> = {};
       for (const resource of project.resources) {
         const type = resource.resourceType;
-        if (!byType[type]) byType[type] = [];
+        if (!byType[type]) {
+          byType[type] = [];
+        }
         byType[type].push(resource);
       }
 
@@ -331,8 +337,10 @@ function displayCostHistory(entries: CostHistoryEntry[], groupBy: string): void 
   const groups: Record<string, CostHistoryEntry[]> = {};
 
   for (const entry of entries) {
-    const key = groupBy === 'service' ? entry.service : (entry.resource || entry.service);
-    if (!groups[key]) groups[key] = [];
+    const key = groupBy === 'service' ? entry.service : entry.resource || entry.service;
+    if (!groups[key]) {
+      groups[key] = [];
+    }
     groups[key].push(entry);
   }
 
@@ -373,11 +381,12 @@ function displayCostHistory(entries: CostHistoryEntry[], groupBy: string): void 
   ui.print(`  ${ui.dim('-'.repeat(header.length))}`);
 
   for (const { group, total, avg, trend } of totals.slice(0, 10)) {
-    const trendStr = trend > 0
-      ? ui.color(`+${trend.toFixed(1)}%`, 'red')
-      : trend < 0
-        ? ui.color(`${trend.toFixed(1)}%`, 'green')
-        : ui.color('0.0%', 'dim');
+    const trendStr =
+      trend > 0
+        ? ui.color(`+${trend.toFixed(1)}%`, 'red')
+        : trend < 0
+          ? ui.color(`${trend.toFixed(1)}%`, 'green')
+          : ui.color('0.0%', 'dim');
 
     const row = [
       group.substring(0, colWidths.group).padEnd(colWidths.group),
@@ -444,9 +453,10 @@ export async function costEstimateCommand(options: CostEstimateOptions): Promise
   ui.header('Nimbus Cost Estimate', directory);
 
   // Check for Terraform files
-  const hasTerraform = fs.existsSync(path.join(directory, 'main.tf')) ||
-                       fs.existsSync(path.join(directory, 'terraform.tf')) ||
-                       fs.readdirSync(directory).some(f => f.endsWith('.tf'));
+  const hasTerraform =
+    fs.existsSync(path.join(directory, 'main.tf')) ||
+    fs.existsSync(path.join(directory, 'terraform.tf')) ||
+    fs.readdirSync(directory).some(f => f.endsWith('.tf'));
 
   if (!hasTerraform) {
     ui.warning('No Terraform files found in the specified directory.');
@@ -474,10 +484,14 @@ export async function costEstimateCommand(options: CostEstimateOptions): Promise
       ui.newLine();
       ui.info('For more accurate pricing, install Infracost:');
       ui.print(`  ${ui.dim('brew install infracost')} (macOS)`);
-      ui.print(`  ${ui.dim('curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh')} (Linux)`);
+      ui.print(
+        `  ${ui.dim('curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh')} (Linux)`
+      );
     } catch (error) {
       ui.stopSpinnerFail('Cost estimation failed');
-      ui.error(`Built-in estimator error: ${error instanceof Error ? error.message : String(error)}`);
+      ui.error(
+        `Built-in estimator error: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
     return;
@@ -489,7 +503,9 @@ export async function costEstimateCommand(options: CostEstimateOptions): Promise
 
   if (!estimate) {
     ui.stopSpinnerFail('Cost estimation failed');
-    ui.error('Failed to run infracost. Make sure you have authenticated with "infracost auth login"');
+    ui.error(
+      'Failed to run infracost. Make sure you have authenticated with "infracost auth login"'
+    );
     return;
   }
 
@@ -525,7 +541,7 @@ export async function costHistoryCommand(options: CostHistoryOptions): Promise<v
     options.provider = providerChoice as any;
   }
 
-  if (options.provider === 'demo' as any) {
+  if (options.provider === ('demo' as any)) {
     ui.startSpinner({ message: 'Loading cost history...' });
 
     // Simulate API call delay
@@ -547,7 +563,9 @@ export async function costHistoryCommand(options: CostHistoryOptions): Promise<v
 
   // Real provider - show instructions
   ui.newLine();
-  ui.info(`To view ${options.provider?.toUpperCase()} cost history, you need to configure credentials.`);
+  ui.info(
+    `To view ${options.provider?.toUpperCase()} cost history, you need to configure credentials.`
+  );
   ui.newLine();
 
   switch (options.provider) {

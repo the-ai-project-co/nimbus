@@ -92,7 +92,8 @@ async function detectInfraType(targetPath?: string): Promise<PlanType | null> {
   try {
     const files = await fs.readdir(basePath);
     const yamlFiles = files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
-    for (const file of yamlFiles.slice(0, 5)) { // Check first 5 files
+    for (const file of yamlFiles.slice(0, 5)) {
+      // Check first 5 files
       try {
         const content = await fs.readFile(path.join(basePath, file), 'utf-8');
         if (content.includes('apiVersion:') && content.includes('kind:')) {
@@ -116,8 +117,12 @@ async function detectInfraType(targetPath?: string): Promise<PlanType | null> {
 
   // Check if target is a specific file
   if (targetPath) {
-    if (targetPath.endsWith('.tf')) return 'terraform';
-    if (targetPath.endsWith('.yaml') || targetPath.endsWith('.yml')) return 'k8s';
+    if (targetPath.endsWith('.tf')) {
+      return 'terraform';
+    }
+    if (targetPath.endsWith('.yaml') || targetPath.endsWith('.yml')) {
+      return 'k8s';
+    }
   }
 
   return null;
@@ -148,11 +153,13 @@ async function runTerraformPlan(options: PlanOptions): Promise<PlanResult> {
       type: 'terraform',
       success: result.success,
       error: result.error,
-      changes: result.hasChanges ? {
-        add: parseInt(addMatch?.[1] || '0', 10),
-        change: parseInt(changeMatch?.[1] || '0', 10),
-        destroy: parseInt(destroyMatch?.[1] || '0', 10),
-      } : { add: 0, change: 0, destroy: 0 },
+      changes: result.hasChanges
+        ? {
+            add: parseInt(addMatch?.[1] || '0', 10),
+            change: parseInt(changeMatch?.[1] || '0', 10),
+            destroy: parseInt(destroyMatch?.[1] || '0', 10),
+          }
+        : { add: 0, change: 0, destroy: 0 },
       raw: options.detailed ? result.output : undefined,
     };
   } else {
@@ -205,7 +212,9 @@ async function runLocalTerraformPlan(options: PlanOptions): Promise<PlanResult> 
 
     // Parse resource changes
     const resources: PlanResult['resources'] = [];
-    const resourceMatches = output.matchAll(/# ([\w.-]+\.[\w.-]+) will be (created|updated|destroyed|read)/g);
+    const resourceMatches = output.matchAll(
+      /# ([\w.-]+\.[\w.-]+) will be (created|updated|destroyed|read)/g
+    );
     for (const match of resourceMatches) {
       const actionMap: Record<string, string> = {
         created: 'create',
@@ -283,7 +292,9 @@ async function runK8sPlan(options: PlanOptions): Promise<PlanResult> {
   const documents = manifestContent.split(/^---$/m);
   for (const doc of documents) {
     const trimmed = doc.trim();
-    if (!trimmed) continue;
+    if (!trimmed) {
+      continue;
+    }
 
     const kindMatch = trimmed.match(/^kind:\s*(.+)$/m);
     const nameMatch = trimmed.match(/^\s+name:\s*(.+)$/m);
@@ -346,7 +357,10 @@ async function runHelmPlan(options: PlanOptions): Promise<PlanResult> {
 
   // Check if helm-diff plugin is available
   try {
-    const pluginOutput = execFileSync('helm', ['plugin', 'list'], { encoding: 'utf-8', stdio: 'pipe' });
+    const pluginOutput = execFileSync('helm', ['plugin', 'list'], {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    });
     if (!pluginOutput.includes('diff')) {
       // helm-diff not installed, use template comparison
       return runHelmTemplatePlan(options);
@@ -443,7 +457,9 @@ async function runHelmTemplatePlan(options: PlanOptions): Promise<PlanResult> {
 
     for (const doc of documents) {
       const trimmed = doc.trim();
-      if (!trimmed) continue;
+      if (!trimmed) {
+        continue;
+      }
 
       const kindMatch = trimmed.match(/^kind:\s*(.+)$/m);
       const nameMatch = trimmed.match(/^\s+name:\s*(.+)$/m);
@@ -493,7 +509,7 @@ export async function planCommand(options: PlanOptions = {}): Promise<void> {
   const { var: _vars, ...safeOptions } = options;
   logger.info('Running plan command', {
     ...safeOptions,
-    var: options.var ? '[REDACTED]' : undefined
+    var: options.var ? '[REDACTED]' : undefined,
   });
 
   // Detect or use specified type

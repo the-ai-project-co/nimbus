@@ -22,7 +22,11 @@ export class SimpleRateLimiter {
     this.buckets = new Map();
 
     this.cleanupInterval = setInterval(() => this.cleanup(), 60_000);
-    if (this.cleanupInterval && typeof this.cleanupInterval === 'object' && 'unref' in this.cleanupInterval) {
+    if (
+      this.cleanupInterval &&
+      typeof this.cleanupInterval === 'object' &&
+      'unref' in this.cleanupInterval
+    ) {
       (this.cleanupInterval as any).unref();
     }
   }
@@ -51,7 +55,9 @@ export class SimpleRateLimiter {
 
   getRemainingRequests(clientId: string = 'default'): number {
     const bucket = this.buckets.get(clientId);
-    if (!bucket) return this.burstSize;
+    if (!bucket) {
+      return this.burstSize;
+    }
 
     const elapsed = Date.now() - bucket.lastRefill;
     const refill = (elapsed / 60_000) * this.requestsPerMinute;
@@ -77,10 +83,14 @@ export class SimpleRateLimiter {
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0].trim();
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
 
   const realIp = req.headers.get('x-real-ip');
-  if (realIp) return realIp;
+  if (realIp) {
+    return realIp;
+  }
 
   return 'unknown';
 }
@@ -97,16 +107,13 @@ export function rateLimitMiddleware(limiter: SimpleRateLimiter): (req: Request) 
     if (!limiter.tryAcquire(clientIp)) {
       logger.warn(`Rate limited client ${clientIp} on ${url.pathname}`);
       const retryAfter = Math.ceil(60 / limiter.getRemainingRequests(clientIp) || 60);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Too Many Requests' }),
-        {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': String(retryAfter),
-          },
+      return new Response(JSON.stringify({ success: false, error: 'Too Many Requests' }), {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(retryAfter),
         },
-      );
+      });
     }
 
     return null;

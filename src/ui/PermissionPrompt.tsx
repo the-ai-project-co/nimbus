@@ -12,7 +12,7 @@
  *   s  - Approve for the remainder of this session
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 
 /** The four possible decisions the user can make. */
@@ -45,30 +45,43 @@ const RISK_COLORS: Record<RiskLevel, string> = {
  * Format tool input into a list of truncated key=value lines.
  */
 function formatInput(input: Record<string, unknown>, maxEntries = 6): string[] {
-  return Object.entries(input).slice(0, maxEntries).map(([key, value]) => {
-    const str = typeof value === 'string' ? value : JSON.stringify(value);
-    const truncated = str.length > 80 ? str.slice(0, 77) + '...' : str;
-    return `${key}: ${truncated}`;
-  });
+  return Object.entries(input)
+    .slice(0, maxEntries)
+    .map(([key, value]) => {
+      const str = typeof value === 'string' ? value : JSON.stringify(value);
+      const truncated = str.length > 80 ? `${str.slice(0, 77)}...` : str;
+      return `${key}: ${truncated}`;
+    });
 }
 
 /**
  * PermissionPrompt renders a bordered box with tool information and waits for
  * a single keypress to determine the user's decision.
  */
-export function PermissionPrompt({ toolName, toolInput, riskLevel, onDecide }: PermissionPromptProps) {
-  useInput((input) => {
+export function PermissionPrompt({
+  toolName,
+  toolInput,
+  riskLevel,
+  onDecide,
+}: PermissionPromptProps) {
+  const [pressed, setPressed] = useState<string | null>(null);
+
+  useInput(input => {
     switch (input) {
       case 'a':
+        setPressed('a');
         onDecide('approve');
         break;
       case 'r':
+        setPressed('r');
         onDecide('reject');
         break;
       case 'A':
+        setPressed('A');
         onDecide('approve_all');
         break;
       case 's':
+        setPressed('s');
         onDecide('session');
         break;
     }
@@ -110,19 +123,27 @@ export function PermissionPrompt({ toolName, toolInput, riskLevel, onDecide }: P
       <Box flexDirection="column" marginBottom={1}>
         <Text dimColor>Parameters:</Text>
         {inputLines.map((line, idx) => (
-          <Text key={idx}>  {line}</Text>
+          <Text key={idx}> {line}</Text>
         ))}
       </Box>
 
       {/* Action keys */}
       <Box>
-        <Text color="green" bold>[a]</Text>
-        <Text> Approve  </Text>
-        <Text color="red" bold>[r]</Text>
-        <Text> Reject  </Text>
-        <Text color="cyan" bold>[A]</Text>
-        <Text> Approve all  </Text>
-        <Text color="blue" bold>[s]</Text>
+        <Text color="green" bold inverse={pressed === 'a'}>
+          [a]
+        </Text>
+        <Text> Approve </Text>
+        <Text color="red" bold inverse={pressed === 'r'}>
+          [r]
+        </Text>
+        <Text> Reject </Text>
+        <Text color="cyan" bold inverse={pressed === 'A'}>
+          [A]
+        </Text>
+        <Text> Approve all </Text>
+        <Text color="blue" bold inverse={pressed === 's'}>
+          [s]
+        </Text>
         <Text> Session</Text>
       </Box>
     </Box>

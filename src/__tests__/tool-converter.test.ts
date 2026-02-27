@@ -12,6 +12,7 @@ import {
   toAnthropicTool,
   toOpenAITool,
   toGoogleTool,
+  type ToolDefinition,
 } from '../tools/schemas/types';
 import {
   toAnthropicFormat,
@@ -19,7 +20,6 @@ import {
   toGoogleFormat,
   toProviderFormat,
 } from '../tools/schemas/converter';
-import type { ToolDefinition } from '../tools/schemas/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,7 +70,7 @@ describe('zodToJsonSchema', () => {
       z.object({
         required_field: z.string(),
         optional_field: z.string().optional(),
-      }),
+      })
     );
     expect(result.required).toEqual(['required_field']);
     expect((result.properties as Record<string, unknown>).optional_field).toBeDefined();
@@ -94,7 +94,7 @@ describe('zodToJsonSchema', () => {
         inner: z.object({
           value: z.number(),
         }),
-      }),
+      })
     );
     expect(result.type).toBe('object');
     const inner = (result.properties as Record<string, any>).inner;
@@ -167,10 +167,7 @@ describe('toGoogleTool', () => {
 
 describe('toAnthropicFormat', () => {
   test('converts array of tools to Anthropic format', () => {
-    const tools = [
-      makeTool('a', z.object({})),
-      makeTool('b', z.object({})),
-    ];
+    const tools = [makeTool('a', z.object({})), makeTool('b', z.object({}))];
     const result = toAnthropicFormat(tools);
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe('a');
@@ -181,10 +178,7 @@ describe('toAnthropicFormat', () => {
 
 describe('toOpenAIFormat', () => {
   test('converts array of tools to OpenAI format', () => {
-    const tools = [
-      makeTool('a', z.object({})),
-      makeTool('b', z.object({})),
-    ];
+    const tools = [makeTool('a', z.object({})), makeTool('b', z.object({}))];
     const result = toOpenAIFormat(tools);
     expect(result).toHaveLength(2);
     expect(result[0].type).toBe('function');
@@ -201,7 +195,7 @@ describe('toGoogleFormat', () => {
     ];
     const result = toGoogleFormat(tools);
     expect(result.functionDeclarations).toHaveLength(3);
-    expect(result.functionDeclarations.map((d) => d.name)).toEqual(['x', 'y', 'z']);
+    expect(result.functionDeclarations.map(d => d.name)).toEqual(['x', 'y', 'z']);
   });
 });
 

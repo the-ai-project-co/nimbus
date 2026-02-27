@@ -4,11 +4,7 @@
  * Client for interacting with the Core Engine Service
  */
 
-import type {
-  DriftReport,
-  DriftRemediationResult,
-  DriftProvider,
-} from '../types';
+import type { DriftReport, DriftRemediationResult, DriftProvider } from '../types';
 
 export interface DriftDetectParams {
   provider: DriftProvider;
@@ -62,11 +58,13 @@ export class CoreEngineClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+      const error = (await response.json().catch(() => ({ message: 'Unknown error' }))) as {
+        message?: string;
+      };
       throw new Error(error.message || `Failed to detect drift: ${response.status}`);
     }
 
-    const data = await response.json() as { report: DriftReport };
+    const data = (await response.json()) as { report: DriftReport };
     return data.report;
   }
 
@@ -83,7 +81,9 @@ export class CoreEngineClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+      const error = (await response.json().catch(() => ({ message: 'Unknown error' }))) as {
+        message?: string;
+      };
       throw new Error(error.message || `Failed to create remediation plan: ${response.status}`);
     }
 
@@ -103,11 +103,13 @@ export class CoreEngineClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+      const error = (await response.json().catch(() => ({ message: 'Unknown error' }))) as {
+        message?: string;
+      };
       throw new Error(error.message || `Failed to fix drift: ${response.status}`);
     }
 
-    const data = await response.json() as { result: DriftRemediationResult };
+    const data = (await response.json()) as { result: DriftRemediationResult };
     return data.result;
   }
 
@@ -123,7 +125,7 @@ export class CoreEngineClient {
       return false;
     }
 
-    const data = await response.json() as { canRollback: boolean };
+    const data = (await response.json()) as { canRollback: boolean };
     return data.canRollback;
   }
 
@@ -140,7 +142,9 @@ export class CoreEngineClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+      const error = (await response.json().catch(() => ({ message: 'Unknown error' }))) as {
+        message?: string;
+      };
       throw new Error(error.message || `Failed to rollback: ${response.status}`);
     }
 
@@ -159,14 +163,17 @@ export class CoreEngineClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { error?: string; message?: string };
+      const error = (await response.json().catch(() => ({ message: 'Unknown error' }))) as {
+        error?: string;
+        message?: string;
+      };
       return {
         success: false,
         error: error.error || error.message || `Failed to resume task: ${response.status}`,
       };
     }
 
-    const data = await response.json() as { success: boolean; data?: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data?: any; error?: string };
     return {
       success: data.success,
       data: data.data,
@@ -187,7 +194,9 @@ export class CoreEngineClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
+      const error = (await response.json().catch(() => ({ message: 'Unknown error' }))) as {
+        message?: string;
+      };
       throw new Error(error.message || `Failed to get compliance report: ${response.status}`);
     }
 

@@ -6,7 +6,7 @@
  * teams, team_members, users, subscriptions, and usage.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 
 /**
  * Run all CREATE TABLE / CREATE INDEX migrations against the given database.
@@ -201,6 +201,22 @@ export function runMigrations(db: Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- Shared sessions
+    CREATE TABLE IF NOT EXISTS shares (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      messages TEXT NOT NULL,
+      model TEXT,
+      mode TEXT,
+      cost_usd REAL DEFAULT 0,
+      token_count INTEGER DEFAULT 0,
+      is_live INTEGER NOT NULL DEFAULT 0,
+      write_token TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    );
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_operations_timestamp ON operations(timestamp);
     CREATE INDEX IF NOT EXISTS idx_operations_type ON operations(type);
@@ -214,5 +230,7 @@ export function runMigrations(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
     CREATE INDEX IF NOT EXISTS idx_usage_team ON usage(team_id);
     CREATE INDEX IF NOT EXISTS idx_usage_created ON usage(created_at);
+    CREATE INDEX IF NOT EXISTS idx_shares_session ON shares(session_id);
+    CREATE INDEX IF NOT EXISTS idx_shares_expires ON shares(expires_at);
   `);
 }

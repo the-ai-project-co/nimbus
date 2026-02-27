@@ -24,10 +24,7 @@ import type { ToolDefinition, PermissionTier } from '../tools/schemas/types';
 // ---------------------------------------------------------------------------
 
 /** Create a minimal ToolDefinition for permission tests. */
-function makeTool(
-  name: string,
-  tier: PermissionTier = 'auto_allow',
-): ToolDefinition {
+function makeTool(name: string, tier: PermissionTier = 'auto_allow'): ToolDefinition {
   return {
     name,
     description: `Tool: ${name}`,
@@ -161,53 +158,53 @@ describe('Kubectl namespace awareness', () => {
   });
 
   test('kubectl get in any namespace is auto-allowed', () => {
-    expect(
-      checkPermission(kubectlTool, { action: 'get', namespace: 'production' }, state),
-    ).toBe('allow');
-    expect(
-      checkPermission(kubectlTool, { action: 'get', namespace: 'staging' }, state),
-    ).toBe('allow');
+    expect(checkPermission(kubectlTool, { action: 'get', namespace: 'production' }, state)).toBe(
+      'allow'
+    );
+    expect(checkPermission(kubectlTool, { action: 'get', namespace: 'staging' }, state)).toBe(
+      'allow'
+    );
   });
 
   test('kubectl delete in production namespace is always-ask', () => {
     const decision = checkPermission(
       kubectlTool,
       { action: 'delete', namespace: 'production' },
-      state,
+      state
     );
     expect(decision).toBe('ask');
     // Even after approving action, production remains always-ask
     approveActionForSession('kubectl', 'delete', state);
-    expect(
-      checkPermission(kubectlTool, { action: 'delete', namespace: 'production' }, state),
-    ).toBe('ask');
+    expect(checkPermission(kubectlTool, { action: 'delete', namespace: 'production' }, state)).toBe(
+      'ask'
+    );
   });
 
   test('kubectl delete in staging namespace is ask-once', () => {
-    expect(
-      checkPermission(kubectlTool, { action: 'delete', namespace: 'staging' }, state),
-    ).toBe('ask');
+    expect(checkPermission(kubectlTool, { action: 'delete', namespace: 'staging' }, state)).toBe(
+      'ask'
+    );
     approveActionForSession('kubectl', 'delete', state);
-    expect(
-      checkPermission(kubectlTool, { action: 'delete', namespace: 'staging' }, state),
-    ).toBe('allow');
+    expect(checkPermission(kubectlTool, { action: 'delete', namespace: 'staging' }, state)).toBe(
+      'allow'
+    );
   });
 
   test('kubectl apply in kube-system is always-ask', () => {
-    expect(
-      checkPermission(kubectlTool, { action: 'apply', namespace: 'kube-system' }, state),
-    ).toBe('ask');
+    expect(checkPermission(kubectlTool, { action: 'apply', namespace: 'kube-system' }, state)).toBe(
+      'ask'
+    );
     approveActionForSession('kubectl', 'apply', state);
     // Still ask because kube-system is protected
-    expect(
-      checkPermission(kubectlTool, { action: 'apply', namespace: 'kube-system' }, state),
-    ).toBe('ask');
+    expect(checkPermission(kubectlTool, { action: 'apply', namespace: 'kube-system' }, state)).toBe(
+      'ask'
+    );
   });
 
   test('kubectl describe is auto-allowed', () => {
-    expect(
-      checkPermission(kubectlTool, { action: 'describe', namespace: 'default' }, state),
-    ).toBe('allow');
+    expect(checkPermission(kubectlTool, { action: 'describe', namespace: 'default' }, state)).toBe(
+      'allow'
+    );
   });
 });
 

@@ -38,9 +38,15 @@ interface FixSuggestion {
  */
 function parseFixResponse(response: string): FixSuggestion {
   // Try to extract structured sections from the response
-  const problemMatch = response.match(/(?:problem|issue|error):\s*(.+?)(?=\n(?:explanation|fix|solution)|$)/is);
-  const explanationMatch = response.match(/(?:explanation|cause|reason):\s*(.+?)(?=\n(?:fix|solution)|$)/is);
-  const fixMatch = response.match(/(?:fix|solution|resolution):\s*(.+?)(?=\n(?:original|fixed)|$)/is);
+  const problemMatch = response.match(
+    /(?:problem|issue|error):\s*(.+?)(?=\n(?:explanation|fix|solution)|$)/is
+  );
+  const explanationMatch = response.match(
+    /(?:explanation|cause|reason):\s*(.+?)(?=\n(?:fix|solution)|$)/is
+  );
+  const fixMatch = response.match(
+    /(?:fix|solution|resolution):\s*(.+?)(?=\n(?:original|fixed)|$)/is
+  );
   const originalMatch = response.match(/(?:original|before)[^:]*:\s*```[\w]*\n([\s\S]*?)```/i);
   const fixedMatch = response.match(/(?:fixed|after|corrected)[^:]*:\s*```[\w]*\n([\s\S]*?)```/i);
 
@@ -282,10 +288,12 @@ export async function fixCommand(errorOrFile: string, options: FixOptions = {}):
     if (filePath && suggestion.originalCode && suggestion.fixedCode) {
       ui.newLine();
 
-      const shouldApply = options.autoApply || await confirm({
-        message: 'Apply this fix?',
-        defaultValue: false,
-      });
+      const shouldApply =
+        options.autoApply ||
+        (await confirm({
+          message: 'Apply this fix?',
+          defaultValue: false,
+        }));
 
       if (shouldApply) {
         ui.startSpinner({ message: 'Applying fix...' });
@@ -305,7 +313,6 @@ export async function fixCommand(errorOrFile: string, options: FixOptions = {}):
         ui.info('Fix not applied');
       }
     }
-
   } catch (error: any) {
     ui.stopSpinnerFail('Failed');
     ui.error(error.message);

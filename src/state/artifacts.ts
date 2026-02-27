@@ -5,7 +5,7 @@
  * and deleteArtifact.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape returned by artifact query helpers. */
@@ -36,7 +36,7 @@ export function saveArtifact(
   content: string,
   language?: string,
   metadata?: any,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -59,7 +59,7 @@ export function saveArtifact(
     type,
     content,
     language || null,
-    metadata ? JSON.stringify(metadata) : null,
+    metadata ? JSON.stringify(metadata) : null
   );
 }
 
@@ -96,7 +96,7 @@ export function listArtifacts(
   conversationId?: string,
   limit: number = 50,
   offset: number = 0,
-  db?: Database,
+  db?: Database
 ): ArtifactRecord[] {
   const d = db || getDb();
 
@@ -115,7 +115,7 @@ export function listArtifacts(
   }
 
   if (conditions.length > 0) {
-    query += ' WHERE ' + conditions.join(' AND ');
+    query += ` WHERE ${conditions.join(' AND ')}`;
   }
 
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';

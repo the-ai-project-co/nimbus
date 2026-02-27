@@ -5,12 +5,7 @@
  */
 
 import * as readline from 'node:readline';
-import type {
-  SelectConfig,
-  SelectOption,
-  ConfirmConfig,
-  InputConfig,
-} from './types';
+import type { SelectConfig, ConfirmConfig, InputConfig } from './types';
 import { ui } from './ui';
 
 /**
@@ -27,14 +22,16 @@ function createReadline(): readline.Interface {
  * Prompt for a single selection from options
  */
 export async function select<T = string>(config: SelectConfig): Promise<T | undefined> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const options = config.options.filter(o => !o.disabled);
     let selectedIndex = 0;
 
     // Find default selection
     if (config.defaultValue) {
       const defaultIdx = options.findIndex(o => o.value === config.defaultValue);
-      if (defaultIdx >= 0) selectedIndex = defaultIdx;
+      if (defaultIdx >= 0) {
+        selectedIndex = defaultIdx;
+      }
     }
 
     // Display prompt
@@ -48,7 +45,7 @@ export async function select<T = string>(config: SelectConfig): Promise<T | unde
       let line = `    ${num}. ${opt.label}`;
 
       if (opt.disabled) {
-        line = ui.dim(line + ` (${opt.disabledReason || 'unavailable'})`);
+        line = ui.dim(`${line} (${opt.disabledReason || 'unavailable'})`);
       }
 
       ui.print(line);
@@ -66,7 +63,7 @@ export async function select<T = string>(config: SelectConfig): Promise<T | unde
       ? `  Enter choice (1-${config.options.length}): `
       : `  Enter choice (1-${config.options.length}) [${defaultNum}]: `;
 
-    rl.question(prompt, (answer) => {
+    rl.question(prompt, answer => {
       rl.close();
 
       const trimmed = answer.trim();
@@ -80,7 +77,9 @@ export async function select<T = string>(config: SelectConfig): Promise<T | unde
       // Parse number
       const num = parseInt(trimmed, 10);
       if (isNaN(num) || num < 1 || num > config.options.length) {
-        ui.error(`Invalid selection. Please enter a number between 1 and ${config.options.length}.`);
+        ui.error(
+          `Invalid selection. Please enter a number between 1 and ${config.options.length}.`
+        );
         resolve(undefined);
         return;
       }
@@ -103,7 +102,7 @@ export async function select<T = string>(config: SelectConfig): Promise<T | unde
  * Prompt for multiple selections from options
  */
 export async function multiSelect<T = string>(config: SelectConfig): Promise<T[]> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const options = config.options.filter(o => !o.disabled);
 
     ui.print(`  ${ui.icons.question} ${config.message}`);
@@ -117,7 +116,7 @@ export async function multiSelect<T = string>(config: SelectConfig): Promise<T[]
       let line = `    ${num}. ${opt.label}`;
 
       if (opt.disabled) {
-        line = ui.dim(line + ` (${opt.disabledReason || 'unavailable'})`);
+        line = ui.dim(`${line} (${opt.disabledReason || 'unavailable'})`);
       }
 
       ui.print(line);
@@ -132,7 +131,7 @@ export async function multiSelect<T = string>(config: SelectConfig): Promise<T[]
     const rl = createReadline();
     const prompt = `  Enter choices: `;
 
-    rl.question(prompt, (answer) => {
+    rl.question(prompt, answer => {
       rl.close();
 
       const trimmed = answer.trim().toLowerCase();
@@ -186,15 +185,14 @@ export async function multiSelect<T = string>(config: SelectConfig): Promise<T[]
  * Prompt for confirmation (yes/no)
  */
 export async function confirm(config: ConfirmConfig): Promise<boolean> {
-  return new Promise((resolve) => {
-    const defaultHint = config.defaultValue !== undefined
-      ? (config.defaultValue ? '[Y/n]' : '[y/N]')
-      : '[y/n]';
+  return new Promise(resolve => {
+    const defaultHint =
+      config.defaultValue !== undefined ? (config.defaultValue ? '[Y/n]' : '[y/N]') : '[y/n]';
 
     const rl = createReadline();
     const prompt = `  ${ui.icons.question} ${config.message} ${defaultHint} `;
 
-    rl.question(prompt, (answer) => {
+    rl.question(prompt, answer => {
       rl.close();
 
       const trimmed = answer.trim().toLowerCase();
@@ -226,7 +224,7 @@ export async function confirm(config: ConfirmConfig): Promise<boolean> {
  * Prompt for text input
  */
 export async function input(config: InputConfig): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const rl = createReadline();
 
     let prompt = `  ${ui.icons.question} ${config.message}`;
@@ -235,7 +233,7 @@ export async function input(config: InputConfig): Promise<string> {
     }
     prompt += ': ';
 
-    rl.question(prompt, (answer) => {
+    rl.question(prompt, answer => {
       rl.close();
 
       let value = answer.trim();
@@ -272,10 +270,14 @@ export async function pathInput(message: string, defaultValue?: string): Promise
   return input({
     message,
     defaultValue,
-    validate: (value) => {
+    validate: value => {
       // Basic path validation
-      if (!value) return 'Path is required';
-      if (value.includes('\0')) return 'Invalid path';
+      if (!value) {
+        return 'Path is required';
+      }
+      if (value.includes('\0')) {
+        return 'Invalid path';
+      }
       return true;
     },
   });
@@ -285,7 +287,7 @@ export async function pathInput(message: string, defaultValue?: string): Promise
  * Wait for user to press enter
  */
 export async function pressEnter(message: string = 'Press Enter to continue...'): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const rl = createReadline();
     rl.question(`  ${message}`, () => {
       rl.close();
@@ -301,7 +303,7 @@ export async function actionSelect(
   message: string,
   actions: Array<{ key: string; label: string; description?: string }>
 ): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     ui.print(`  ${message}`);
     ui.newLine();
 
@@ -317,13 +319,15 @@ export async function actionSelect(
     const rl = createReadline();
     const validKeys = actions.map(a => a.key.toLowerCase());
 
-    rl.question('  > ', (answer) => {
+    rl.question('  > ', answer => {
       rl.close();
 
       const key = answer.trim().toLowerCase();
 
       if (!validKeys.includes(key)) {
-        ui.error(`Invalid option. Please enter one of: ${actions.map(a => a.key.toUpperCase()).join(', ')}`);
+        ui.error(
+          `Invalid option. Please enter one of: ${actions.map(a => a.key.toUpperCase()).join(', ')}`
+        );
         resolve('');
         return;
       }

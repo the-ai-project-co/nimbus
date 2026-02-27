@@ -21,41 +21,23 @@ import type {
   GitInfo,
 } from './types';
 
-import { createLanguageScanner, LanguageScanner } from './language-scanner';
-import { createFrameworkScanner, FrameworkScanner } from './framework-scanner';
-import { createPackageManagerScanner, PackageManagerScanner } from './package-manager-scanner';
-import { createIaCScanner, IaCScanner } from './iac-scanner';
-import { createCICDScanner, CICDScanner } from './cicd-scanner';
-import { createCloudScanner, CloudScanner } from './cloud-scanner';
+import { createLanguageScanner, type LanguageScanner } from './language-scanner';
+import { createFrameworkScanner, type FrameworkScanner } from './framework-scanner';
+import { createPackageManagerScanner, type PackageManagerScanner } from './package-manager-scanner';
+import { createIaCScanner, type IaCScanner } from './iac-scanner';
+import { createCICDScanner, type CICDScanner } from './cicd-scanner';
+import { createCloudScanner, type CloudScanner } from './cloud-scanner';
 
 // Re-export types
 export * from './types';
 
 // Re-export scanners
-export {
-  LanguageScanner,
-  createLanguageScanner,
-} from './language-scanner';
-export {
-  FrameworkScanner,
-  createFrameworkScanner,
-} from './framework-scanner';
-export {
-  PackageManagerScanner,
-  createPackageManagerScanner,
-} from './package-manager-scanner';
-export {
-  IaCScanner,
-  createIaCScanner,
-} from './iac-scanner';
-export {
-  CICDScanner,
-  createCICDScanner,
-} from './cicd-scanner';
-export {
-  CloudScanner,
-  createCloudScanner,
-} from './cloud-scanner';
+export { LanguageScanner, createLanguageScanner } from './language-scanner';
+export { FrameworkScanner, createFrameworkScanner } from './framework-scanner';
+export { PackageManagerScanner, createPackageManagerScanner } from './package-manager-scanner';
+export { IaCScanner, createIaCScanner } from './iac-scanner';
+export { CICDScanner, createCICDScanner } from './cicd-scanner';
+export { CloudScanner, createCloudScanner } from './cloud-scanner';
 
 /**
  * Default scan options
@@ -333,7 +315,7 @@ export class ProjectScanner {
    * Determine project type based on scan results
    */
   private determineProjectType(result: AggregateScanResult): ProjectType {
-    const { languages, frameworks, iac, cloud } = result;
+    const { languages, frameworks, iac, cloud: _cloud } = result;
 
     // Check for monorepo indicators
     const isMonorepo = this.isMonorepo(languages, frameworks);
@@ -359,8 +341,27 @@ export class ProjectScanner {
     }
 
     // Check for fullstack
-    const frontendFrameworks = ['next.js', 'nuxt', 'remix', 'angular', 'vue', 'react', 'svelte', 'astro'];
-    const backendFrameworks = ['express', 'fastify', 'nestjs', 'django', 'fastapi', 'flask', 'spring-boot', 'gin', 'actix-web'];
+    const frontendFrameworks = [
+      'next.js',
+      'nuxt',
+      'remix',
+      'angular',
+      'vue',
+      'react',
+      'svelte',
+      'astro',
+    ];
+    const backendFrameworks = [
+      'express',
+      'fastify',
+      'nestjs',
+      'django',
+      'fastapi',
+      'flask',
+      'spring-boot',
+      'gin',
+      'actix-web',
+    ];
 
     const hasFrontend = frameworks.some(f => frontendFrameworks.includes(f.name));
     const hasBackend = frameworks.some(f => backendFrameworks.includes(f.name));
@@ -388,9 +389,9 @@ export class ProjectScanner {
   /**
    * Check if project is a monorepo
    */
-  private isMonorepo(languages: LanguageInfo[], frameworks: FrameworkInfo[]): boolean {
+  private isMonorepo(languages: LanguageInfo[], _frameworks: FrameworkInfo[]): boolean {
     // Check for monorepo tools
-    const monorepoTools = ['lerna', 'nx', 'turborepo', 'rush', 'pnpm-workspace'];
+    const _monorepoTools = ['lerna', 'nx', 'turborepo', 'rush', 'pnpm-workspace'];
     // This would need to be detected from package.json or config files
     // For now, check if multiple languages with high confidence
     const highConfidenceLanguages = languages.filter(l => l.confidence === 'high');
@@ -403,11 +404,11 @@ export class ProjectScanner {
   private isLibrary(languages: LanguageInfo[]): boolean {
     // Libraries typically have specific config files
     // This is a simplified heuristic
-    return languages.some(l => l.files.some(f =>
-      f.includes('.gemspec') ||
-      f.includes('setup.py') ||
-      f.includes('Cargo.toml')
-    ));
+    return languages.some(l =>
+      l.files.some(
+        f => f.includes('.gemspec') || f.includes('setup.py') || f.includes('Cargo.toml')
+      )
+    );
   }
 }
 
@@ -450,7 +451,9 @@ export function generateProjectYaml(context: ProjectContext): string {
   }
 
   if (context.structure.packageManagers.length > 0) {
-    lines.push(`  packageManagers: [${context.structure.packageManagers.map(pm => pm.name).join(', ')}]`);
+    lines.push(
+      `  packageManagers: [${context.structure.packageManagers.map(pm => pm.name).join(', ')}]`
+    );
   }
 
   lines.push('');
@@ -525,7 +528,7 @@ export function generateProjectYaml(context: ProjectContext): string {
     }
   }
 
-  return lines.join('\n') + '\n';
+  return `${lines.join('\n')}\n`;
 }
 
 /**

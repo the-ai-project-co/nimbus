@@ -33,7 +33,7 @@ export function serviceAuthMiddleware(req: Request): Response | null {
     logger.warn(`Unauthorized service request to ${path}`);
     return Response.json(
       { success: false, error: 'Unauthorized: invalid or missing service token' },
-      { status: 401 },
+      { status: 401 }
     );
   }
 
@@ -42,6 +42,8 @@ export function serviceAuthMiddleware(req: Request): Response | null {
 
 export function getServiceAuthHeaders(): Record<string, string> {
   const token = process.env.INTERNAL_SERVICE_TOKEN;
-  if (!token) return {};
+  if (!token) {
+    return {};
+  }
   return { [SERVICE_TOKEN_HEADER]: token };
 }

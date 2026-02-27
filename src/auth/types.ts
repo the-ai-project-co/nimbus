@@ -5,8 +5,23 @@
 
 /**
  * LLM Provider identifiers
+ *
+ * Core providers have full onboarding/login support.
+ * Extended providers (OpenAI-compatible) can be persisted to auth.json
+ * and configured via `nimbus login`, but use generic OpenAI validation.
  */
-export type LLMProviderName = 'anthropic' | 'openai' | 'google' | 'openrouter' | 'ollama';
+export type LLMProviderName =
+  | 'anthropic'
+  | 'openai'
+  | 'google'
+  | 'openrouter'
+  | 'ollama'
+  | 'groq'
+  | 'together'
+  | 'deepseek'
+  | 'fireworks'
+  | 'perplexity'
+  | 'bedrock';
 
 /**
  * GitHub identity information from OAuth

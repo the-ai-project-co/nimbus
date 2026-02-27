@@ -222,8 +222,13 @@ export class HelmOperations {
   /**
    * Build set arguments from Record
    */
-  private buildSetArgs(set: Record<string, string> | undefined, prefix: string = '--set'): string[] {
-    if (!set) return [];
+  private buildSetArgs(
+    set: Record<string, string> | undefined,
+    prefix: string = '--set'
+  ): string[] {
+    if (!set) {
+      return [];
+    }
     return Object.entries(set).flatMap(([key, value]) => [prefix, `${key}=${value}`]);
   }
 
@@ -754,7 +759,12 @@ export class HelmOperations {
   /**
    * Pull a chart from a repository
    */
-  async pull(chart: string, version?: string, destination?: string, untar?: boolean): Promise<CommandResult> {
+  async pull(
+    chart: string,
+    version?: string,
+    destination?: string,
+    untar?: boolean
+  ): Promise<CommandResult> {
     const args = ['pull', chart];
 
     if (version) {

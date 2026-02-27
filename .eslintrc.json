@@ -6,33 +6,34 @@
     "sourceType": "module",
     "project": ["./tsconfig.json", "./services/*/tsconfig.json", "./shared/*/tsconfig.json"]
   },
-  "plugins": [
-    "@typescript-eslint"
-  ],
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
+  "plugins": ["@typescript-eslint"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
   "env": {
     "node": true,
     "es2022": true
   },
   "rules": {
     "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/no-unused-vars": ["error", {
-      "argsIgnorePattern": "^_",
-      "varsIgnorePattern": "^_",
-      "caughtErrorsIgnorePattern": "^_"
-    }],
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/no-non-null-assertion": "warn",
     "@typescript-eslint/no-empty-function": "warn",
     "@typescript-eslint/ban-ts-comment": "warn",
-    "@typescript-eslint/consistent-type-imports": ["error", {
-      "prefer": "type-imports",
-      "disallowTypeAnnotations": false
-    }],
+    "@typescript-eslint/consistent-type-imports": [
+      "error",
+      {
+        "prefer": "type-imports",
+        "disallowTypeAnnotations": false
+      }
+    ],
     "no-console": "warn",
     "no-debugger": "error",
     "no-duplicate-imports": "error",
@@ -59,13 +60,5 @@
       }
     }
   ],
-  "ignorePatterns": [
-    "node_modules",
-    "dist",
-    "build",
-    "coverage",
-    "*.js",
-    "*.d.ts",
-    ".bun-cache"
-  ]
+  "ignorePatterns": ["node_modules", "dist", "build", "coverage", "*.js", "*.d.ts", ".bun-cache"]
 }

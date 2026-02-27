@@ -50,18 +50,32 @@ export class GitClient {
   /**
    * Get git status
    */
-  async status(directory?: string): Promise<{ success: boolean; status: GitStatus; error?: string }> {
+  async status(
+    directory?: string
+  ): Promise<{ success: boolean; status: GitStatus; error?: string }> {
     const params = new URLSearchParams();
-    if (directory) params.set('directory', directory);
+    if (directory) {
+      params.set('directory', directory);
+    }
 
-    const response = await this.client.get<{ success: boolean; status: GitStatus; error?: string }>(`/api/git/status?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; status: GitStatus; error?: string }>(
+      `/api/git/status?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
     return {
       success: false,
-      status: { branch: '', ahead: 0, behind: 0, staged: [], modified: [], untracked: [], deleted: [] },
-      error: response.error?.message || 'Unknown error'
+      status: {
+        branch: '',
+        ahead: 0,
+        behind: 0,
+        staged: [],
+        modified: [],
+        untracked: [],
+        deleted: [],
+      },
+      error: response.error?.message || 'Unknown error',
     };
   }
 
@@ -72,7 +86,10 @@ export class GitClient {
     files: string[],
     options?: { directory?: string; all?: boolean }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/add', { files, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/add',
+      { files, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -90,14 +107,18 @@ export class GitClient {
       amend?: boolean;
     }
   ): Promise<{ success: boolean; commit: GitCommit; error?: string }> {
-    const response = await this.client.post<{ success: boolean; commit: GitCommit; error?: string }>('/api/git/commit', { message, ...options });
+    const response = await this.client.post<{
+      success: boolean;
+      commit: GitCommit;
+      error?: string;
+    }>('/api/git/commit', { message, ...options });
     if (response.success && response.data) {
       return response.data;
     }
     return {
       success: false,
       commit: { hash: '', shortHash: '', message: '', author: '', date: '' },
-      error: response.error?.message || 'Unknown error'
+      error: response.error?.message || 'Unknown error',
     };
   }
 
@@ -111,7 +132,10 @@ export class GitClient {
     force?: boolean;
     setUpstream?: boolean;
   }): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/push', options || {});
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/push',
+      options || {}
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -127,7 +151,10 @@ export class GitClient {
     branch?: string;
     rebase?: boolean;
   }): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/pull', options || {});
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/pull',
+      options || {}
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -143,7 +170,10 @@ export class GitClient {
     all?: boolean;
     prune?: boolean;
   }): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/fetch', options || {});
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/fetch',
+      options || {}
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -159,11 +189,21 @@ export class GitClient {
     branch?: string;
   }): Promise<{ success: boolean; commits: GitCommit[]; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.directory) params.set('directory', options.directory);
-    if (options?.limit) params.set('limit', String(options.limit));
-    if (options?.branch) params.set('branch', options.branch);
+    if (options?.directory) {
+      params.set('directory', options.directory);
+    }
+    if (options?.limit) {
+      params.set('limit', String(options.limit));
+    }
+    if (options?.branch) {
+      params.set('branch', options.branch);
+    }
 
-    const response = await this.client.get<{ success: boolean; commits: GitCommit[]; error?: string }>(`/api/git/log?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      commits: GitCommit[];
+      error?: string;
+    }>(`/api/git/log?${params.toString()}`);
     if (response.success && response.data) {
       return response.data;
     }
@@ -178,10 +218,18 @@ export class GitClient {
     all?: boolean;
   }): Promise<{ success: boolean; branches: GitBranch[]; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.directory) params.set('directory', options.directory);
-    if (options?.all) params.set('all', 'true');
+    if (options?.directory) {
+      params.set('directory', options.directory);
+    }
+    if (options?.all) {
+      params.set('all', 'true');
+    }
 
-    const response = await this.client.get<{ success: boolean; branches: GitBranch[]; error?: string }>(`/api/git/branches?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      branches: GitBranch[];
+      error?: string;
+    }>(`/api/git/branches?${params.toString()}`);
     if (response.success && response.data) {
       return response.data;
     }
@@ -198,7 +246,10 @@ export class GitClient {
       create?: boolean;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/checkout', { target, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/checkout',
+      { target, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -214,11 +265,19 @@ export class GitClient {
     file?: string;
   }): Promise<{ success: boolean; diff: string; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.directory) params.set('directory', options.directory);
-    if (options?.staged) params.set('staged', 'true');
-    if (options?.file) params.set('file', options.file);
+    if (options?.directory) {
+      params.set('directory', options.directory);
+    }
+    if (options?.staged) {
+      params.set('staged', 'true');
+    }
+    if (options?.file) {
+      params.set('file', options.file);
+    }
 
-    const response = await this.client.get<{ success: boolean; diff: string; error?: string }>(`/api/git/diff?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; diff: string; error?: string }>(
+      `/api/git/diff?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -237,7 +296,10 @@ export class GitClient {
       message?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/merge', { branch, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/merge',
+      { branch, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -255,7 +317,10 @@ export class GitClient {
       index?: number;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/stash', { command, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/stash',
+      { command, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -273,7 +338,10 @@ export class GitClient {
       depth?: number;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/clone', { url, path: targetPath, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/clone',
+      { url, path: targetPath, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -293,7 +361,10 @@ export class GitClient {
       commit?: string;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/tag', { name, path: options?.directory, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/tag',
+      { name, path: options?.directory, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -306,23 +377,36 @@ export class GitClient {
   ): Promise<{ success: boolean; output: string; error?: string }> {
     const params = new URLSearchParams();
     params.set('name', name);
-    if (options?.directory) params.set('path', options.directory);
+    if (options?.directory) {
+      params.set('path', options.directory);
+    }
 
-    const response = await this.client.delete<{ success: boolean; output: string; error?: string }>(`/api/git/tag?${params.toString()}`);
+    const response = await this.client.delete<{ success: boolean; output: string; error?: string }>(
+      `/api/git/tag?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
     return { success: false, output: '', error: response.error?.message || 'Unknown error' };
   }
 
-  async tagList(
-    options?: { directory?: string; pattern?: string }
-  ): Promise<{ success: boolean; tags: string[]; error?: string }> {
+  async tagList(options?: {
+    directory?: string;
+    pattern?: string;
+  }): Promise<{ success: boolean; tags: string[]; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.directory) params.set('path', options.directory);
-    if (options?.pattern) params.set('pattern', options.pattern);
+    if (options?.directory) {
+      params.set('path', options.directory);
+    }
+    if (options?.pattern) {
+      params.set('pattern', options.pattern);
+    }
 
-    const response = await this.client.get<{ success: boolean; data?: { tags: string[] }; error?: string }>(`/api/git/tags?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      data?: { tags: string[] };
+      error?: string;
+    }>(`/api/git/tags?${params.toString()}`);
     if (response.success && response.data) {
       const data = response.data as any;
       return { success: true, tags: data?.data?.tags || data?.tags || [] };
@@ -330,10 +414,15 @@ export class GitClient {
     return { success: false, tags: [], error: response.error?.message || 'Unknown error' };
   }
 
-  async tagPush(
-    options?: { directory?: string; remote?: string; tagName?: string }
-  ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/tag/push', { path: options?.directory, remote: options?.remote, tagName: options?.tagName });
+  async tagPush(options?: {
+    directory?: string;
+    remote?: string;
+    tagName?: string;
+  }): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/tag/push',
+      { path: options?.directory, remote: options?.remote, tagName: options?.tagName }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -346,9 +435,13 @@ export class GitClient {
   ): Promise<{ success: boolean; output: string; error?: string }> {
     const params = new URLSearchParams();
     params.set('name', name);
-    if (options?.directory) params.set('path', options.directory);
+    if (options?.directory) {
+      params.set('path', options.directory);
+    }
 
-    const response = await this.client.get<{ success: boolean; output: string; error?: string }>(`/api/git/tag/show?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; output: string; error?: string }>(
+      `/api/git/tag/show?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -363,15 +456,33 @@ export class GitClient {
     options?: { directory?: string }
   ): Promise<{ success: boolean; remote: string; url: string | null; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.directory) params.set('path', options.directory);
-    if (remoteName) params.set('name', remoteName);
+    if (options?.directory) {
+      params.set('path', options.directory);
+    }
+    if (remoteName) {
+      params.set('name', remoteName);
+    }
 
-    const response = await this.client.get<{ success: boolean; remote: string; url: string | null; error?: string }>(`/api/git/remote?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      remote: string;
+      url: string | null;
+      error?: string;
+    }>(`/api/git/remote?${params.toString()}`);
     if (response.success && response.data) {
       const data = response.data as any;
-      return { success: true, remote: data?.data?.remote || data?.remote || remoteName || 'origin', url: data?.data?.url !== undefined ? data.data.url : data?.url };
+      return {
+        success: true,
+        remote: data?.data?.remote || data?.remote || remoteName || 'origin',
+        url: data?.data?.url !== undefined ? data.data.url : data?.url,
+      };
     }
-    return { success: false, remote: remoteName || 'origin', url: null, error: response.error?.message || 'Unknown error' };
+    return {
+      success: false,
+      remote: remoteName || 'origin',
+      url: null,
+      error: response.error?.message || 'Unknown error',
+    };
   }
 
   /**
@@ -381,7 +492,10 @@ export class GitClient {
     target: string,
     options?: { directory?: string; mode?: 'soft' | 'mixed' | 'hard' }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/reset', { target, path: options?.directory, mode: options?.mode });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/reset',
+      { target, path: options?.directory, mode: options?.mode }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -395,7 +509,10 @@ export class GitClient {
     commit: string,
     options?: { directory?: string; noCommit?: boolean; noEdit?: boolean }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/revert', { commit, cwd: options?.directory, noCommit: options?.noCommit, noEdit: options?.noEdit });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/revert',
+      { commit, cwd: options?.directory, noCommit: options?.noCommit, noEdit: options?.noEdit }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -409,27 +526,36 @@ export class GitClient {
     commit: string,
     options?: { directory?: string; noCommit?: boolean }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/cherry-pick', { commit, path: options?.directory, noCommit: options?.noCommit });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/cherry-pick',
+      { commit, path: options?.directory, noCommit: options?.noCommit }
+    );
     if (response.success && response.data) {
       return response.data;
     }
     return { success: false, output: '', error: response.error?.message || 'Unknown error' };
   }
 
-  async cherryPickAbort(
-    options?: { directory?: string }
-  ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/cherry-pick/abort', { path: options?.directory });
+  async cherryPickAbort(options?: {
+    directory?: string;
+  }): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/cherry-pick/abort',
+      { path: options?.directory }
+    );
     if (response.success && response.data) {
       return response.data;
     }
     return { success: false, output: '', error: response.error?.message || 'Unknown error' };
   }
 
-  async cherryPickContinue(
-    options?: { directory?: string }
-  ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/cherry-pick/continue', { path: options?.directory });
+  async cherryPickContinue(options?: {
+    directory?: string;
+  }): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/cherry-pick/continue',
+      { path: options?.directory }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -445,14 +571,22 @@ export class GitClient {
   ): Promise<{ success: boolean; blame: string[]; error?: string }> {
     const params = new URLSearchParams();
     params.set('file', file);
-    if (options?.directory) params.set('path', options.directory);
+    if (options?.directory) {
+      params.set('path', options.directory);
+    }
     if (options?.lineRange) {
       const parts = options.lineRange.split(',');
-      if (parts[0]) params.set('startLine', parts[0].trim());
-      if (parts[1]) params.set('endLine', parts[1].trim());
+      if (parts[0]) {
+        params.set('startLine', parts[0].trim());
+      }
+      if (parts[1]) {
+        params.set('endLine', parts[1].trim());
+      }
     }
 
-    const response = await this.client.get<{ success: boolean; blame: string[]; error?: string }>(`/api/git/blame?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; blame: string[]; error?: string }>(
+      `/api/git/blame?${params.toString()}`
+    );
     if (response.success && response.data) {
       const data = response.data as any;
       return { success: true, blame: data?.data?.blame || data?.blame || [] };
@@ -463,10 +597,14 @@ export class GitClient {
   /**
    * Initialize a repository
    */
-  async init(
-    options?: { directory?: string; bare?: boolean }
-  ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/git/init', { path: options?.directory, bare: options?.bare });
+  async init(options?: {
+    directory?: string;
+    bare?: boolean;
+  }): Promise<{ success: boolean; output: string; error?: string }> {
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/git/init',
+      { path: options?.directory, bare: options?.bare }
+    );
     if (response.success && response.data) {
       return response.data;
     }

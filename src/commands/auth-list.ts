@@ -8,13 +8,7 @@
 
 import { logger } from '../utils';
 import { ui } from '../wizard';
-import {
-  authStore,
-  AuthStore,
-  getProviderNames,
-  getProviderInfo,
-  type LLMProviderName,
-} from '../auth';
+import { authStore, AuthStore, getProviderNames, getProviderInfo } from '../auth';
 
 /**
  * Command options
@@ -31,10 +25,10 @@ export async function authListCommand(options: AuthListOptions = {}): Promise<vo
 
   const providerNames = getProviderNames();
   const status = authStore.getStatus();
-  const configuredProviders = new Set(status.providers.map((p) => p.name));
+  const configuredProviders = new Set(status.providers.map(p => p.name));
 
   // Build provider data
-  const providerData = providerNames.map((name) => {
+  const providerData = providerNames.map(name => {
     const info = getProviderInfo(name);
     const credential = authStore.getProvider(name);
     const isConfigured = configuredProviders.has(name);
@@ -46,7 +40,7 @@ export async function authListCommand(options: AuthListOptions = {}): Promise<vo
       description: info.description,
       isConfigured,
       isDefault,
-      model: credential?.model || info.models.find((m) => m.isDefault)?.id || info.models[0].id,
+      model: credential?.model || info.models.find(m => m.isDefault)?.id || info.models[0].id,
       apiKey: credential?.apiKey,
       baseUrl: credential?.baseUrl,
       requiresApiKey: info.requiresApiKey,
@@ -56,7 +50,7 @@ export async function authListCommand(options: AuthListOptions = {}): Promise<vo
 
   // JSON output mode
   if (options.json) {
-    const safeOutput = providerData.map((p) => ({
+    const safeOutput = providerData.map(p => ({
       name: p.name,
       displayName: p.displayName,
       description: p.description,
@@ -122,7 +116,7 @@ export async function authListCommand(options: AuthListOptions = {}): Promise<vo
   ui.newLine();
 
   // Show hints for unconfigured providers
-  const unconfigured = providerData.filter((p) => !p.isConfigured);
+  const unconfigured = providerData.filter(p => !p.isConfigured);
   if (unconfigured.length > 0) {
     ui.print(ui.dim('To configure a provider, run `nimbus login`'));
     ui.newLine();

@@ -48,7 +48,11 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '-M, --model <model>', description: 'Specify LLM model to use' },
       { flag: '--system-prompt <prompt>', description: 'Custom system prompt' },
       { flag: '--show-tokens', description: 'Display token count for each message' },
-      { flag: '--ui <mode>', description: 'UI mode: ink (default rich TUI) or readline (simple)', default: 'ink' },
+      {
+        flag: '--ui <mode>',
+        description: 'UI mode: ink (default rich TUI) or readline (simple)',
+        default: 'ink',
+      },
       { flag: '--non-interactive', description: 'Run in non-interactive mode' },
     ],
     examples: [
@@ -84,13 +88,21 @@ const COMMANDS: Record<string, CommandDoc> = {
     description: 'Generate Kubernetes manifests for your application',
     usage: 'nimbus generate k8s [options]',
     options: [
-      { flag: '--type, --workload-type <type>', description: 'Workload type: deployment, statefulset, daemonset, job, cronjob', default: 'deployment' },
+      {
+        flag: '--type, --workload-type <type>',
+        description: 'Workload type: deployment, statefulset, daemonset, job, cronjob',
+        default: 'deployment',
+      },
       { flag: '--name <name>', description: 'Application name' },
       { flag: '-n, --namespace <ns>', description: 'Kubernetes namespace', default: 'default' },
       { flag: '--image <image>', description: 'Container image (e.g., nginx:latest)' },
       { flag: '--replicas <count>', description: 'Number of replicas', default: '2' },
       { flag: '--port <port>', description: 'Container port', default: '8080' },
-      { flag: '--service-type <type>', description: 'Service type: ClusterIP, NodePort, LoadBalancer', default: 'ClusterIP' },
+      {
+        flag: '--service-type <type>',
+        description: 'Service type: ClusterIP, NodePort, LoadBalancer',
+        default: 'ClusterIP',
+      },
       { flag: '-o, --output <path>', description: 'Output directory' },
       { flag: '--include-ingress', description: 'Generate Ingress resource' },
       { flag: '--include-hpa', description: 'Generate HorizontalPodAutoscaler' },
@@ -115,7 +127,11 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '--chart <name>', description: 'Helm chart name (e.g., bitnami/nginx)' },
       { flag: '--release, --release-name <name>', description: 'Release name' },
       { flag: '-n, --namespace <ns>', description: 'Kubernetes namespace', default: 'default' },
-      { flag: '--environment <env>', description: 'Target environment: dev, staging, production', default: 'dev' },
+      {
+        flag: '--environment <env>',
+        description: 'Target environment: dev, staging, production',
+        default: 'dev',
+      },
       { flag: '--version <version>', description: 'Chart version' },
       { flag: '-o, --output <path>', description: 'Output directory' },
       { flag: '--include-secrets', description: 'Generate separate secrets values file' },
@@ -156,7 +172,11 @@ const COMMANDS: Record<string, CommandDoc> = {
     description: 'Preview infrastructure changes',
     usage: 'nimbus plan [options]',
     options: [
-      { flag: '--type <type>', description: 'Infrastructure type: terraform, k8s, helm, auto', default: 'auto' },
+      {
+        flag: '--type <type>',
+        description: 'Infrastructure type: terraform, k8s, helm, auto',
+        default: 'auto',
+      },
       { flag: '--target <path>', description: 'Target directory or file' },
       { flag: '--out <file>', description: 'Save plan to file (Terraform)' },
       { flag: '--detailed', description: 'Show detailed plan output' },
@@ -188,7 +208,11 @@ const COMMANDS: Record<string, CommandDoc> = {
     description: 'Get AI explanations for code, infrastructure, or errors',
     usage: 'nimbus explain <target> [options]',
     options: [
-      { flag: '--type <type>', description: 'Content type: code, infra, error, auto', default: 'auto' },
+      {
+        flag: '--type <type>',
+        description: 'Content type: code, infra, error, auto',
+        default: 'auto',
+      },
       { flag: '--file <path>', description: 'Read content from file' },
       { flag: '--verbose', description: 'Show detailed explanations' },
     ],
@@ -223,11 +247,7 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '--fix', description: 'Attempt to fix issues automatically' },
       { flag: '--verbose', description: 'Show detailed diagnostic information' },
     ],
-    examples: [
-      'nimbus doctor',
-      'nimbus doctor --fix',
-      'nimbus doctor --verbose',
-    ],
+    examples: ['nimbus doctor', 'nimbus doctor --fix', 'nimbus doctor --verbose'],
   },
 
   init: {
@@ -241,10 +261,7 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '-f, --force', description: 'Overwrite existing configuration' },
       { flag: '--non-interactive', description: 'Run in non-interactive mode' },
     ],
-    examples: [
-      'nimbus init',
-      'nimbus init --name my-project --provider aws',
-    ],
+    examples: ['nimbus init', 'nimbus init --name my-project --provider aws'],
   },
 
   login: {
@@ -259,23 +276,15 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '--sso', description: 'Use SSO authentication' },
       { flag: '--non-interactive', description: 'Run in non-interactive mode' },
     ],
-    examples: [
-      'nimbus login',
-      'nimbus login --provider anthropic --api-key sk-...',
-    ],
+    examples: ['nimbus login', 'nimbus login --provider anthropic --api-key sk-...'],
   },
 
   logout: {
     name: 'logout',
     description: 'Clear all stored credentials',
     usage: 'nimbus logout [options]',
-    options: [
-      { flag: '-f, --force', description: 'Skip confirmation prompt' },
-    ],
-    examples: [
-      'nimbus logout',
-      'nimbus logout --force',
-    ],
+    options: [{ flag: '-f, --force', description: 'Skip confirmation prompt' }],
+    examples: ['nimbus logout', 'nimbus logout --force'],
   },
 
   config: {
@@ -308,11 +317,7 @@ const COMMANDS: Record<string, CommandDoc> = {
       { name: 'destroy', description: 'Destroy infrastructure' },
       { name: 'show', description: 'Show state' },
     ],
-    examples: [
-      'nimbus tf init',
-      'nimbus tf plan',
-      'nimbus tf apply --auto-approve',
-    ],
+    examples: ['nimbus tf init', 'nimbus tf plan', 'nimbus tf apply --auto-approve'],
   },
 
   k8s: {
@@ -369,14 +374,8 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '--json', description: 'Output as JSON' },
       { flag: '--clear', description: 'Clear all history' },
     ],
-    subcommands: [
-      { name: 'show <id>', description: 'Show details for a specific entry' },
-    ],
-    examples: [
-      'nimbus history',
-      'nimbus history -n 20',
-      'nimbus history show abc123',
-    ],
+    subcommands: [{ name: 'show <id>', description: 'Show details for a specific entry' }],
+    examples: ['nimbus history', 'nimbus history -n 20', 'nimbus history show abc123'],
   },
 
   version: {
@@ -387,10 +386,7 @@ const COMMANDS: Record<string, CommandDoc> = {
       { flag: '--verbose', description: 'Show detailed version info including components' },
       { flag: '--json', description: 'Output as JSON' },
     ],
-    examples: [
-      'nimbus version',
-      'nimbus version --verbose',
-    ],
+    examples: ['nimbus version', 'nimbus version --verbose'],
   },
 
   team: {

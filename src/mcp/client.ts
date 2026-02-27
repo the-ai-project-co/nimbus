@@ -69,10 +69,13 @@ export class MCPClient {
   private process: ChildProcess | null = null;
   private connected = false;
   private requestId = 0;
-  private pendingRequests = new Map<number, {
-    resolve: (value: unknown) => void;
-    reject: (error: Error) => void;
-  }>();
+  private pendingRequests = new Map<
+    number,
+    {
+      resolve: (value: unknown) => void;
+      reject: (error: Error) => void;
+    }
+  >();
   private buffer = '';
   private tools: MCPToolDefinition[] = [];
 
@@ -96,7 +99,9 @@ export class MCPClient {
    * For HTTP servers, sends a GET to check availability.
    */
   async connect(): Promise<void> {
-    if (this.connected) return;
+    if (this.connected) {
+      return;
+    }
 
     if (this.config.type === 'command') {
       await this.connectCommand();
@@ -116,7 +121,9 @@ export class MCPClient {
     }
 
     if (this.config.type === 'command') {
-      const response = await this.sendRequest('tools/list', {}) as { tools?: MCPToolDefinition[] };
+      const response = (await this.sendRequest('tools/list', {})) as {
+        tools?: MCPToolDefinition[];
+      };
       this.tools = response.tools ?? [];
     } else {
       // HTTP server
@@ -144,7 +151,10 @@ export class MCPClient {
       let result: MCPCallResult;
 
       if (this.config.type === 'command') {
-        result = (await this.sendRequest('tools/call', { name, arguments: input })) as MCPCallResult;
+        result = (await this.sendRequest('tools/call', {
+          name,
+          arguments: input,
+        })) as MCPCallResult;
       } else {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
@@ -163,7 +173,10 @@ export class MCPClient {
       // MCP tool results have content array
       const content = result.content ?? [];
       const textParts = content
-        .filter((c): c is MCPContentBlock & { text: string } => c.type === 'text' && typeof c.text === 'string')
+        .filter(
+          (c): c is MCPContentBlock & { text: string } =>
+            c.type === 'text' && typeof c.text === 'string'
+        )
         .map(c => c.text);
 
       return {
@@ -214,7 +227,9 @@ export class MCPClient {
 
   private async connectCommand(): Promise<void> {
     if (!this.config.command) {
-      throw new Error(`MCP server '${this.config.name}' has type 'command' but no command specified`);
+      throw new Error(
+        `MCP server '${this.config.name}' has type 'command' but no command specified`
+      );
     }
 
     this.process = spawn(this.config.command, this.config.args ?? [], {
@@ -273,7 +288,7 @@ export class MCPClient {
       };
 
       if (this.process?.stdin) {
-        this.process.stdin.write(JSON.stringify(message) + '\n');
+        this.process.stdin.write(`${JSON.stringify(message)}\n`);
       } else {
         reject(new Error('MCP server process stdin not available'));
       }
@@ -296,7 +311,7 @@ export class MCPClient {
     };
 
     if (this.process?.stdin) {
-      this.process.stdin.write(JSON.stringify(message) + '\n');
+      this.process.stdin.write(`${JSON.stringify(message)}\n`);
     }
   }
 
@@ -305,7 +320,9 @@ export class MCPClient {
     this.buffer = lines.pop() ?? '';
 
     for (const line of lines) {
-      if (!line.trim()) continue;
+      if (!line.trim()) {
+        continue;
+      }
       try {
         const message = JSON.parse(line) as JSONRPCMessage;
         if (message.id !== undefined && this.pendingRequests.has(message.id as number)) {

@@ -3,8 +3,8 @@
  * Clients for auth, team, billing, and audit services
  */
 
-import { RestClient } from '.';
-import { ServiceURLs } from '.';
+import { RestClient, ServiceURLs } from '.';
+import { logger } from '../utils';
 import type {
   DeviceCodeResponse,
   DevicePollResponse,
@@ -40,7 +40,9 @@ export class AuthClient {
   }
 
   async pollDeviceCode(deviceCode: string): Promise<DevicePollResponse> {
-    const response = await this.client.get<DevicePollResponse>(`/api/auth/device/poll/${deviceCode}`);
+    const response = await this.client.get<DevicePollResponse>(
+      `/api/auth/device/poll/${deviceCode}`
+    );
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to poll device code');
     }
@@ -94,6 +96,10 @@ export class TeamClient {
   async listTeams(userId: string): Promise<Team[]> {
     const response = await this.client.get<Team[]>(`/api/team/teams?userId=${userId}`);
     if (!response.success || !response.data) {
+      logger.warn('Failed to list teams; returning empty list', {
+        userId,
+        error: response.error?.message,
+      });
       return [];
     }
     return response.data;
@@ -120,6 +126,10 @@ export class TeamClient {
   async listMembers(teamId: string): Promise<TeamMember[]> {
     const response = await this.client.get<TeamMember[]>(`/api/team/teams/${teamId}/members`);
     if (!response.success || !response.data) {
+      logger.warn('Failed to list team members; returning empty list', {
+        teamId,
+        error: response.error?.message,
+      });
       return [];
     }
     return response.data;
@@ -154,9 +164,7 @@ export class BillingClient {
   }
 
   async getStatus(teamId: string): Promise<BillingStatus> {
-    const response = await this.client.get<BillingStatus>(
-      `/api/billing/status?teamId=${teamId}`
-    );
+    const response = await this.client.get<BillingStatus>(`/api/billing/status?teamId=${teamId}`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to get billing status');
     }
@@ -182,7 +190,10 @@ export class BillingClient {
     return response.data;
   }
 
-  async getUsage(teamId: string, period: 'day' | 'week' | 'month' = 'month'): Promise<UsageSummary> {
+  async getUsage(
+    teamId: string,
+    period: 'day' | 'week' | 'month' = 'month'
+  ): Promise<UsageSummary> {
     const response = await this.client.get<UsageSummary>(
       `/api/billing/usage?teamId=${teamId}&period=${period}`
     );
@@ -197,6 +208,10 @@ export class BillingClient {
       `/api/billing/invoices?teamId=${teamId}&limit=${limit}`
     );
     if (!response.success || !response.data) {
+      logger.warn('Failed to fetch invoices; returning empty list', {
+        teamId,
+        error: response.error?.message,
+      });
       return [];
     }
     return response.data;
@@ -243,14 +258,30 @@ export class AuditClient {
     offset: number;
   }> {
     const params = new URLSearchParams();
-    if (query.teamId) params.set('teamId', query.teamId);
-    if (query.userId) params.set('userId', query.userId);
-    if (query.action) params.set('action', query.action);
-    if (query.status) params.set('status', query.status);
-    if (query.since) params.set('since', query.since);
-    if (query.until) params.set('until', query.until);
-    if (query.limit) params.set('limit', query.limit.toString());
-    if (query.offset) params.set('offset', query.offset.toString());
+    if (query.teamId) {
+      params.set('teamId', query.teamId);
+    }
+    if (query.userId) {
+      params.set('userId', query.userId);
+    }
+    if (query.action) {
+      params.set('action', query.action);
+    }
+    if (query.status) {
+      params.set('status', query.status);
+    }
+    if (query.since) {
+      params.set('since', query.since);
+    }
+    if (query.until) {
+      params.set('until', query.until);
+    }
+    if (query.limit) {
+      params.set('limit', query.limit.toString());
+    }
+    if (query.offset) {
+      params.set('offset', query.offset.toString());
+    }
 
     const response = await this.client.get<{
       logs: AuditLog[];
@@ -265,17 +296,24 @@ export class AuditClient {
     return response.data;
   }
 
-  async exportLogs(
-    format: 'csv' | 'json',
-    query: Partial<AuditLogQuery> = {}
-  ): Promise<string> {
+  async exportLogs(format: 'csv' | 'json', query: Partial<AuditLogQuery> = {}): Promise<string> {
     const params = new URLSearchParams();
     params.set('format', format);
-    if (query.teamId) params.set('teamId', query.teamId);
-    if (query.userId) params.set('userId', query.userId);
-    if (query.action) params.set('action', query.action);
-    if (query.since) params.set('since', query.since);
-    if (query.until) params.set('until', query.until);
+    if (query.teamId) {
+      params.set('teamId', query.teamId);
+    }
+    if (query.userId) {
+      params.set('userId', query.userId);
+    }
+    if (query.action) {
+      params.set('action', query.action);
+    }
+    if (query.since) {
+      params.set('since', query.since);
+    }
+    if (query.until) {
+      params.set('until', query.until);
+    }
 
     const url = `${ServiceURLs.AUDIT}/api/audit/export?${params}`;
     const response = await fetch(url);

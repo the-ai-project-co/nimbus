@@ -69,22 +69,22 @@ export async function gitStatusCommand(options: GitCommandOptions = {}): Promise
 
       if (result.status.staged.length > 0) {
         ui.success('Changes to be committed:');
-        result.status.staged.forEach((f) => ui.info(`  ${f}`));
+        result.status.staged.forEach(f => ui.info(`  ${f}`));
       }
 
       if (result.status.modified.length > 0) {
         ui.warning('Changes not staged for commit:');
-        result.status.modified.forEach((f) => ui.info(`  modified: ${f}`));
+        result.status.modified.forEach(f => ui.info(`  modified: ${f}`));
       }
 
       if (result.status.untracked.length > 0) {
         ui.info('Untracked files:');
-        result.status.untracked.forEach((f) => ui.info(`  ${f}`));
+        result.status.untracked.forEach(f => ui.info(`  ${f}`));
       }
 
       if (result.status.deleted.length > 0) {
         ui.error('Deleted files:');
-        result.status.deleted.forEach((f) => ui.info(`  deleted: ${f}`));
+        result.status.deleted.forEach(f => ui.info(`  deleted: ${f}`));
       }
 
       if (
@@ -389,7 +389,7 @@ export async function gitLogCommand(options: GitCommandOptions = {}): Promise<vo
             { key: 'date', header: 'Date' },
             { key: 'message', header: 'Message' },
           ],
-          data: result.commits.map((commit) => ({
+          data: result.commits.map(commit => ({
             hash: commit.shortHash,
             author: commit.author,
             date: commit.date,
@@ -434,7 +434,7 @@ export async function gitBranchCommand(options: GitCommandOptions = {}): Promise
       ui.stopSpinnerSuccess(`Found ${result.branches.length} branches`);
 
       if (result.branches.length > 0) {
-        result.branches.forEach((branch) => {
+        result.branches.forEach(branch => {
           const prefix = branch.current ? '* ' : '  ';
           const tracking = branch.tracking ? ` -> ${branch.tracking}` : '';
           ui.info(`${prefix}${branch.name}${tracking}`);
@@ -712,7 +712,7 @@ export async function gitTagCommand(
       if (result.success) {
         ui.stopSpinnerSuccess(`Found ${result.tags.length} tag(s)`);
         if (result.tags.length > 0) {
-          result.tags.forEach((tag) => ui.info(`  ${tag}`));
+          result.tags.forEach(tag => ui.info(`  ${tag}`));
         } else {
           ui.info('No tags found');
         }
@@ -865,7 +865,9 @@ export async function gitResetCommand(
   ui.info(`Mode: ${mode}`);
 
   if (mode === 'hard') {
-    ui.warning('WARNING: --hard reset will discard all uncommitted changes. This cannot be undone.');
+    ui.warning(
+      'WARNING: --hard reset will discard all uncommitted changes. This cannot be undone.'
+    );
   }
 
   ui.startSpinner({ message: `Resetting to ${target} (${mode})...` });
@@ -1049,7 +1051,7 @@ export async function gitBlameCommand(
     if (result.success) {
       ui.stopSpinnerSuccess(`Blame retrieved for ${file}`);
       if (result.blame.length > 0) {
-        result.blame.forEach((line) => console.log(line));
+        result.blame.forEach(line => console.log(line));
       } else {
         ui.info('No blame data returned');
       }
@@ -1231,7 +1233,13 @@ export async function gitCommand(subcommand: string, args: string[]): Promise<vo
         break;
       case 'stash': {
         const validStashActions = ['push', 'pop', 'list', 'drop', 'apply', 'clear'];
-        const stashAction = (positionalArgs[0] || 'push') as 'push' | 'pop' | 'list' | 'drop' | 'apply' | 'clear';
+        const stashAction = (positionalArgs[0] || 'push') as
+          | 'push'
+          | 'pop'
+          | 'list'
+          | 'drop'
+          | 'apply'
+          | 'clear';
         if (!validStashActions.includes(stashAction)) {
           ui.error(`Unknown stash action: ${stashAction}`);
           ui.info('Actions: push, pop, list, drop, apply, clear');
@@ -1245,7 +1253,12 @@ export async function gitCommand(subcommand: string, args: string[]): Promise<vo
       }
       case 'tag': {
         const validTagActions = ['list', 'create', 'delete', 'push', 'show'];
-        const tagAction = (positionalArgs[0] || 'list') as 'list' | 'create' | 'delete' | 'push' | 'show';
+        const tagAction = (positionalArgs[0] || 'list') as
+          | 'list'
+          | 'create'
+          | 'delete'
+          | 'push'
+          | 'show';
         if (!validTagActions.includes(tagAction)) {
           ui.error(`Unknown tag action: ${tagAction}`);
           ui.info('Actions: list (default), create, delete, push, show');
@@ -1315,12 +1328,16 @@ export async function gitCommand(subcommand: string, args: string[]): Promise<vo
       }
       default:
         ui.error(`Unknown git subcommand: ${subcommand}`);
-        ui.info('Available commands: status, add, commit, push, pull, fetch, log, branch, checkout, diff, merge, clone, stash, tag, remote, reset, revert, cherry-pick, blame, init');
+        ui.info(
+          'Available commands: status, add, commit, push, pull, fetch, log, branch, checkout, diff, merge, clone, stash, tag, remote, reset, revert, cherry-pick, blame, init'
+        );
     }
 
     historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
   } catch (error: any) {
-    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, {
+      error: error.message,
+    });
     throw error;
   }
 }

@@ -16,7 +16,11 @@ import {
   type SafetyContext,
   type SafetyCheckResult,
 } from '../../config/safety-policy';
-import { promptForApproval, displaySafetySummary, confirmWithResourceName } from '../../wizard/approval';
+import {
+  promptForApproval,
+  displaySafetySummary,
+  confirmWithResourceName,
+} from '../../wizard/approval';
 
 /**
  * Command options
@@ -45,9 +49,11 @@ async function displayCostEstimate(directory: string): Promise<void> {
     const estimate = await CostEstimator.estimateDirectory(directory);
     if (estimate.totalMonthlyCost > 0) {
       ui.newLine();
-      ui.print(`  ${ui.color('$', 'yellow')} Estimated monthly cost: ${ui.bold(`$${estimate.totalMonthlyCost.toFixed(2)}/mo`)}`);
+      ui.print(
+        `  ${ui.color('$', 'yellow')} Estimated monthly cost: ${ui.bold(`$${estimate.totalMonthlyCost.toFixed(2)}/mo`)}`
+      );
       const projects = estimate.projects || [];
-      const costResources = projects.length > 0 ? (projects[0].resources || []) : [];
+      const costResources = projects.length > 0 ? projects[0].resources || [] : [];
       if (costResources.length > 0) {
         for (const resource of costResources.slice(0, 5)) {
           ui.print(`    ${resource.name}: $${resource.monthlyCost.toFixed(2)}/mo`);
@@ -256,7 +262,9 @@ async function applyWithService(options: ApplyTerraformOptions): Promise<void> {
   try {
     const { trackGeneration } = await import('../../telemetry');
     trackGeneration('terraform-apply', ['terraform']);
-  } catch { /* telemetry failure is non-critical */ }
+  } catch {
+    /* telemetry failure is non-critical */
+  }
 
   // Display output
   if (applyResult.output) {
@@ -283,9 +291,10 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
     ui.newLine();
 
     // Display plan summary
-    const hasChanges = planOutput.includes('to add') ||
-                       planOutput.includes('to change') ||
-                       planOutput.includes('to destroy');
+    const hasChanges =
+      planOutput.includes('to add') ||
+      planOutput.includes('to change') ||
+      planOutput.includes('to destroy');
 
     displayPlanSummary({
       success: true,
@@ -412,28 +421,31 @@ async function applyWithLocalCLI(options: ApplyTerraformOptions): Promise<void> 
   ui.newLine();
 
   // Run terraform
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const proc = spawn('terraform', args, {
       cwd: directory,
       stdio: 'inherit',
     });
 
-    proc.on('error', (error) => {
+    proc.on('error', error => {
       ui.error(`Failed to run terraform: ${error.message}`);
       ui.info('Make sure terraform is installed and in your PATH');
       process.exit(1);
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       if (code === 0) {
         ui.newLine();
         ui.success('Terraform apply completed successfully');
 
         // Track successful terraform apply
         try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { trackGeneration } = require('../../telemetry');
           trackGeneration('terraform-apply', ['terraform']);
-        } catch { /* telemetry failure is non-critical */ }
+        } catch {
+          /* telemetry failure is non-critical */
+        }
 
         resolve();
       } else {
@@ -478,19 +490,19 @@ async function runLocalTerraformPlan(
       stdio: ['inherit', 'pipe', 'pipe'],
     });
 
-    proc.stdout?.on('data', (data) => {
+    proc.stdout?.on('data', data => {
       output += data.toString();
     });
 
-    proc.stderr?.on('data', (data) => {
+    proc.stderr?.on('data', data => {
       output += data.toString();
     });
 
-    proc.on('error', (error) => {
+    proc.on('error', error => {
       reject(new Error(`Failed to run terraform plan: ${error.message}`));
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       if (code === 0) {
         resolve(output);
       } else {

@@ -66,8 +66,9 @@ export async function promptForApproval(config: ApprovalPromptConfig): Promise<A
 
   // Require confirmation for critical operations
   const hasCritical = config.risks.some(r => r.severity === 'critical');
-  const hasDestructive = config.operation.toLowerCase().includes('destroy') ||
-                         config.operation.toLowerCase().includes('delete');
+  const hasDestructive =
+    config.operation.toLowerCase().includes('destroy') ||
+    config.operation.toLowerCase().includes('delete');
 
   if (hasCritical || hasDestructive || config.requireConfirmation) {
     const confirmWord = config.confirmationWord || 'yes';
@@ -120,40 +121,36 @@ function drawApprovalBox(config: ApprovalPromptConfig): void {
   const width = 60;
   const borderColor = getSeverityColor(getHighestSeverity(config.risks));
 
-  ui.print(ui.color('╔' + '═'.repeat(width - 2) + '╗', borderColor));
+  ui.print(ui.color(`╔${'═'.repeat(width - 2)}╗`, borderColor));
 
   // Title
   const titleLine = ` APPROVAL REQUIRED `;
   const padding = Math.floor((width - 2 - titleLine.length) / 2);
   ui.print(
     ui.color('║', borderColor) +
-    ' '.repeat(padding) +
-    ui.bold(ui.color(titleLine, 'yellow')) +
-    ' '.repeat(width - 2 - padding - titleLine.length) +
-    ui.color('║', borderColor)
+      ' '.repeat(padding) +
+      ui.bold(ui.color(titleLine, 'yellow')) +
+      ' '.repeat(width - 2 - padding - titleLine.length) +
+      ui.color('║', borderColor)
   );
 
-  ui.print(ui.color('╠' + '═'.repeat(width - 2) + '╣', borderColor));
+  ui.print(ui.color(`╠${'═'.repeat(width - 2)}╣`, borderColor));
 
   // Operation
   const opLine = `  Operation: ${config.operation}`;
-  ui.print(
-    ui.color('║', borderColor) +
-    opLine.padEnd(width - 2) +
-    ui.color('║', borderColor)
-  );
+  ui.print(ui.color('║', borderColor) + opLine.padEnd(width - 2) + ui.color('║', borderColor));
 
   // Environment if available
   if (config.environment) {
     const envLine = `  Environment: ${config.environment}`;
     ui.print(
       ui.color('║', borderColor) +
-      ui.color(envLine.padEnd(width - 2), 'yellow') +
-      ui.color('║', borderColor)
+        ui.color(envLine.padEnd(width - 2), 'yellow') +
+        ui.color('║', borderColor)
     );
   }
 
-  ui.print(ui.color('╚' + '═'.repeat(width - 2) + '╝', borderColor));
+  ui.print(ui.color(`╚${'═'.repeat(width - 2)}╝`, borderColor));
 }
 
 /**
@@ -281,19 +278,14 @@ function getSeverityColor(severity: RiskSeverity): UIColor {
  * Quick approval check without full prompt
  * Returns true if the operation should proceed based on policy
  */
-export function shouldAutoApprove(
-  operation: string,
-  risks: Risk[]
-): boolean {
+export function shouldAutoApprove(operation: string, risks: Risk[]): boolean {
   // Never auto-approve if there are critical risks
   if (risks.some(r => r.severity === 'critical')) {
     return false;
   }
 
   // Never auto-approve destructive operations
-  if (['destroy', 'delete', 'terminate'].some(op =>
-    operation.toLowerCase().includes(op)
-  )) {
+  if (['destroy', 'delete', 'terminate'].some(op => operation.toLowerCase().includes(op))) {
     return false;
   }
 
@@ -317,42 +309,34 @@ export async function confirmWithResourceName(
 
   // Display warning box
   const width = 60;
-  ui.print(ui.color('╔' + '═'.repeat(width - 2) + '╗', 'red'));
+  ui.print(ui.color(`╔${'═'.repeat(width - 2)}╗`, 'red'));
 
   const titleLine = ' DESTRUCTIVE OPERATION ';
   const padding = Math.floor((width - 2 - titleLine.length) / 2);
   ui.print(
     ui.color('║', 'red') +
-    ' '.repeat(padding) +
-    ui.bold(ui.color(titleLine, 'yellow')) +
-    ' '.repeat(width - 2 - padding - titleLine.length) +
-    ui.color('║', 'red')
+      ' '.repeat(padding) +
+      ui.bold(ui.color(titleLine, 'yellow')) +
+      ' '.repeat(width - 2 - padding - titleLine.length) +
+      ui.color('║', 'red')
   );
 
-  ui.print(ui.color('╠' + '═'.repeat(width - 2) + '╣', 'red'));
+  ui.print(ui.color(`╠${'═'.repeat(width - 2)}╣`, 'red'));
 
   const typeLine = `  Resource type: ${resourceType}`;
-  ui.print(
-    ui.color('║', 'red') +
-    typeLine.padEnd(width - 2) +
-    ui.color('║', 'red')
-  );
+  ui.print(ui.color('║', 'red') + typeLine.padEnd(width - 2) + ui.color('║', 'red'));
 
   const nameLine = `  Resource name: ${resourceName}`;
   ui.print(
-    ui.color('║', 'red') +
-    ui.color(nameLine.padEnd(width - 2), 'yellow') +
-    ui.color('║', 'red')
+    ui.color('║', 'red') + ui.color(nameLine.padEnd(width - 2), 'yellow') + ui.color('║', 'red')
   );
 
   const warnLine = '  This action CANNOT be undone.';
   ui.print(
-    ui.color('║', 'red') +
-    ui.color(warnLine.padEnd(width - 2), 'red') +
-    ui.color('║', 'red')
+    ui.color('║', 'red') + ui.color(warnLine.padEnd(width - 2), 'red') + ui.color('║', 'red')
   );
 
-  ui.print(ui.color('╚' + '═'.repeat(width - 2) + '╝', 'red'));
+  ui.print(ui.color(`╚${'═'.repeat(width - 2)}╝`, 'red'));
   ui.newLine();
 
   const userInput = await input({

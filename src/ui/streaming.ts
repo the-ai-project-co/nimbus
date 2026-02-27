@@ -44,7 +44,9 @@ export class StreamingDisplay {
 
     // Print the prefix
     if (this.options.prefix) {
-      ui.write(ui.color(this.options.prefix, this.options.prefixColor as any));
+      ui.write(
+        ui.color(this.options.prefix, this.options.prefixColor as Parameters<typeof ui.color>[1])
+      );
     }
 
     this.lineStarted = true;
@@ -120,7 +122,9 @@ export class StreamingDisplay {
   }
 
   private startCursor(): void {
-    if (this.cursorInterval) return;
+    if (this.cursorInterval) {
+      return;
+    }
 
     let visible = true;
     this.cursorInterval = setInterval(() => {
@@ -159,14 +163,14 @@ export async function displayStreaming(
       if (chunk.type === 'content' && chunk.content) {
         display.append(chunk.content);
       } else if (chunk.type === 'error') {
-        display.error((chunk as any).message || 'Unknown error');
+        display.error((chunk as { message?: string }).message || 'Unknown error');
         return '';
       }
     }
 
     return display.complete();
-  } catch (error: any) {
-    display.error(error.message || 'Streaming failed');
+  } catch (error: unknown) {
+    display.error(error instanceof Error ? error.message : 'Streaming failed');
     return '';
   }
 }

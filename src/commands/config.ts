@@ -7,7 +7,6 @@
 import { ui } from '../wizard/ui';
 import { select, input, confirm } from '../wizard/prompts';
 import { ConfigManager, CONFIG_KEYS } from '../config';
-import type { ConfigKey } from '../config';
 
 export interface ConfigOptions {
   /** Non-interactive mode */
@@ -55,10 +54,10 @@ export async function configSetCommand(options: ConfigSetOptions): Promise<void>
       description: k.description,
     }));
 
-    key = await select({
+    key = (await select({
       message: 'Select configuration key to set:',
       options: keyOptions,
-    }) as string;
+    })) as string;
   }
 
   if (!key) {
@@ -139,10 +138,10 @@ export async function configGetCommand(options: ConfigGetOptions): Promise<void>
       description: k.description,
     }));
 
-    key = await select({
+    key = (await select({
       message: 'Select configuration key to view:',
       options: keyOptions,
-    }) as string;
+    })) as string;
   }
 
   if (!key) {
@@ -180,7 +179,10 @@ export async function configListCommand(options: ConfigListOptions): Promise<voi
   ui.header('Nimbus Configuration', configManager.getConfigPath());
 
   // Group by section
-  const sections: Record<string, Array<{ key: string; value: any; info?: typeof CONFIG_KEYS[number] }>> = {};
+  const sections: Record<
+    string,
+    Array<{ key: string; value: any; info?: (typeof CONFIG_KEYS)[number] }>
+  > = {};
 
   for (const keyInfo of CONFIG_KEYS) {
     const [section] = keyInfo.key.split('.');
@@ -203,7 +205,9 @@ export async function configListCommand(options: ConfigListOptions): Promise<voi
   }
 
   for (const [section, items] of Object.entries(sections)) {
-    if (items.length === 0) continue;
+    if (items.length === 0) {
+      continue;
+    }
 
     ui.section(section.charAt(0).toUpperCase() + section.slice(1));
 
@@ -230,7 +234,7 @@ export async function configInitCommand(options: ConfigInitOptions): Promise<voi
   const configManager = new ConfigManager();
 
   if (configManager.exists() && !options.force) {
-    ui.warning('Configuration file already exists at: ' + configManager.getConfigPath());
+    ui.warning(`Configuration file already exists at: ${configManager.getConfigPath()}`);
 
     if (!options.nonInteractive) {
       const overwrite = await confirm({
@@ -251,7 +255,7 @@ export async function configInitCommand(options: ConfigInitOptions): Promise<voi
   // Interactive configuration setup
   if (!options.nonInteractive) {
     ui.newLine();
-    ui.header('Nimbus Configuration Setup', 'Let\'s configure your Nimbus CLI');
+    ui.header('Nimbus Configuration Setup', "Let's configure your Nimbus CLI");
 
     // Workspace settings
     ui.section('Workspace');
@@ -276,7 +280,7 @@ export async function configInitCommand(options: ConfigInitOptions): Promise<voi
     const temperature = await input({
       message: 'LLM temperature (0-1):',
       defaultValue: '0.7',
-      validate: (val) => {
+      validate: val => {
         const num = Number(val);
         if (isNaN(num) || num < 0 || num > 1) {
           return 'Temperature must be a number between 0 and 1';
@@ -300,11 +304,11 @@ export async function configInitCommand(options: ConfigInitOptions): Promise<voi
     configManager.set('safety.requireConfirmation', requireConfirmation);
 
     ui.newLine();
-    ui.success('Configuration saved to: ' + configManager.getConfigPath());
+    ui.success(`Configuration saved to: ${configManager.getConfigPath()}`);
   } else {
     // Non-interactive - just create default config
     configManager.reset();
-    ui.success('Default configuration created at: ' + configManager.getConfigPath());
+    ui.success(`Default configuration created at: ${configManager.getConfigPath()}`);
   }
 }
 

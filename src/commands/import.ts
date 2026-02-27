@@ -5,7 +5,7 @@
  */
 
 import { ui } from '../wizard/ui';
-import { select, input, confirm, multiSelect } from '../wizard/prompts';
+import { select, input, multiSelect } from '../wizard/prompts';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -51,34 +51,139 @@ interface ImportableResource {
 
 const IMPORTABLE_RESOURCES: ImportableResource[] = [
   // AWS
-  { terraformType: 'aws_vpc', cloudType: 'vpc', description: 'Virtual Private Cloud', provider: 'aws' },
+  {
+    terraformType: 'aws_vpc',
+    cloudType: 'vpc',
+    description: 'Virtual Private Cloud',
+    provider: 'aws',
+  },
   { terraformType: 'aws_subnet', cloudType: 'subnet', description: 'VPC Subnet', provider: 'aws' },
-  { terraformType: 'aws_security_group', cloudType: 'security-group', description: 'Security Group', provider: 'aws' },
+  {
+    terraformType: 'aws_security_group',
+    cloudType: 'security-group',
+    description: 'Security Group',
+    provider: 'aws',
+  },
   { terraformType: 'aws_instance', cloudType: 'ec2', description: 'EC2 Instance', provider: 'aws' },
-  { terraformType: 'aws_db_instance', cloudType: 'rds', description: 'RDS Database', provider: 'aws' },
+  {
+    terraformType: 'aws_db_instance',
+    cloudType: 'rds',
+    description: 'RDS Database',
+    provider: 'aws',
+  },
   { terraformType: 'aws_s3_bucket', cloudType: 's3', description: 'S3 Bucket', provider: 'aws' },
-  { terraformType: 'aws_lambda_function', cloudType: 'lambda', description: 'Lambda Function', provider: 'aws' },
-  { terraformType: 'aws_iam_role', cloudType: 'iam-role', description: 'IAM Role', provider: 'aws' },
-  { terraformType: 'aws_eks_cluster', cloudType: 'eks', description: 'EKS Cluster', provider: 'aws' },
-  { terraformType: 'aws_elasticache_cluster', cloudType: 'elasticache', description: 'ElastiCache Cluster', provider: 'aws' },
+  {
+    terraformType: 'aws_lambda_function',
+    cloudType: 'lambda',
+    description: 'Lambda Function',
+    provider: 'aws',
+  },
+  {
+    terraformType: 'aws_iam_role',
+    cloudType: 'iam-role',
+    description: 'IAM Role',
+    provider: 'aws',
+  },
+  {
+    terraformType: 'aws_eks_cluster',
+    cloudType: 'eks',
+    description: 'EKS Cluster',
+    provider: 'aws',
+  },
+  {
+    terraformType: 'aws_elasticache_cluster',
+    cloudType: 'elasticache',
+    description: 'ElastiCache Cluster',
+    provider: 'aws',
+  },
 
   // GCP
-  { terraformType: 'google_compute_network', cloudType: 'vpc', description: 'VPC Network', provider: 'gcp' },
-  { terraformType: 'google_compute_subnetwork', cloudType: 'subnet', description: 'VPC Subnet', provider: 'gcp' },
-  { terraformType: 'google_compute_instance', cloudType: 'gce', description: 'Compute Instance', provider: 'gcp' },
-  { terraformType: 'google_sql_database_instance', cloudType: 'cloudsql', description: 'Cloud SQL Instance', provider: 'gcp' },
-  { terraformType: 'google_storage_bucket', cloudType: 'gcs', description: 'Cloud Storage Bucket', provider: 'gcp' },
-  { terraformType: 'google_cloudfunctions_function', cloudType: 'functions', description: 'Cloud Function', provider: 'gcp' },
-  { terraformType: 'google_container_cluster', cloudType: 'gke', description: 'GKE Cluster', provider: 'gcp' },
+  {
+    terraformType: 'google_compute_network',
+    cloudType: 'vpc',
+    description: 'VPC Network',
+    provider: 'gcp',
+  },
+  {
+    terraformType: 'google_compute_subnetwork',
+    cloudType: 'subnet',
+    description: 'VPC Subnet',
+    provider: 'gcp',
+  },
+  {
+    terraformType: 'google_compute_instance',
+    cloudType: 'gce',
+    description: 'Compute Instance',
+    provider: 'gcp',
+  },
+  {
+    terraformType: 'google_sql_database_instance',
+    cloudType: 'cloudsql',
+    description: 'Cloud SQL Instance',
+    provider: 'gcp',
+  },
+  {
+    terraformType: 'google_storage_bucket',
+    cloudType: 'gcs',
+    description: 'Cloud Storage Bucket',
+    provider: 'gcp',
+  },
+  {
+    terraformType: 'google_cloudfunctions_function',
+    cloudType: 'functions',
+    description: 'Cloud Function',
+    provider: 'gcp',
+  },
+  {
+    terraformType: 'google_container_cluster',
+    cloudType: 'gke',
+    description: 'GKE Cluster',
+    provider: 'gcp',
+  },
 
   // Azure
-  { terraformType: 'azurerm_virtual_network', cloudType: 'vnet', description: 'Virtual Network', provider: 'azure' },
-  { terraformType: 'azurerm_subnet', cloudType: 'subnet', description: 'Subnet', provider: 'azure' },
-  { terraformType: 'azurerm_virtual_machine', cloudType: 'vm', description: 'Virtual Machine', provider: 'azure' },
-  { terraformType: 'azurerm_sql_database', cloudType: 'sql', description: 'SQL Database', provider: 'azure' },
-  { terraformType: 'azurerm_storage_account', cloudType: 'storage', description: 'Storage Account', provider: 'azure' },
-  { terraformType: 'azurerm_function_app', cloudType: 'functions', description: 'Function App', provider: 'azure' },
-  { terraformType: 'azurerm_kubernetes_cluster', cloudType: 'aks', description: 'AKS Cluster', provider: 'azure' },
+  {
+    terraformType: 'azurerm_virtual_network',
+    cloudType: 'vnet',
+    description: 'Virtual Network',
+    provider: 'azure',
+  },
+  {
+    terraformType: 'azurerm_subnet',
+    cloudType: 'subnet',
+    description: 'Subnet',
+    provider: 'azure',
+  },
+  {
+    terraformType: 'azurerm_virtual_machine',
+    cloudType: 'vm',
+    description: 'Virtual Machine',
+    provider: 'azure',
+  },
+  {
+    terraformType: 'azurerm_sql_database',
+    cloudType: 'sql',
+    description: 'SQL Database',
+    provider: 'azure',
+  },
+  {
+    terraformType: 'azurerm_storage_account',
+    cloudType: 'storage',
+    description: 'Storage Account',
+    provider: 'azure',
+  },
+  {
+    terraformType: 'azurerm_function_app',
+    cloudType: 'functions',
+    description: 'Function App',
+    provider: 'azure',
+  },
+  {
+    terraformType: 'azurerm_kubernetes_cluster',
+    cloudType: 'aks',
+    description: 'AKS Cluster',
+    provider: 'azure',
+  },
 ];
 
 // ==========================================
@@ -144,10 +249,10 @@ function discoverAwsResources(resourceType: string, region: string): DiscoveredR
         break;
       }
       case 's3': {
-        const output = execSync(
-          `aws s3api list-buckets --query 'Buckets[*].Name' --output json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`aws s3api list-buckets --query 'Buckets[*].Name' --output json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const buckets = JSON.parse(output);
         for (const bucket of buckets) {
           resources.push({
@@ -230,10 +335,10 @@ function discoverGcpResources(resourceType: string, project?: string): Discovere
   try {
     switch (resourceType) {
       case 'vpc': {
-        const output = execSync(
-          `gcloud compute networks list ${projectFlag} --format=json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`gcloud compute networks list ${projectFlag} --format=json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const networks = JSON.parse(output);
         for (const net of networks) {
           resources.push({
@@ -246,10 +351,10 @@ function discoverGcpResources(resourceType: string, project?: string): Discovere
         break;
       }
       case 'gce': {
-        const output = execSync(
-          `gcloud compute instances list ${projectFlag} --format=json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`gcloud compute instances list ${projectFlag} --format=json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const instances = JSON.parse(output);
         for (const inst of instances) {
           const zone = inst.zone?.split('/').pop() || 'unknown';
@@ -263,10 +368,10 @@ function discoverGcpResources(resourceType: string, project?: string): Discovere
         break;
       }
       case 'cloudsql': {
-        const output = execSync(
-          `gcloud sql instances list ${projectFlag} --format=json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`gcloud sql instances list ${projectFlag} --format=json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const instances = JSON.parse(output);
         for (const db of instances) {
           resources.push({
@@ -279,10 +384,10 @@ function discoverGcpResources(resourceType: string, project?: string): Discovere
         break;
       }
       case 'gcs': {
-        const output = execSync(
-          `gcloud storage buckets list ${projectFlag} --format=json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`gcloud storage buckets list ${projectFlag} --format=json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const buckets = JSON.parse(output);
         for (const bucket of buckets) {
           const name = bucket.name || bucket.id?.replace('projects/_/buckets/', '') || 'unknown';
@@ -313,10 +418,10 @@ function discoverAzureResources(resourceType: string, subscription?: string): Di
   try {
     switch (resourceType) {
       case 'vm': {
-        const output = execSync(
-          `az vm list ${subFlag} -o json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`az vm list ${subFlag} -o json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const vms = JSON.parse(output);
         for (const vm of vms) {
           resources.push({
@@ -329,10 +434,10 @@ function discoverAzureResources(resourceType: string, subscription?: string): Di
         break;
       }
       case 'vnet': {
-        const output = execSync(
-          `az network vnet list ${subFlag} -o json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`az network vnet list ${subFlag} -o json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const vnets = JSON.parse(output);
         for (const vnet of vnets) {
           resources.push({
@@ -345,10 +450,10 @@ function discoverAzureResources(resourceType: string, subscription?: string): Di
         break;
       }
       case 'sql': {
-        const output = execSync(
-          `az sql server list ${subFlag} -o json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`az sql server list ${subFlag} -o json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const servers = JSON.parse(output);
         for (const server of servers) {
           resources.push({
@@ -361,10 +466,10 @@ function discoverAzureResources(resourceType: string, subscription?: string): Di
         break;
       }
       case 'storage': {
-        const output = execSync(
-          `az storage account list ${subFlag} -o json`,
-          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-        );
+        const output = execSync(`az storage account list ${subFlag} -o json`, {
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
         const accounts = JSON.parse(output);
         for (const acct of accounts) {
           resources.push({
@@ -468,7 +573,29 @@ function generateResourceSkeleton(resource: DiscoveredResource, terraformName: s
       lines.push('  # account_replication_type = "LRS"');
       break;
     default:
-      lines.push('  # TODO: Add resource configuration');
+      // Generate sensible stubs for unknown resource types using available metadata
+      if (resource.name) {
+        lines.push(`  name = "${resource.name}"`);
+      }
+      if (resource.region) {
+        lines.push(`  location = "${resource.region}"`);
+      }
+      lines.push('');
+      lines.push('  # Nimbus could not determine the exact attributes for this resource type.');
+      lines.push(`  # Resource type: ${resource.type}`);
+      lines.push(`  # Resource ID:   ${resource.id}`);
+      lines.push('  #');
+      lines.push('  # Next steps:');
+      lines.push('  #   1. Run: terraform plan');
+      lines.push('  #   2. Review the plan output for required attributes.');
+      lines.push('  #   3. Add any missing attributes below with placeholder values.');
+      lines.push('  #');
+      lines.push('  # Common attributes for most resources:');
+      lines.push('  # description = "REPLACE_ME"');
+      lines.push('  # tags = {');
+      lines.push('  #   Environment = "production"');
+      lines.push('  #   ManagedBy   = "terraform"');
+      lines.push('  # }');
   }
 
   if (resource.name && resource.name !== resource.id) {
@@ -495,14 +622,14 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // Select provider
   let provider = options.provider;
   if (!provider) {
-    provider = await select({
+    provider = (await select({
       message: 'Select cloud provider:',
       options: [
         { label: 'AWS', value: 'aws', description: 'Amazon Web Services' },
         { label: 'GCP', value: 'gcp', description: 'Google Cloud Platform' },
         { label: 'Azure', value: 'azure', description: 'Microsoft Azure' },
       ],
-    }) as 'aws' | 'gcp' | 'azure';
+    })) as 'aws' | 'gcp' | 'azure';
   }
 
   // Get region/project/subscription
@@ -532,14 +659,14 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   // Select resource type
   let resourceType = options.resourceType;
   if (!resourceType) {
-    resourceType = await select({
+    resourceType = (await select({
       message: 'Select resource type to import:',
       options: providerResources.map(r => ({
         label: r.description,
         value: r.cloudType,
         description: r.terraformType,
       })),
-    }) as string;
+    })) as string;
   }
 
   const resourceInfo = providerResources.find(r => r.cloudType === resourceType);
@@ -602,10 +729,12 @@ export async function importCommand(options: ImportOptions): Promise<void> {
   const selectedResources = discovered.filter(r => selectedIds.includes(r.id));
 
   // Output directory
-  const outputDir = options.output || await input({
-    message: 'Output directory:',
-    defaultValue: './terraform',
-  });
+  const outputDir =
+    options.output ||
+    (await input({
+      message: 'Output directory:',
+      defaultValue: './terraform',
+    }));
 
   // Create output directory
   if (!fs.existsSync(outputDir)) {
@@ -645,7 +774,20 @@ ${importBlocks.join('\n')}
   const resourceFile = path.join(outputDir, 'imported_resources.tf');
   const resourceContent = `# Imported Resources
 # Generated by Nimbus
-# TODO: Fill in the required attributes after running terraform import
+#
+# How to use this file:
+#   1. Run: terraform init
+#   2. Run: terraform plan -generate-config-out=generated.tf
+#      This will auto-generate configuration for imported resources.
+#   3. Merge the generated attributes into the resource blocks below.
+#   4. Run: terraform plan  (verify no unexpected changes)
+#   5. Run: terraform apply (lock the state)
+#
+# Example attributes you may need to fill in per resource:
+#   - name, location/region, tags
+#   - Provider-specific required fields (e.g., ami + instance_type for aws_instance)
+#
+# Tip: Use 'terraform state show <resource_address>' after import to see all current attributes.
 
 ${resourceBlocks.join('\n\n')}
 `;
@@ -714,7 +856,7 @@ provider "azurerm" {
 
   ui.section('Next Steps');
   ui.print('  1. Review the generated configuration');
-  ui.print(`  2. Run ${ui.color('cd ' + outputDir, 'cyan')}`);
+  ui.print(`  2. Run ${ui.color(`cd ${outputDir}`, 'cyan')}`);
   ui.print(`  3. Run ${ui.color('terraform init', 'cyan')}`);
   ui.print(`  4. Run ${ui.color('terraform plan', 'cyan')} to import and verify`);
   ui.print('  5. Fill in any missing required attributes');

@@ -75,7 +75,7 @@ export async function helmListCommand(options: HelmCommandOptions = {}): Promise
             { key: 'appVersion', header: 'App Version' },
             { key: 'updated', header: 'Updated' },
           ],
-          data: result.releases.map((release) => ({
+          data: result.releases.map(release => ({
             name: release.name,
             namespace: release.namespace,
             revision: release.revision,
@@ -245,7 +245,9 @@ export async function helmUninstallCommand(
   ui.print(`  ${ui.color('Release:', 'yellow')} ${releaseName}`);
   ui.print(`  ${ui.color('Namespace:', 'yellow')} ${options.namespace || 'default'}`);
   ui.print(`  ${ui.color('Keep history:', 'yellow')} ${options.keepHistory ? 'yes' : 'no'}`);
-  ui.print(`  ${ui.color('Impact:', 'red')} All resources managed by this release will be deleted.`);
+  ui.print(
+    `  ${ui.color('Impact:', 'red')} All resources managed by this release will be deleted.`
+  );
 
   // Attempt to show release details if service is available
   try {
@@ -256,7 +258,9 @@ export async function helmUninstallCommand(
       });
       if (statusResult?.release) {
         ui.print(`  ${ui.color('Chart:', 'yellow')} ${statusResult.release.chart || 'unknown'}`);
-        ui.print(`  ${ui.color('Revision:', 'yellow')} ${statusResult.release.revision || 'unknown'}`);
+        ui.print(
+          `  ${ui.color('Revision:', 'yellow')} ${statusResult.release.revision || 'unknown'}`
+        );
         ui.print(`  ${ui.color('Status:', 'yellow')} ${statusResult.release.status || 'unknown'}`);
       }
     }
@@ -445,7 +449,7 @@ export async function helmSearchCommand(
             { key: 'appVersion', header: 'App Version' },
             { key: 'description', header: 'Description' },
           ],
-          data: result.charts.map((chart) => ({
+          data: result.charts.map(chart => ({
             name: chart.name,
             version: chart.version,
             appVersion: chart.appVersion,
@@ -624,7 +628,9 @@ export async function helmLintCommand(
       const warnings = messages.filter((m: any) => m.severity === 'warning');
 
       if (errors.length === 0) {
-        ui.stopSpinnerSuccess(`Chart linted successfully${warnings.length > 0 ? ` (${warnings.length} warnings)` : ''}`);
+        ui.stopSpinnerSuccess(
+          `Chart linted successfully${warnings.length > 0 ? ` (${warnings.length} warnings)` : ''}`
+        );
       } else {
         ui.stopSpinnerFail(`Lint found ${errors.length} error(s)`);
       }
@@ -717,7 +723,11 @@ export async function helmTemplateCommand(
  */
 export async function helmPackageCommand(
   chartPath: string,
-  options: HelmCommandOptions & { destination?: string; appVersion?: string; dependencyUpdate?: boolean } = {}
+  options: HelmCommandOptions & {
+    destination?: string;
+    appVersion?: string;
+    dependencyUpdate?: boolean;
+  } = {}
 ): Promise<void> {
   ui.header('Helm Package');
   ui.info(`Chart path: ${chartPath}`);
@@ -788,9 +798,10 @@ export async function helmDependencyCommand(
       return;
     }
 
-    const result = action === 'build'
-      ? await helmClient.dependencyBuild(chartPath)
-      : await helmClient.dependencyUpdate(chartPath);
+    const result =
+      action === 'build'
+        ? await helmClient.dependencyBuild(chartPath)
+        : await helmClient.dependencyUpdate(chartPath);
 
     if (result.success) {
       ui.stopSpinnerSuccess(`Dependency ${action} completed`);
@@ -848,13 +859,27 @@ export async function helmStatusCommand(
         const statusData = result.status;
         if (typeof statusData === 'object') {
           ui.newLine();
-          if (statusData.name) ui.info(`Name:      ${statusData.name}`);
-          if (statusData.namespace) ui.info(`Namespace: ${statusData.namespace}`);
-          if (statusData.status) ui.info(`Status:    ${statusData.status}`);
-          if (statusData.revision) ui.info(`Revision:  ${statusData.revision}`);
-          if (statusData.chart) ui.info(`Chart:     ${statusData.chart}`);
-          if (statusData.appVersion) ui.info(`App Ver:   ${statusData.appVersion}`);
-          if (statusData.updated) ui.info(`Updated:   ${statusData.updated}`);
+          if (statusData.name) {
+            ui.info(`Name:      ${statusData.name}`);
+          }
+          if (statusData.namespace) {
+            ui.info(`Namespace: ${statusData.namespace}`);
+          }
+          if (statusData.status) {
+            ui.info(`Status:    ${statusData.status}`);
+          }
+          if (statusData.revision) {
+            ui.info(`Revision:  ${statusData.revision}`);
+          }
+          if (statusData.chart) {
+            ui.info(`Chart:     ${statusData.chart}`);
+          }
+          if (statusData.appVersion) {
+            ui.info(`App Ver:   ${statusData.appVersion}`);
+          }
+          if (statusData.updated) {
+            ui.info(`Updated:   ${statusData.updated}`);
+          }
           if (statusData.description) {
             ui.newLine();
             ui.info(`Description: ${statusData.description}`);
@@ -1046,14 +1071,18 @@ export async function helmCommand(subcommand: string, args: string[]): Promise<v
         break;
       case 'template':
         if (positionalArgs.length < 2) {
-          ui.error('Usage: nimbus helm template <release-name> <chart> [--namespace <ns>] [--values <file>] [--set key=val] [--version <ver>]');
+          ui.error(
+            'Usage: nimbus helm template <release-name> <chart> [--namespace <ns>] [--values <file>] [--set key=val] [--version <ver>]'
+          );
           return;
         }
         await helmTemplateCommand(positionalArgs[0], positionalArgs[1], options);
         break;
       case 'package':
         if (positionalArgs.length < 1) {
-          ui.error('Usage: nimbus helm package <chart-path> [--destination <dir>] [--version <ver>] [--app-version <ver>]');
+          ui.error(
+            'Usage: nimbus helm package <chart-path> [--destination <dir>] [--version <ver>] [--app-version <ver>]'
+          );
           return;
         }
         await helmPackageCommand(positionalArgs[0], options);
@@ -1073,19 +1102,25 @@ export async function helmCommand(subcommand: string, args: string[]): Promise<v
       }
       case 'status':
         if (positionalArgs.length < 1) {
-          ui.error('Usage: nimbus helm status <release-name> [--namespace <ns>] [--revision <rev>]');
+          ui.error(
+            'Usage: nimbus helm status <release-name> [--namespace <ns>] [--revision <rev>]'
+          );
           return;
         }
         await helmStatusCommand(positionalArgs[0], options);
         break;
       default:
         ui.error(`Unknown helm subcommand: ${subcommand}`);
-        ui.info('Available commands: list, install, upgrade, uninstall, rollback, history, search, show, repo, lint, template, package, dependency, status');
+        ui.info(
+          'Available commands: list, install, upgrade, uninstall, rollback, history, search, show, repo, lint, template, package, dependency, status'
+        );
     }
 
     historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
   } catch (error: any) {
-    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, {
+      error: error.message,
+    });
     throw error;
   }
 }

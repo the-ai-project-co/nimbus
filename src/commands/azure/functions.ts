@@ -81,11 +81,12 @@ async function listFunctionApps(options: AzureCommandOptions): Promise<void> {
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(30) +
+        `${
+          'Name'.padEnd(30) +
           'Resource Group'.padEnd(25) +
           'Location'.padEnd(15) +
-          'Runtime'.padEnd(15) +
-          'State',
+          'Runtime'.padEnd(15)
+        }State`,
         'cyan'
       )
     );
@@ -95,17 +96,13 @@ async function listFunctionApps(options: AzureCommandOptions): Promise<void> {
       const name = app.name?.substring(0, 29) || '';
       const rg = app.resourceGroup?.substring(0, 24) || '';
       const location = app.location?.substring(0, 14) || '';
-      const runtime = app.siteConfig?.linuxFxVersion?.substring(0, 14) ||
-                     app.siteConfig?.windowsFxVersion?.substring(0, 14) ||
-                     'N/A';
+      const runtime =
+        app.siteConfig?.linuxFxVersion?.substring(0, 14) ||
+        app.siteConfig?.windowsFxVersion?.substring(0, 14) ||
+        'N/A';
       const state = app.state || '';
 
-      const stateColor =
-        state === 'Running'
-          ? 'green'
-          : state === 'Stopped'
-            ? 'red'
-            : 'white';
+      const stateColor = state === 'Running' ? 'green' : state === 'Stopped' ? 'red' : 'white';
 
       ui.print(
         `${name.padEnd(30)}${rg.padEnd(25)}${location.padEnd(15)}${runtime.padEnd(15)}${ui.color(state, stateColor as 'green' | 'red' | 'white')}`
@@ -122,10 +119,7 @@ async function listFunctionApps(options: AzureCommandOptions): Promise<void> {
 /**
  * Show Function App details
  */
-async function showFunctionApp(
-  appName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function showFunctionApp(appName: string, options: AzureCommandOptions): Promise<void> {
   ui.header(`Function App: ${appName}`);
   ui.newLine();
 
@@ -155,7 +149,9 @@ async function showFunctionApp(
     ui.newLine();
 
     ui.print(ui.bold('Configuration:'));
-    ui.print(`  Runtime:        ${app.siteConfig?.linuxFxVersion || app.siteConfig?.windowsFxVersion || 'N/A'}`);
+    ui.print(
+      `  Runtime:        ${app.siteConfig?.linuxFxVersion || app.siteConfig?.windowsFxVersion || 'N/A'}`
+    );
     ui.print(`  Node Version:   ${app.siteConfig?.nodeVersion || 'N/A'}`);
     ui.print(`  Python Version: ${app.siteConfig?.pythonVersion || 'N/A'}`);
     ui.print(`  HTTPS Only:     ${app.httpsOnly ? 'Yes' : 'No'}`);
@@ -185,10 +181,7 @@ async function showFunctionApp(
 /**
  * List functions in a Function App
  */
-async function listFunctions(
-  appName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function listFunctions(appName: string, options: AzureCommandOptions): Promise<void> {
   ui.header(`Functions in ${appName}`);
   ui.newLine();
 
@@ -197,7 +190,17 @@ async function listFunctions(
     return;
   }
 
-  const azArgs = ['functionapp', 'function', 'list', '-n', appName, '-g', options.resourceGroup, '-o', 'json'];
+  const azArgs = [
+    'functionapp',
+    'function',
+    'list',
+    '-n',
+    appName,
+    '-g',
+    options.resourceGroup,
+    '-o',
+    'json',
+  ];
   if (options.subscription) {
     azArgs.push('--subscription', options.subscription);
   }
@@ -220,7 +223,9 @@ async function listFunctions(
       const name = fn.name?.split('/').pop() || fn.name;
       const enabled = fn.isDisabled === false;
 
-      ui.print(`  ${ui.color(name, 'cyan')} ${enabled ? ui.color('[enabled]', 'green') : ui.color('[disabled]', 'red')}`);
+      ui.print(
+        `  ${ui.color(name, 'cyan')} ${enabled ? ui.color('[enabled]', 'green') : ui.color('[disabled]', 'red')}`
+      );
 
       // Show config if available
       if (fn.config?.bindings) {

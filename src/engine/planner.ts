@@ -167,7 +167,9 @@ export class Planner {
         return llmSteps;
       }
     } catch (error) {
-      logger.debug(`LLM step generation failed, falling back to heuristics: ${(error as Error).message}`);
+      logger.debug(
+        `LLM step generation failed, falling back to heuristics: ${(error as Error).message}`
+      );
     }
 
     return this.generateStepsHeuristic(task);
@@ -184,7 +186,7 @@ export class Planner {
       ],
     });
 
-    const content = response?.choices?.[0]?.message?.content;
+    const content = response?.content;
     if (!content) {
       throw new Error('LLM response missing content');
     }
@@ -274,7 +276,7 @@ export class Planner {
         components: task.context.components,
       },
       status: 'pending',
-      depends_on: steps.slice(1, -1).map((s) => s.id), // Depends on all generation steps
+      depends_on: steps.slice(1, -1).map(s => s.id), // Depends on all generation steps
     });
 
     // Step: Apply best practices
@@ -369,11 +371,13 @@ export class Planner {
    */
   private analyzeDependencies(steps: PlanStep[]): PlanDependency[] {
     return steps
-      .filter((step) => step.depends_on && step.depends_on.length > 0)
-      .map((step) => ({
+      .filter(step => step.depends_on && step.depends_on.length > 0)
+      .map(step => ({
         step_id: step.id,
         depends_on: step.depends_on!,
-        type: (step.depends_on!.length === 1 ? 'sequential' : 'parallel') as 'sequential' | 'parallel',
+        type: (step.depends_on!.length === 1 ? 'sequential' : 'parallel') as
+          | 'sequential'
+          | 'parallel',
       }));
   }
 
@@ -389,7 +393,9 @@ export class Planner {
         return llmRisks;
       }
     } catch (error) {
-      logger.debug(`LLM risk assessment failed, falling back to heuristics: ${(error as Error).message}`);
+      logger.debug(
+        `LLM risk assessment failed, falling back to heuristics: ${(error as Error).message}`
+      );
     }
 
     return this.assessRisksHeuristic(task, steps);
@@ -406,13 +412,13 @@ export class Planner {
           role: 'user',
           content: JSON.stringify({
             task: task.context,
-            steps: steps.map((s) => ({ id: s.id, type: s.type, description: s.description })),
+            steps: steps.map(s => ({ id: s.id, type: s.type, description: s.description })),
           }),
         },
       ],
     });
 
-    const content = response?.choices?.[0]?.message?.content;
+    const content = response?.content;
     if (!content) {
       throw new Error('LLM response missing content');
     }
@@ -472,9 +478,7 @@ export class Planner {
     }
 
     // Cost risks
-    const hasExpensiveComponents = task.context.components.some((c) =>
-      ['eks', 'rds'].includes(c)
-    );
+    const hasExpensiveComponents = task.context.components.some(c => ['eks', 'rds'].includes(c));
     if (hasExpensiveComponents) {
       risks.push({
         id: 'risk_high_cost',
@@ -501,7 +505,7 @@ export class Planner {
     }
 
     // Deployment risks
-    const hasDeploymentSteps = steps.some((s) => s.type === 'deploy');
+    const hasDeploymentSteps = steps.some(s => s.type === 'deploy');
     if (hasDeploymentSteps && !task.context.requirements?.backup_enabled) {
       risks.push({
         id: 'risk_no_backup',
@@ -521,18 +525,30 @@ export class Planner {
    * Calculate overall risk level
    */
   private calculateOverallRiskLevel(risks: Risk[]): 'low' | 'medium' | 'high' | 'critical' {
-    if (risks.length === 0) return 'low';
+    if (risks.length === 0) {
+      return 'low';
+    }
 
-    const hasCritical = risks.some((r) => r.severity === 'critical');
-    if (hasCritical) return 'critical';
+    const hasCritical = risks.some(r => r.severity === 'critical');
+    if (hasCritical) {
+      return 'critical';
+    }
 
-    const highRisks = risks.filter((r) => r.severity === 'high');
-    if (highRisks.length >= 2) return 'high';
-    if (highRisks.length === 1) return 'high';
+    const highRisks = risks.filter(r => r.severity === 'high');
+    if (highRisks.length >= 2) {
+      return 'high';
+    }
+    if (highRisks.length === 1) {
+      return 'high';
+    }
 
-    const mediumRisks = risks.filter((r) => r.severity === 'medium');
-    if (mediumRisks.length >= 3) return 'high';
-    if (mediumRisks.length >= 1) return 'medium';
+    const mediumRisks = risks.filter(r => r.severity === 'medium');
+    if (mediumRisks.length >= 3) {
+      return 'high';
+    }
+    if (mediumRisks.length >= 1) {
+      return 'medium';
+    }
 
     return 'low';
   }
@@ -586,7 +602,7 @@ export class Planner {
     const optimized = { ...plan };
 
     // Group independent generation steps
-    const generationSteps = plan.steps.filter((s) => s.type === 'generate' && s.component);
+    const generationSteps = plan.steps.filter(s => s.type === 'generate' && s.component);
 
     // Mark independent steps as parallelizable
     for (let i = 0; i < generationSteps.length; i++) {
@@ -603,12 +619,14 @@ export class Planner {
   /**
    * Check if step has interdependency with others
    */
-  private hasInterdependency(step: PlanStep, steps: PlanStep[], index: number): boolean {
+  private hasInterdependency(step: PlanStep, steps: PlanStep[], _index: number): boolean {
     // Check if this step's output is needed by another step in the group
     // Simplified: assume VPC must be created before EKS/RDS
-    if (step.component === 'vpc') return false;
+    if (step.component === 'vpc') {
+      return false;
+    }
     if (step.component === 'eks' || step.component === 'rds') {
-      return steps.some((s) => s.component === 'vpc');
+      return steps.some(s => s.component === 'vpc');
     }
     return false;
   }
@@ -625,7 +643,7 @@ export class Planner {
     }
 
     // Check all dependencies exist
-    const stepIds = new Set(plan.steps.map((s) => s.id));
+    const stepIds = new Set(plan.steps.map(s => s.id));
     for (const step of plan.steps) {
       if (step.depends_on) {
         for (const depId of step.depends_on) {
@@ -640,7 +658,7 @@ export class Planner {
     for (const step of plan.steps) {
       if (step.depends_on) {
         for (const depId of step.depends_on) {
-          const depStep = plan.steps.find((s) => s.id === depId);
+          const depStep = plan.steps.find(s => s.id === depId);
           if (depStep && depStep.order >= step.order) {
             errors.push(`Step ${step.id} has invalid order relative to dependency ${depId}`);
           }
@@ -665,11 +683,13 @@ export class Planner {
       visited.add(stepId);
       recursionStack.add(stepId);
 
-      const step = plan.steps.find((s) => s.id === stepId);
+      const step = plan.steps.find(s => s.id === stepId);
       if (step?.depends_on) {
         for (const depId of step.depends_on) {
           if (!visited.has(depId)) {
-            if (hasCycle(depId)) return true;
+            if (hasCycle(depId)) {
+              return true;
+            }
           } else if (recursionStack.has(depId)) {
             return true;
           }
@@ -682,7 +702,9 @@ export class Planner {
 
     for (const step of plan.steps) {
       if (!visited.has(step.id)) {
-        if (hasCycle(step.id)) return true;
+        if (hasCycle(step.id)) {
+          return true;
+        }
       }
     }
 

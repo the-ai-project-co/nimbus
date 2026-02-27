@@ -12,15 +12,13 @@ export const gettingStartedScenario: DemoScenario = {
   description: 'Learn the basics of Nimbus CLI in this interactive tutorial',
   category: 'tutorial',
   duration: 5,
-  prerequisites: [
-    'Nimbus CLI installed',
-  ],
+  prerequisites: ['Nimbus CLI installed'],
   tags: ['tutorial', 'beginner', 'basics'],
   steps: [
     {
       id: 'check-version',
       title: 'Check Nimbus Version',
-      description: 'First, let\'s make sure Nimbus is installed correctly',
+      description: "First, let's make sure Nimbus is installed correctly",
       command: 'nimbus --version',
       showOutput: true,
       waitForInput: true,
@@ -29,7 +27,7 @@ export const gettingStartedScenario: DemoScenario = {
     {
       id: 'help',
       title: 'View Available Commands',
-      description: 'Nimbus has many commands - let\'s see what\'s available',
+      description: "Nimbus has many commands - let's see what's available",
       command: 'nimbus --help',
       showOutput: true,
       waitForInput: true,

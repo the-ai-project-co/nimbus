@@ -143,11 +143,13 @@ async function checkLLMProvider(options: DoctorOptions): Promise<CheckResult> {
         name: 'LLM Provider',
         passed: true,
         message: 'LLM service connected',
-        details: options.verbose ? {
-          envKeys: foundKeys,
-          hasStoredCredentials,
-          serviceUrl: llmUrl,
-        } : undefined,
+        details: options.verbose
+          ? {
+              envKeys: foundKeys,
+              hasStoredCredentials,
+              serviceUrl: llmUrl,
+            }
+          : undefined,
       };
     }
   } catch {
@@ -158,10 +160,12 @@ async function checkLLMProvider(options: DoctorOptions): Promise<CheckResult> {
     name: 'LLM Provider',
     passed: true,
     message: hasStoredCredentials ? 'Credentials configured' : `Using ${foundKeys.join(', ')}`,
-    details: options.verbose ? {
-      envKeys: foundKeys,
-      hasStoredCredentials,
-    } : undefined,
+    details: options.verbose
+      ? {
+          envKeys: foundKeys,
+          hasStoredCredentials,
+        }
+      : undefined,
   };
 }
 
@@ -252,9 +256,17 @@ async function checkCloudConnectivity(options: DoctorOptions): Promise<CheckResu
     });
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      results.push({ provider: 'AWS', status: 'not installed', details: 'Install AWS CLI: https://aws.amazon.com/cli/' });
+      results.push({
+        provider: 'AWS',
+        status: 'not installed',
+        details: 'Install AWS CLI: https://aws.amazon.com/cli/',
+      });
     } else {
-      results.push({ provider: 'AWS', status: 'failed', details: 'Run "aws configure" or check credentials' });
+      results.push({
+        provider: 'AWS',
+        status: 'failed',
+        details: 'Run "aws configure" or check credentials',
+      });
     }
   }
 
@@ -272,7 +284,11 @@ async function checkCloudConnectivity(options: DoctorOptions): Promise<CheckResu
     }
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      results.push({ provider: 'GCP', status: 'not installed', details: 'Install gcloud: https://cloud.google.com/sdk/docs/install' });
+      results.push({
+        provider: 'GCP',
+        status: 'not installed',
+        details: 'Install gcloud: https://cloud.google.com/sdk/docs/install',
+      });
     } else {
       results.push({ provider: 'GCP', status: 'failed', details: 'Run "gcloud auth login"' });
     }
@@ -293,7 +309,11 @@ async function checkCloudConnectivity(options: DoctorOptions): Promise<CheckResu
     });
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      results.push({ provider: 'Azure', status: 'not installed', details: 'Install Azure CLI: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli' });
+      results.push({
+        provider: 'Azure',
+        status: 'not installed',
+        details: 'Install Azure CLI: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli',
+      });
     } else {
       results.push({ provider: 'Azure', status: 'failed', details: 'Run "az login"' });
     }
@@ -315,7 +335,10 @@ async function checkCloudConnectivity(options: DoctorOptions): Promise<CheckResu
       name: 'Cloud Connectivity',
       passed: false,
       error: 'No cloud provider connected',
-      fix: results.map(r => r.details).filter(Boolean).join('; '),
+      fix: results
+        .map(r => r.details)
+        .filter(Boolean)
+        .join('; '),
       details: options.verbose ? { providers: results } : undefined,
     };
   }
@@ -348,7 +371,11 @@ async function checkCoreServices(options: DoctorOptions): Promise<CheckResult> {
       });
 
       if (response.ok) {
-        results.push({ name: service.name, status: 'running', url: options.verbose ? service.url : undefined });
+        results.push({
+          name: service.name,
+          status: 'running',
+          url: options.verbose ? service.url : undefined,
+        });
         anyAvailable = true;
       } else {
         results.push({ name: service.name, status: 'unhealthy' });
@@ -419,9 +446,10 @@ async function checkToolServices(options: DoctorOptions): Promise<CheckResult> {
   return {
     name: 'Tool Services',
     passed: true,
-    message: runningCount > 0
-      ? `${runningCount}/${services.length} services running`
-      : 'Using local tools (services unavailable)',
+    message:
+      runningCount > 0
+        ? `${runningCount}/${services.length} services running`
+        : 'Using local tools (services unavailable)',
     details: options.verbose ? { services: results } : undefined,
   };
 }
@@ -444,7 +472,7 @@ async function checkDependencies(options: DoctorOptions): Promise<CheckResult> {
   ];
 
   const results: Array<{ name: string; version?: string; available: boolean }> = [];
-  let requiredMissing: string[] = [];
+  const requiredMissing: string[] = [];
 
   for (const tool of tools) {
     try {
@@ -491,7 +519,7 @@ async function checkDependencies(options: DoctorOptions): Promise<CheckResult> {
 /**
  * Check disk space
  */
-async function checkDiskSpace(options: DoctorOptions): Promise<CheckResult> {
+async function checkDiskSpace(_options: DoctorOptions): Promise<CheckResult> {
   const os = await import('os');
   const { execFileSync } = await import('child_process');
 
@@ -502,7 +530,9 @@ async function checkDiskSpace(options: DoctorOptions): Promise<CheckResult> {
 
     if (process.platform === 'win32') {
       // Windows - use execFileSync with args array to prevent shell injection
-      const output = execFileSync('wmic', ['logicaldisk', 'get', 'size,freespace,caption'], { encoding: 'utf-8' });
+      const output = execFileSync('wmic', ['logicaldisk', 'get', 'size,freespace,caption'], {
+        encoding: 'utf-8',
+      });
       const lines = output.trim().split('\n');
       const drive = homeDir.charAt(0).toUpperCase();
       for (const line of lines) {
@@ -636,9 +666,9 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
       results.push(result);
 
       if (result.passed) {
-        ui.print(ui.color('✓', 'green') + ' ' + (result.message || 'OK'));
+        ui.print(`${ui.color('✓', 'green')} ${result.message || 'OK'}`);
       } else {
-        ui.print(ui.color('✗', 'red') + ' ' + (result.error || 'Failed'));
+        ui.print(`${ui.color('✗', 'red')} ${result.error || 'Failed'}`);
         allPassed = false;
 
         if (options.fix && result.runFix) {
@@ -647,7 +677,9 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
             await result.runFix();
             ui.print(`                      → ${ui.color('Fixed', 'green')}`);
           } catch (fixError: any) {
-            ui.print(`                      → ${ui.color(`Fix failed: ${fixError.message}`, 'red')}`);
+            ui.print(
+              `                      → ${ui.color(`Fix failed: ${fixError.message}`, 'red')}`
+            );
           }
         } else if (result.fix) {
           ui.print(`                      → ${ui.dim(result.fix)}`);
@@ -672,7 +704,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
         }
       }
     } catch (error: any) {
-      ui.print(ui.color('✗', 'red') + ` Error: ${error.message}`);
+      ui.print(`${ui.color('✗', 'red')} Error: ${error.message}`);
       results.push({
         name,
         passed: false,
@@ -686,16 +718,22 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
 
   // JSON output
   if (options.json) {
-    console.log(JSON.stringify({
-      passed: allPassed,
-      results: results.map(r => ({
-        name: r.name,
-        passed: r.passed,
-        message: r.message,
-        error: r.error,
-        details: r.details,
-      })),
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          passed: allPassed,
+          results: results.map(r => ({
+            name: r.name,
+            passed: r.passed,
+            message: r.message,
+            error: r.error,
+            details: r.details,
+          })),
+        },
+        null,
+        2
+      )
+    );
     return;
   }
 
@@ -725,7 +763,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
       });
 
       if (response.ok) {
-        const { data } = await response.json() as any;
+        const { data } = (await response.json()) as any;
 
         ui.newLine();
         ui.print(`  Response Time (P95)   ${data.responseTime.p95}ms`);

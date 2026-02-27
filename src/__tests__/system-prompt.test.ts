@@ -9,7 +9,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { buildSystemPrompt, loadNimbusMd, type AgentMode } from '../agent/system-prompt';
+import { buildSystemPrompt, loadNimbusMd } from '../agent/system-prompt';
 import type { ToolDefinition } from '../tools/schemas/types';
 import { z } from 'zod';
 

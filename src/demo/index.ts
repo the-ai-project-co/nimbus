@@ -6,14 +6,8 @@
 
 import { logger } from '../utils';
 import { ui } from '../wizard/ui';
-import { confirm, select } from '../wizard/prompts';
-import type {
-  DemoScenario,
-  DemoStep,
-  DemoOptions,
-  StepResult,
-  ScenarioResult,
-} from './types';
+import { confirm } from '../wizard/prompts';
+import type { DemoScenario, DemoStep, DemoOptions, StepResult, ScenarioResult } from './types';
 import { terraformVpcScenario } from './scenarios/terraform-vpc';
 import { fullJourneyScenario } from './scenarios/full-journey';
 import { gettingStartedScenario } from './scenarios/getting-started';
@@ -259,13 +253,13 @@ async function executeCommand(command: string): Promise<{
  */
 function displayScenarioHeader(scenario: DemoScenario): void {
   ui.newLine();
-  ui.print('╔' + '═'.repeat(58) + '╗');
-  ui.print('║' + ' '.repeat(58) + '║');
-  ui.print('║' + centerText(scenario.name, 58) + '║');
-  ui.print('║' + centerText(scenario.description, 58) + '║');
-  ui.print('║' + ' '.repeat(58) + '║');
-  ui.print('║' + centerText(`${scenario.steps.length} steps`, 58) + '║');
-  ui.print('╚' + '═'.repeat(58) + '╝');
+  ui.print(`╔${'═'.repeat(58)}╗`);
+  ui.print(`║${' '.repeat(58)}║`);
+  ui.print(`║${centerText(scenario.name, 58)}║`);
+  ui.print(`║${centerText(scenario.description, 58)}║`);
+  ui.print(`║${' '.repeat(58)}║`);
+  ui.print(`║${centerText(`${scenario.steps.length} steps`, 58)}║`);
+  ui.print(`╚${'═'.repeat(58)}╝`);
   ui.newLine();
 }
 
@@ -287,7 +281,9 @@ function displaySummary(
   const failed = results.filter(r => !r.success).length;
 
   ui.print(`  Scenario: ${scenario.name}`);
-  ui.print(`  Steps:    ${ui.color(`${passed} passed`, 'green')}, ${failed > 0 ? ui.color(`${failed} failed`, 'red') : '0 failed'}`);
+  ui.print(
+    `  Steps:    ${ui.color(`${passed} passed`, 'green')}, ${failed > 0 ? ui.color(`${failed} failed`, 'red') : '0 failed'}`
+  );
   ui.print(`  Duration: ${(duration / 1000).toFixed(1)}s`);
 
   ui.newLine();

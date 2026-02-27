@@ -120,7 +120,7 @@ function stateRecordToLog(record: StateAuditLogRecord): AuditLog {
 function buildMetadata(
   teamId?: string,
   ipAddress?: string,
-  details?: Record<string, unknown>,
+  details?: Record<string, unknown>
 ): Record<string, unknown> | undefined {
   const meta: Record<string, unknown> = {};
   let hasData = false;
@@ -314,7 +314,7 @@ export async function queryLogs(query: QueryLogsParams): Promise<{
  */
 export async function exportLogs(
   format: 'csv' | 'json',
-  query: ExportQueryParams,
+  query: ExportQueryParams
 ): Promise<string> {
   const filter: AuditLogFilter = {
     userId: query.userId,

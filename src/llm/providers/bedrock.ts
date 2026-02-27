@@ -8,20 +8,28 @@
 
 import {
   BaseProvider,
-  CompletionRequest,
-  LLMMessage,
-  LLMResponse,
-  StreamChunk,
-  ToolCall,
-  ToolCompletionRequest,
-  ToolDefinition,
+  getTextContent,
+  type CompletionRequest,
+  type LLMMessage,
+  type LLMResponse,
+  type StreamChunk,
+  type ToolCall,
+  type ToolCompletionRequest,
 } from '../types';
+import type {
+  BedrockRuntimeClient as BedrockRuntimeClientType,
+  ContentBlock,
+  ConverseCommandInput,
+  ConverseStreamCommandInput,
+  ConverseResponse,
+  Message as BedrockMessage,
+} from '@aws-sdk/client-bedrock-runtime';
 
 export class BedrockProvider extends BaseProvider {
   name = 'bedrock';
   private defaultModel = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
   private region: string;
-  private _client: any | null = null;
+  private _client: BedrockRuntimeClientType | null = null;
 
   constructor(region?: string) {
     super();
@@ -32,8 +40,10 @@ export class BedrockProvider extends BaseProvider {
    * Lazy-load the Bedrock client to avoid importing @aws-sdk at module load time.
    * This keeps binary size small for users who do not use Bedrock.
    */
-  private async getClient(): Promise<any> {
-    if (this._client) return this._client;
+  private async getClient(): Promise<BedrockRuntimeClientType> {
+    if (this._client) {
+      return this._client;
+    }
 
     const { BedrockRuntimeClient } = await import('@aws-sdk/client-bedrock-runtime');
     this._client = new BedrockRuntimeClient({ region: this.region });
@@ -48,32 +58,31 @@ export class BedrockProvider extends BaseProvider {
     const systemPrompt = this.extractSystemPrompt(request.messages);
     const messages = this.convertMessages(this.filterSystemMessages(request.messages));
 
-    const commandInput: any = {
+    const commandInput: ConverseCommandInput = {
       modelId,
       messages,
       inferenceConfig: {
         maxTokens: request.maxTokens || 4096,
         ...(request.temperature !== undefined && { temperature: request.temperature }),
-        ...(request.stopSequences && request.stopSequences.length > 0 && { stopSequences: request.stopSequences }),
+        ...(request.stopSequences &&
+          request.stopSequences.length > 0 && { stopSequences: request.stopSequences }),
       },
+      ...(systemPrompt && { system: [{ text: systemPrompt }] }),
     };
-
-    if (systemPrompt) {
-      commandInput.system = [{ text: systemPrompt }];
-    }
 
     const command = new ConverseCommand(commandInput);
     const response = await client.send(command);
 
     const content = this.extractContentFromResponse(response);
-    const usage = response.usage || {};
+    const inputTokens = response.usage?.inputTokens || 0;
+    const outputTokens = response.usage?.outputTokens || 0;
 
     return {
       content,
       usage: {
-        promptTokens: usage.inputTokens || 0,
-        completionTokens: usage.outputTokens || 0,
-        totalTokens: (usage.inputTokens || 0) + (usage.outputTokens || 0),
+        promptTokens: inputTokens,
+        completionTokens: outputTokens,
+        totalTokens: inputTokens + outputTokens,
       },
       model: modelId,
       finishReason: this.mapBedrockStopReason(response.stopReason),
@@ -88,19 +97,17 @@ export class BedrockProvider extends BaseProvider {
     const systemPrompt = this.extractSystemPrompt(request.messages);
     const messages = this.convertMessages(this.filterSystemMessages(request.messages));
 
-    const commandInput: any = {
+    const commandInput: ConverseStreamCommandInput = {
       modelId,
       messages,
       inferenceConfig: {
         maxTokens: request.maxTokens || 4096,
         ...(request.temperature !== undefined && { temperature: request.temperature }),
-        ...(request.stopSequences && request.stopSequences.length > 0 && { stopSequences: request.stopSequences }),
+        ...(request.stopSequences &&
+          request.stopSequences.length > 0 && { stopSequences: request.stopSequences }),
       },
+      ...(systemPrompt && { system: [{ text: systemPrompt }] }),
     };
-
-    if (systemPrompt) {
-      commandInput.system = [{ text: systemPrompt }];
-    }
 
     const command = new ConverseStreamCommand(commandInput);
     const response = await client.send(command);
@@ -141,7 +148,7 @@ export class BedrockProvider extends BaseProvider {
     const messages = this.convertMessages(this.filterSystemMessages(request.messages));
 
     const toolConfig = {
-      tools: request.tools.map((t) => ({
+      tools: request.tools.map(t => ({
         toolSpec: {
           name: t.function.name,
           description: t.function.description,
@@ -154,14 +161,17 @@ export class BedrockProvider extends BaseProvider {
         ? {
             toolChoice: {
               tool: {
-                name: typeof request.toolChoice === 'object' ? request.toolChoice.function.name : undefined,
+                name:
+                  typeof request.toolChoice === 'object'
+                    ? request.toolChoice.function.name
+                    : undefined,
               },
             },
           }
         : {}),
     };
 
-    const commandInput: any = {
+    const commandInput: ConverseCommandInput = {
       modelId,
       messages,
       toolConfig,
@@ -169,35 +179,157 @@ export class BedrockProvider extends BaseProvider {
         maxTokens: request.maxTokens || 4096,
         ...(request.temperature !== undefined && { temperature: request.temperature }),
       },
+      ...(systemPrompt && { system: [{ text: systemPrompt }] }),
     };
-
-    if (systemPrompt) {
-      commandInput.system = [{ text: systemPrompt }];
-    }
 
     const command = new ConverseCommand(commandInput);
     const response = await client.send(command);
 
     const content = this.extractContentFromResponse(response);
     const toolCalls = this.extractToolCallsFromResponse(response);
-    const usage = response.usage || {};
+    const inputTokens = response.usage?.inputTokens || 0;
+    const outputTokens = response.usage?.outputTokens || 0;
 
     return {
       content,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       usage: {
-        promptTokens: usage.inputTokens || 0,
-        completionTokens: usage.outputTokens || 0,
-        totalTokens: (usage.inputTokens || 0) + (usage.outputTokens || 0),
+        promptTokens: inputTokens,
+        completionTokens: outputTokens,
+        totalTokens: inputTokens + outputTokens,
       },
       model: modelId,
       finishReason: this.mapBedrockStopReason(response.stopReason),
     };
   }
 
+  async *streamWithTools(request: ToolCompletionRequest): AsyncIterable<StreamChunk> {
+    const client = await this.getClient();
+    const { ConverseStreamCommand } = await import('@aws-sdk/client-bedrock-runtime');
+
+    const modelId = request.model || this.defaultModel;
+    const systemPrompt = this.extractSystemPrompt(request.messages);
+    const messages = this.convertMessages(this.filterSystemMessages(request.messages));
+
+    const toolConfig = {
+      tools: request.tools.map(t => ({
+        toolSpec: {
+          name: t.function.name,
+          description: t.function.description,
+          inputSchema: {
+            json: t.function.parameters,
+          },
+        },
+      })),
+      ...(request.toolChoice && request.toolChoice !== 'auto' && request.toolChoice !== 'none'
+        ? {
+            toolChoice: {
+              tool: {
+                name:
+                  typeof request.toolChoice === 'object'
+                    ? request.toolChoice.function.name
+                    : undefined,
+              },
+            },
+          }
+        : {}),
+    };
+
+    const commandInput: ConverseStreamCommandInput = {
+      modelId,
+      messages,
+      toolConfig,
+      inferenceConfig: {
+        maxTokens: request.maxTokens || 4096,
+        ...(request.temperature !== undefined && { temperature: request.temperature }),
+      },
+      ...(systemPrompt && { system: [{ text: systemPrompt }] }),
+    };
+
+    const command = new ConverseStreamCommand(commandInput);
+    const response = await client.send(command);
+
+    let usage: StreamChunk['usage'] | undefined;
+    const toolCalls: ToolCall[] = [];
+    let currentToolCall: { id: string; name: string; inputJson: string } | null = null;
+
+    if (response.stream) {
+      for await (const event of response.stream) {
+        // Tool call start
+        if (event.contentBlockStart?.start?.toolUse) {
+          const tu = event.contentBlockStart.start.toolUse;
+          currentToolCall = {
+            id: tu.toolUseId || `call_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            name: tu.name || 'unknown',
+            inputJson: '',
+          };
+        }
+
+        // Text delta
+        if (event.contentBlockDelta?.delta?.text) {
+          yield {
+            content: event.contentBlockDelta.delta.text,
+            done: false,
+          };
+        }
+
+        // Tool input delta
+        if (event.contentBlockDelta?.delta?.toolUse?.input) {
+          if (currentToolCall) {
+            currentToolCall.inputJson += event.contentBlockDelta.delta.toolUse.input;
+          }
+        }
+
+        // Block stop — finalize current tool call
+        if (event.contentBlockStop) {
+          if (currentToolCall) {
+            let parsedInput: Record<string, unknown> = {};
+            try {
+              parsedInput = JSON.parse(currentToolCall.inputJson) as Record<string, unknown>;
+            } catch {
+              /* use empty object */
+            }
+            toolCalls.push({
+              id: currentToolCall.id,
+              type: 'function',
+              function: {
+                name: currentToolCall.name,
+                arguments: JSON.stringify(parsedInput),
+              },
+            });
+            currentToolCall = null;
+          }
+        }
+
+        // Usage metadata
+        if (event.metadata?.usage) {
+          const u = event.metadata.usage;
+          usage = {
+            promptTokens: u.inputTokens || 0,
+            completionTokens: u.outputTokens || 0,
+            totalTokens: (u.inputTokens || 0) + (u.outputTokens || 0),
+          };
+        }
+
+        // Message stop
+        if (event.messageStop) {
+          yield {
+            done: true,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            usage,
+          };
+        }
+      }
+    }
+  }
+
   async countTokens(text: string): Promise<number> {
-    // Approximation: ~4 characters per token
-    return Math.ceil(text.length / 4);
+    try {
+      const { encode } = await import('gpt-tokenizer');
+      return encode(text).length;
+    } catch {
+      return Math.ceil(text.length / 4);
+    }
   }
 
   getMaxTokens(model: string): number {
@@ -230,8 +362,8 @@ export class BedrockProvider extends BaseProvider {
   /**
    * Convert messages to Bedrock Converse API format
    */
-  private convertMessages(messages: LLMMessage[]): any[] {
-    return messages.map((m) => {
+  private convertMessages(messages: LLMMessage[]): BedrockMessage[] {
+    return messages.map((m): BedrockMessage => {
       if (m.role === 'tool') {
         return {
           role: 'user',
@@ -239,7 +371,7 @@ export class BedrockProvider extends BaseProvider {
             {
               toolResult: {
                 toolUseId: m.toolCallId,
-                content: [{ text: m.content }],
+                content: [{ text: getTextContent(m.content) }],
               },
             },
           ],
@@ -247,14 +379,15 @@ export class BedrockProvider extends BaseProvider {
       }
 
       if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+        const textContent = getTextContent(m.content);
         return {
           role: 'assistant',
           content: [
-            ...(m.content ? [{ text: m.content }] : []),
-            ...m.toolCalls.map((tc) => {
-              let input: any;
+            ...(textContent ? [{ text: textContent }] : []),
+            ...m.toolCalls.map(tc => {
+              let input: Record<string, unknown>;
               try {
-                input = JSON.parse(tc.function.arguments);
+                input = JSON.parse(tc.function.arguments) as Record<string, unknown>;
               } catch {
                 input = {};
               }
@@ -266,13 +399,13 @@ export class BedrockProvider extends BaseProvider {
                 },
               };
             }),
-          ],
+          ] as ContentBlock[],
         };
       }
 
       return {
         role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: [{ text: m.content }],
+        content: [{ text: getTextContent(m.content) }],
       };
     });
   }
@@ -280,31 +413,37 @@ export class BedrockProvider extends BaseProvider {
   /**
    * Extract text content from Bedrock Converse response
    */
-  private extractContentFromResponse(response: any): string {
+  private extractContentFromResponse(response: ConverseResponse): string {
     const output = response.output;
-    if (!output?.message?.content) return '';
+    if (!output?.message?.content) {
+      return '';
+    }
 
     return output.message.content
-      .filter((block: any) => block.text)
-      .map((block: any) => block.text)
+      .filter(block => block.text)
+      .map(block => block.text)
       .join('');
   }
 
   /**
    * Extract tool calls from Bedrock Converse response
    */
-  private extractToolCallsFromResponse(response: any): ToolCall[] {
+  private extractToolCallsFromResponse(response: ConverseResponse): ToolCall[] {
     const output = response.output;
-    if (!output?.message?.content) return [];
+    if (!output?.message?.content) {
+      return [];
+    }
 
     const toolCalls: ToolCall[] = [];
     for (const block of output.message.content) {
       if (block.toolUse) {
         toolCalls.push({
-          id: block.toolUse.toolUseId || `call_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          id:
+            block.toolUse.toolUseId ||
+            `call_${Date.now()}_${Math.random().toString(36).substring(7)}`,
           type: 'function',
           function: {
-            name: block.toolUse.name,
+            name: block.toolUse.name || 'unknown',
             arguments: JSON.stringify(block.toolUse.input || {}),
           },
         });
@@ -318,7 +457,9 @@ export class BedrockProvider extends BaseProvider {
    * Map Bedrock stop reason to standard format
    */
   private mapBedrockStopReason(reason: string | undefined): LLMResponse['finishReason'] {
-    if (!reason) return 'stop';
+    if (!reason) {
+      return 'stop';
+    }
 
     switch (reason) {
       case 'end_turn':

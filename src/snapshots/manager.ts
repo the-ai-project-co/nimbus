@@ -61,11 +61,7 @@ const FILE_MODIFYING_PATTERNS = [
  * Tool names that always trigger a snapshot because they directly
  * modify files on disk.
  */
-const SNAPSHOT_TOOL_NAMES = new Set([
-  'edit_file',
-  'multi_edit',
-  'write_file',
-]);
+const SNAPSHOT_TOOL_NAMES = new Set(['edit_file', 'multi_edit', 'write_file']);
 
 /**
  * Represents a single point-in-time snapshot of the working tree state.
@@ -151,8 +147,9 @@ export class SnapshotManager {
    * Capture a snapshot of the current working tree state.
    *
    * For git projects:
-   *   1. Stages all changes with `git add -A`
+   *   1. Creates a temporary git index and stages all changes into it
    *   2. Captures a tree hash with `git write-tree` (no commit is created)
+   *   3. Removes the temporary index; the user's real staging area is untouched
    *
    * For non-git projects:
    *   1. Creates a numbered snapshot directory under `.nimbus/snapshots/{id}/`
@@ -212,7 +209,7 @@ export class SnapshotManager {
    * @returns An object indicating whether the restore succeeded and a description.
    */
   async restoreSnapshot(snapshotId: string): Promise<{ restored: boolean; description: string }> {
-    const snapshot = this.snapshots.find((s) => s.id === snapshotId);
+    const snapshot = this.snapshots.find(s => s.id === snapshotId);
     if (!snapshot) {
       return { restored: false, description: `Snapshot ${snapshotId} not found` };
     }
@@ -307,7 +304,7 @@ export class SnapshotManager {
    */
   getHistory(sessionId?: string): Snapshot[] {
     if (sessionId) {
-      return this.snapshots.filter((s) => s.sessionId === sessionId);
+      return this.snapshots.filter(s => s.sessionId === sessionId);
     }
     return [...this.snapshots];
   }
@@ -334,13 +331,9 @@ export class SnapshotManager {
     const originalCount = this.snapshots.length;
 
     // Remove snapshots older than maxAge
-    const expired = this.snapshots.filter(
-      (s) => now - s.timestamp.getTime() > this.maxAge
-    );
+    const expired = this.snapshots.filter(s => now - s.timestamp.getTime() > this.maxAge);
 
-    this.snapshots = this.snapshots.filter(
-      (s) => now - s.timestamp.getTime() <= this.maxAge
-    );
+    this.snapshots = this.snapshots.filter(s => now - s.timestamp.getTime() <= this.maxAge);
 
     // Trim to maxSnapshots (keep most recent)
     let trimmed: Snapshot[] = [];
@@ -366,7 +359,7 @@ export class SnapshotManager {
 
     // Also clean stale entries from the redo stack
     this.undoneSnapshots = this.undoneSnapshots.filter(
-      (s) => now - s.timestamp.getTime() <= this.maxAge
+      s => now - s.timestamp.getTime() <= this.maxAge
     );
 
     return originalCount - this.snapshots.length;
@@ -397,7 +390,7 @@ export class SnapshotManager {
         return false;
       }
 
-      return FILE_MODIFYING_PATTERNS.some((pattern) => pattern.test(command));
+      return FILE_MODIFYING_PATTERNS.some(pattern => pattern.test(command));
     }
 
     return false;
@@ -408,15 +401,33 @@ export class SnapshotManager {
   // ---------------------------------------------------------------------------
 
   /**
-   * Capture a git tree hash by staging all changes and writing the tree.
+   * Capture a git tree hash using a temporary index file.
+   *
+   * Uses `GIT_INDEX_FILE` to operate on an isolated temporary index so that
+   * the user's real staging area (`.git/index`) is never modified.
    *
    * @returns The git tree hash string.
    * @throws If the git commands fail.
    */
   private async captureGitSnapshot(): Promise<string> {
-    await execAsync('git add -A', { cwd: this.projectDir });
-    const { stdout } = await execAsync('git write-tree', { cwd: this.projectDir });
-    return stdout.trim();
+    // Use a temporary index to avoid corrupting the user's staging area.
+    // GIT_INDEX_FILE tells git to use an alternate index, so `git add -A`
+    // and `git write-tree` operate on the temp file, leaving the real
+    // index (.git/index) untouched.
+    const tmpIndex = path.join(this.projectDir, '.git', `index.nimbus-snapshot-${Date.now()}`);
+    const env = { ...process.env, GIT_INDEX_FILE: tmpIndex };
+    try {
+      await execAsync('git add -A', { cwd: this.projectDir, env });
+      const { stdout } = await execAsync('git write-tree', { cwd: this.projectDir, env });
+      return stdout.trim();
+    } finally {
+      // Clean up the temporary index file
+      try {
+        fs.unlinkSync(tmpIndex);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   /**

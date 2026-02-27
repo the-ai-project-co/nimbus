@@ -2,11 +2,7 @@
  * Tests for LSP Manager, Client, Language configs, and Agent Loop integration.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import {
-  getLanguageForFile,
-  getLanguagePriority,
-  LANGUAGE_CONFIGS,
-} from '../lsp/languages';
+import { getLanguageForFile, getLanguagePriority, LANGUAGE_CONFIGS } from '../lsp/languages';
 import { LSPManager, resetLSPManager } from '../lsp/manager';
 import { severityLabel } from '../lsp/client';
 

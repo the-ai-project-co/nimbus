@@ -12,13 +12,14 @@
  * Hooks are killed after their configured timeout (default 30 seconds).
  */
 
-import { spawn } from 'node:child_process';
-import type { ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import {
   loadHooksConfig,
   DEFAULT_HOOK_TIMEOUT,
+  type HooksConfig,
+  type HookEvent,
+  type HookDefinition,
 } from './config';
-import type { HooksConfig, HookEvent, HookDefinition } from './config';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -134,7 +135,7 @@ export class HookEngine {
       return [];
     }
 
-    return hooks.filter((hook) => {
+    return hooks.filter(hook => {
       try {
         const regex = new RegExp(hook.match);
         return regex.test(toolName);
@@ -157,10 +158,7 @@ export class HookEngine {
    * @param context - Context object passed to each hook via stdin
    * @returns Array of results, one per matching hook
    */
-  async executeHooks(
-    event: HookEvent,
-    context: HookContext,
-  ): Promise<HookResult[]> {
+  async executeHooks(event: HookEvent, context: HookContext): Promise<HookResult[]> {
     const hooks = this.getMatchingHooks(event, context.tool);
     if (hooks.length === 0) {
       return [];
@@ -193,24 +191,24 @@ export class HookEngine {
    * @param context - Context to pass via stdin
    * @returns Execution result
    */
-  private async executeHook(
-    hook: HookDefinition,
-    context: HookContext,
-  ): Promise<HookResult> {
+  private async executeHook(hook: HookDefinition, context: HookContext): Promise<HookResult> {
     const timeout = hook.timeout ?? DEFAULT_HOOK_TIMEOUT;
     const startTime = Date.now();
 
-    return new Promise<HookResult>((resolve) => {
+    return new Promise<HookResult>(resolve => {
       let child: ChildProcess;
       let timedOut = false;
       let resolved = false;
+      // eslint-disable-next-line prefer-const
       let timer: ReturnType<typeof setTimeout> | undefined;
 
       /**
        * Resolve exactly once, clearing the timeout timer.
        */
       const resolveOnce = (result: HookResult): void => {
-        if (resolved) return;
+        if (resolved) {
+          return;
+        }
         resolved = true;
         if (timer) {
           clearTimeout(timer);
@@ -307,8 +305,7 @@ export class HookEngine {
           });
         } else if (exitCode === 2) {
           // Blocked
-          const message =
-            stderr.trim() || stdout.trim() || 'Blocked by hook';
+          const message = stderr.trim() || stdout.trim() || 'Blocked by hook';
           resolveOnce({
             allowed: false,
             message,
@@ -318,9 +315,7 @@ export class HookEngine {
         } else {
           // Error -- allow but surface the message
           const message =
-            stderr.trim() ||
-            stdout.trim() ||
-            `Hook "${hook.command}" exited with code ${exitCode}`;
+            stderr.trim() || stdout.trim() || `Hook "${hook.command}" exited with code ${exitCode}`;
           resolveOnce({
             allowed: true,
             message,
@@ -359,7 +354,7 @@ export class HookEngine {
  */
 export async function runPreToolHooks(
   engine: HookEngine,
-  context: HookContext,
+  context: HookContext
 ): Promise<{ allowed: boolean; message?: string }> {
   const results = await engine.executeHooks('PreToolUse', context);
 
@@ -380,10 +375,7 @@ export async function runPreToolHooks(
  * @param engine  - Configured HookEngine instance
  * @param context - Hook context including `result` from the tool execution
  */
-export async function runPostToolHooks(
-  engine: HookEngine,
-  context: HookContext,
-): Promise<void> {
+export async function runPostToolHooks(engine: HookEngine, context: HookContext): Promise<void> {
   await engine.executeHooks('PostToolUse', context);
 }
 
@@ -394,9 +386,6 @@ export async function runPostToolHooks(
  * @param engine  - Configured HookEngine instance
  * @param context - Hook context for the permission request
  */
-export async function runPermissionHooks(
-  engine: HookEngine,
-  context: HookContext,
-): Promise<void> {
+export async function runPermissionHooks(engine: HookEngine, context: HookContext): Promise<void> {
   await engine.executeHooks('PermissionRequest', context);
 }

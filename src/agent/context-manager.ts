@@ -18,7 +18,7 @@
  * @module agent/context-manager
  */
 
-import type { LLMMessage } from '../llm/types';
+import { getTextContent, type LLMMessage } from '../llm/types';
 import { getConfig } from '../state/config';
 
 // ---------------------------------------------------------------------------
@@ -57,14 +57,91 @@ export interface CompactionResult {
 
 /** Configuration options for the context manager. */
 export interface ContextManagerOptions {
-  /** Max context window tokens (default: 200000 for Claude). */
+  /** Max context window tokens (default: auto-detected from model, fallback 200000). */
   maxContextTokens?: number;
+  /** Model identifier — used to auto-detect context window size. */
+  model?: string;
   /** Threshold percentage to trigger auto-compact (0.0 - 1.0, default: 0.85). */
   autoCompactThreshold?: number;
   /** Number of recent messages to always preserve during compaction (default: 5). */
   preserveRecentMessages?: number;
   /** NIMBUS.md section keys that should always remain in context. */
   alwaysInContext?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Per-Model Context Window Sizes
+// ---------------------------------------------------------------------------
+
+/**
+ * Known context window sizes (in tokens) for popular models.
+ *
+ * When a model is not listed here, the manager falls back to the
+ * `maxContextTokens` option (default: 200 000).
+ */
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  // Anthropic
+  'claude-opus-4-20250514': 200_000,
+  'claude-sonnet-4-20250514': 200_000,
+  'claude-haiku-4-20250514': 200_000,
+  'claude-3-5-sonnet-20241022': 200_000,
+  'claude-3-5-haiku-20241022': 200_000,
+  'claude-3-opus-20240229': 200_000,
+  'claude-3-sonnet-20240229': 200_000,
+  'claude-3-haiku-20240307': 200_000,
+
+  // OpenAI
+  'gpt-4o': 128_000,
+  'gpt-4o-mini': 128_000,
+  'gpt-4-turbo': 128_000,
+  'gpt-4': 8_192,
+  'gpt-3.5-turbo': 16_385,
+  o1: 200_000,
+  'o1-mini': 128_000,
+  'o1-preview': 128_000,
+  'o3-mini': 200_000,
+
+  // Google
+  'gemini-2.0-flash-exp': 1_048_576,
+  'gemini-1.5-pro': 2_097_152,
+  'gemini-1.5-flash': 1_048_576,
+
+  // Groq (Llama)
+  'llama-3.1-70b-versatile': 131_072,
+  'llama-3.1-8b-instant': 131_072,
+  'llama-3.3-70b-versatile': 131_072,
+
+  // DeepSeek
+  'deepseek-chat': 64_000,
+  'deepseek-coder': 64_000,
+  'deepseek-reasoner': 64_000,
+
+  // Local (Ollama defaults — dynamic lookup can override)
+  'llama3.2': 128_000,
+  mistral: 32_768,
+  codellama: 16_384,
+};
+
+/**
+ * Look up the context window size for a model identifier.
+ *
+ * Tries exact match first, then prefix match (for versioned model IDs
+ * like `claude-sonnet-4-20250514`), then returns `null` if unknown.
+ */
+export function getModelContextWindow(model: string): number | null {
+  // Exact match
+  if (MODEL_CONTEXT_WINDOWS[model] !== undefined) {
+    return MODEL_CONTEXT_WINDOWS[model];
+  }
+
+  // Prefix match: e.g., "gpt-4o-2024-08-06" should match "gpt-4o"
+  for (const [key, value] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
+    if (model.startsWith(key)) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,9 +173,7 @@ export function estimateTokens(text: string): number {
 export function estimateMessageTokens(message: LLMMessage): number {
   let tokens = 0;
 
-  if (typeof message.content === 'string') {
-    tokens += estimateTokens(message.content);
-  }
+  tokens += estimateTokens(getTextContent(message.content));
 
   // Add overhead for role and message structure
   tokens += 4;
@@ -136,9 +211,10 @@ export class ContextManager {
     // Try loading from config DB, fall back to options/defaults
     const configThreshold = getConfigSafe('context.auto_compact_threshold');
 
-    this.maxContextTokens = options?.maxContextTokens ?? 200_000;
-    this.autoCompactThreshold =
-      configThreshold ?? options?.autoCompactThreshold ?? 0.85;
+    // Auto-detect context window from model if provided, then options, then default
+    const modelWindow = options?.model ? getModelContextWindow(options.model) : null;
+    this.maxContextTokens = options?.maxContextTokens ?? modelWindow ?? 200_000;
+    this.autoCompactThreshold = configThreshold ?? options?.autoCompactThreshold ?? 0.85;
     this.preserveRecentMessages = options?.preserveRecentMessages ?? 5;
     this.alwaysInContext = options?.alwaysInContext ?? [];
   }
@@ -157,13 +233,9 @@ export class ContextManager {
   shouldCompact(
     systemPrompt: string,
     messages: LLMMessage[],
-    toolDefinitionsTokens: number,
+    toolDefinitionsTokens: number
   ): boolean {
-    const usage = this.calculateUsage(
-      systemPrompt,
-      messages,
-      toolDefinitionsTokens,
-    );
+    const usage = this.calculateUsage(systemPrompt, messages, toolDefinitionsTokens);
     return usage.usagePercent >= this.autoCompactThreshold * 100;
   }
 
@@ -182,7 +254,7 @@ export class ContextManager {
   calculateUsage(
     systemPrompt: string,
     messages: LLMMessage[],
-    toolDefinitionsTokens: number,
+    toolDefinitionsTokens: number
   ): ContextBreakdown {
     const systemPromptTokens = estimateTokens(systemPrompt);
 
@@ -198,16 +270,11 @@ export class ContextManager {
       baseSystemTokens = systemPromptTokens - nimbusInstructionsTokens;
     }
 
-    const messagesTokens = messages.reduce(
-      (sum, msg) => sum + estimateMessageTokens(msg),
-      0,
-    );
+    const messagesTokens = messages.reduce((sum, msg) => sum + estimateMessageTokens(msg), 0);
 
     const total = systemPromptTokens + messagesTokens + toolDefinitionsTokens;
     const usagePercent =
-      this.maxContextTokens > 0
-        ? Math.round((total / this.maxContextTokens) * 100)
-        : 0;
+      this.maxContextTokens > 0 ? Math.round((total / this.maxContextTokens) * 100) : 0;
 
     return {
       systemPrompt: baseSystemTokens,
@@ -249,13 +316,10 @@ export class ContextManager {
       const isFirst = i === 0;
       const isRecent = i >= messages.length - this.preserveRecentMessages;
       const hasActiveTools =
-        msg.role === 'tool' &&
-        i >= messages.length - this.preserveRecentMessages - 2;
+        msg.role === 'tool' && i >= messages.length - this.preserveRecentMessages - 2;
 
       // Always preserve summary blocks (from previous compactions)
-      const isSummary =
-        typeof msg.content === 'string' &&
-        msg.content.startsWith('[Context Summary]');
+      const isSummary = getTextContent(msg.content).startsWith('[Context Summary]');
 
       if (isFirst || isRecent || hasActiveTools || isSummary) {
         preserved.push(msg);
@@ -279,10 +343,7 @@ export class ContextManager {
    * @param summary - The LLM-generated (or fallback) summary text.
    * @returns A new message array ready to replace the original.
    */
-  buildCompactedMessages(
-    preserved: LLMMessage[],
-    summary: string,
-  ): LLMMessage[] {
+  buildCompactedMessages(preserved: LLMMessage[], summary: string): LLMMessage[] {
     const result: LLMMessage[] = [];
 
     // Keep the first preserved message (typically the first user message)
@@ -331,6 +392,26 @@ export class ContextManager {
    */
   setMaxContextTokens(tokens: number): void {
     this.maxContextTokens = tokens;
+  }
+
+  /**
+   * Update the context window based on a model identifier.
+   *
+   * Looks up the model's known context window size. If the model is
+   * not in the built-in map, the current budget is left unchanged.
+   *
+   * @param model - The model identifier (e.g., "gpt-4o", "claude-sonnet-4-20250514").
+   * @returns `true` if the budget was updated, `false` if model is unknown.
+   */
+  setModel(model: string): boolean {
+    // Strip provider prefix (e.g., "openai/gpt-4o" → "gpt-4o")
+    const stripped = model.includes('/') ? model.split('/').slice(1).join('/') : model;
+    const window = getModelContextWindow(stripped);
+    if (window !== null) {
+      this.maxContextTokens = window;
+      return true;
+    }
+    return false;
   }
 }
 

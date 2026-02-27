@@ -40,21 +40,28 @@ const CLOUD_PATTERNS: CloudPattern[] = [
       'github.com/aws/aws-sdk-go',
     ],
     regions: [
-      'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-      'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-north-1',
-      'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1', 'ap-northeast-2', 'ap-south-1',
-      'sa-east-1', 'ca-central-1',
+      'us-east-1',
+      'us-east-2',
+      'us-west-1',
+      'us-west-2',
+      'eu-west-1',
+      'eu-west-2',
+      'eu-west-3',
+      'eu-central-1',
+      'eu-north-1',
+      'ap-southeast-1',
+      'ap-southeast-2',
+      'ap-northeast-1',
+      'ap-northeast-2',
+      'ap-south-1',
+      'sa-east-1',
+      'ca-central-1',
     ],
   },
   {
     name: 'gcp',
     displayName: 'Google Cloud Platform',
-    configFiles: [
-      '.gcloud/credentials.json',
-      'app.yaml',
-      'cloudbuild.yaml',
-      'cloudrun.yaml',
-    ],
+    configFiles: ['.gcloud/credentials.json', 'app.yaml', 'cloudbuild.yaml', 'cloudrun.yaml'],
     envVarPrefixes: ['GOOGLE_', 'GCLOUD_', 'GCP_'],
     sdkPackages: [
       '@google-cloud',
@@ -63,20 +70,25 @@ const CLOUD_PATTERNS: CloudPattern[] = [
       'cloud.google.com/go',
     ],
     regions: [
-      'us-central1', 'us-east1', 'us-east4', 'us-west1', 'us-west2',
-      'europe-west1', 'europe-west2', 'europe-west3', 'europe-west4',
-      'asia-east1', 'asia-east2', 'asia-northeast1', 'asia-southeast1',
+      'us-central1',
+      'us-east1',
+      'us-east4',
+      'us-west1',
+      'us-west2',
+      'europe-west1',
+      'europe-west2',
+      'europe-west3',
+      'europe-west4',
+      'asia-east1',
+      'asia-east2',
+      'asia-northeast1',
+      'asia-southeast1',
     ],
   },
   {
     name: 'azure',
     displayName: 'Microsoft Azure',
-    configFiles: [
-      '.azure/credentials',
-      'azure-pipelines.yml',
-      'host.json',
-      'local.settings.json',
-    ],
+    configFiles: ['.azure/credentials', 'azure-pipelines.yml', 'host.json', 'local.settings.json'],
     envVarPrefixes: ['AZURE_', 'ARM_'],
     sdkPackages: [
       '@azure',
@@ -86,9 +98,19 @@ const CLOUD_PATTERNS: CloudPattern[] = [
       'github.com/Azure/azure-sdk-for-go',
     ],
     regions: [
-      'eastus', 'eastus2', 'westus', 'westus2', 'centralus',
-      'westeurope', 'northeurope', 'uksouth', 'ukwest',
-      'southeastasia', 'eastasia', 'japaneast', 'australiaeast',
+      'eastus',
+      'eastus2',
+      'westus',
+      'westus2',
+      'centralus',
+      'westeurope',
+      'northeurope',
+      'uksouth',
+      'ukwest',
+      'southeastasia',
+      'eastasia',
+      'japaneast',
+      'australiaeast',
     ],
   },
   {
@@ -97,7 +119,21 @@ const CLOUD_PATTERNS: CloudPattern[] = [
     configFiles: ['.do/app.yaml', 'do.yaml'],
     envVarPrefixes: ['DIGITALOCEAN_', 'DO_'],
     sdkPackages: ['digitalocean', 'do-spaces'],
-    regions: ['nyc1', 'nyc2', 'nyc3', 'sfo1', 'sfo2', 'sfo3', 'ams2', 'ams3', 'sgp1', 'lon1', 'fra1', 'tor1', 'blr1'],
+    regions: [
+      'nyc1',
+      'nyc2',
+      'nyc3',
+      'sfo1',
+      'sfo2',
+      'sfo3',
+      'ams2',
+      'ams3',
+      'sgp1',
+      'lon1',
+      'fra1',
+      'tor1',
+      'blr1',
+    ],
   },
   {
     name: 'heroku',
@@ -242,7 +278,9 @@ export class CloudScanner implements Scanner {
 
     for (const dir of tfDirs) {
       const dirPath = path.join(cwd, dir);
-      if (!fs.existsSync(dirPath)) continue;
+      if (!fs.existsSync(dirPath)) {
+        continue;
+      }
 
       try {
         const files = fs.readdirSync(dirPath);
@@ -251,14 +289,29 @@ export class CloudScanner implements Scanner {
             const content = fs.readFileSync(path.join(dirPath, file), 'utf-8');
 
             // Check for providers
-            if (content.includes('provider "aws"') || content.includes('source = "hashicorp/aws"')) {
-              if (!result.providers.includes('aws')) result.providers.push('aws');
+            if (
+              content.includes('provider "aws"') ||
+              content.includes('source = "hashicorp/aws"')
+            ) {
+              if (!result.providers.includes('aws')) {
+                result.providers.push('aws');
+              }
             }
-            if (content.includes('provider "google"') || content.includes('source = "hashicorp/google"')) {
-              if (!result.providers.includes('gcp')) result.providers.push('gcp');
+            if (
+              content.includes('provider "google"') ||
+              content.includes('source = "hashicorp/google"')
+            ) {
+              if (!result.providers.includes('gcp')) {
+                result.providers.push('gcp');
+              }
             }
-            if (content.includes('provider "azurerm"') || content.includes('source = "hashicorp/azurerm"')) {
-              if (!result.providers.includes('azure')) result.providers.push('azure');
+            if (
+              content.includes('provider "azurerm"') ||
+              content.includes('source = "hashicorp/azurerm"')
+            ) {
+              if (!result.providers.includes('azure')) {
+                result.providers.push('azure');
+              }
             }
 
             // Extract regions
@@ -313,14 +366,16 @@ export class CloudScanner implements Scanner {
     // Check SDK packages in package.json
     if (deps.packageJson) {
       const allDeps = {
-        ...(deps.packageJson.dependencies as Record<string, string> || {}),
-        ...(deps.packageJson.devDependencies as Record<string, string> || {}),
+        ...((deps.packageJson.dependencies as Record<string, string>) || {}),
+        ...((deps.packageJson.devDependencies as Record<string, string>) || {}),
       };
 
       for (const pkg of pattern.sdkPackages) {
         for (const depName of Object.keys(allDeps)) {
           if (depName.startsWith(pkg) || depName === pkg) {
-            if (confidence === 'low') confidence = 'medium';
+            if (confidence === 'low') {
+              confidence = 'medium';
+            }
             detectedServices.push(depName);
           }
         }
@@ -331,7 +386,9 @@ export class CloudScanner implements Scanner {
     if (deps.requirements) {
       for (const pkg of pattern.sdkPackages) {
         if (deps.requirements.toLowerCase().includes(pkg.toLowerCase())) {
-          if (confidence === 'low') confidence = 'medium';
+          if (confidence === 'low') {
+            confidence = 'medium';
+          }
         }
       }
     }
@@ -340,7 +397,9 @@ export class CloudScanner implements Scanner {
     if (deps.goMod) {
       for (const pkg of pattern.sdkPackages) {
         if (deps.goMod.includes(pkg)) {
-          if (confidence === 'low') confidence = 'medium';
+          if (confidence === 'low') {
+            confidence = 'medium';
+          }
         }
       }
     }
@@ -354,7 +413,9 @@ export class CloudScanner implements Scanner {
           const content = fs.readFileSync(envPath, 'utf-8');
           for (const prefix of pattern.envVarPrefixes) {
             if (content.includes(prefix)) {
-              if (confidence === 'low') confidence = 'medium';
+              if (confidence === 'low') {
+                confidence = 'medium';
+              }
               break;
             }
           }

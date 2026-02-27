@@ -78,7 +78,7 @@ describe('SnapshotManager constructor', () => {
   });
 
   test('detects git project', () => {
-    const manager = new SnapshotManager({ projectDir: gitDir });
+    const _manager = new SnapshotManager({ projectDir: gitDir });
     // Capture a snapshot to verify it uses git (treeHash will be non-empty)
     // We verify indirectly through the snapshot's isGitProject flag
     expect(fs.existsSync(path.join(gitDir, '.git'))).toBe(true);
@@ -86,11 +86,9 @@ describe('SnapshotManager constructor', () => {
   });
 
   test('detects non-git project', () => {
-    const manager = new SnapshotManager({ projectDir: nonGitDir });
+    const _manager = new SnapshotManager({ projectDir: nonGitDir });
     // For non-git projects, the manager creates the snapshot directory
-    expect(
-      fs.existsSync(path.join(nonGitDir, '.nimbus', 'snapshots')),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(nonGitDir, '.nimbus', 'snapshots'))).toBe(true);
   });
 });
 
@@ -112,15 +110,11 @@ describe('SnapshotManager.shouldSnapshot', () => {
   });
 
   test('bash with "rm -rf dist" returns true', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: 'rm -rf dist' }),
-    ).toBe(true);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: 'rm -rf dist' })).toBe(true);
   });
 
   test('bash with "npm test" returns false', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: 'npm test' }),
-    ).toBe(false);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: 'npm test' })).toBe(false);
   });
 
   test('read_file returns false', () => {
@@ -132,39 +126,31 @@ describe('SnapshotManager.shouldSnapshot', () => {
   });
 
   test('bash with "mv old.txt new.txt" returns true', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: 'mv old.txt new.txt' }),
-    ).toBe(true);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: 'mv old.txt new.txt' })).toBe(true);
   });
 
   test('bash with "cp src dest" returns true', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: 'cp src dest' }),
-    ).toBe(true);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: 'cp src dest' })).toBe(true);
   });
 
   test('bash with "echo hello > output.txt" returns true (redirect)', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: 'echo hello > output.txt' }),
-    ).toBe(true);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: 'echo hello > output.txt' })).toBe(
+      true
+    );
   });
 
   test('bash with "ls -la" returns false', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: 'ls -la' }),
-    ).toBe(false);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: 'ls -la' })).toBe(false);
   });
 
   test('bash with "sed -i s/old/new/ file.txt" returns true', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: 'sed -i s/old/new/ file.txt' }),
-    ).toBe(true);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: 'sed -i s/old/new/ file.txt' })).toBe(
+      true
+    );
   });
 
   test('bash with empty command returns false', () => {
-    expect(
-      SnapshotManager.shouldSnapshot('bash', { command: '' }),
-    ).toBe(false);
+    expect(SnapshotManager.shouldSnapshot('bash', { command: '' })).toBe(false);
   });
 
   test('bash with no input returns false', () => {
@@ -197,9 +183,7 @@ describe('Git-based snapshots', () => {
 
   test('captureSnapshot creates a snapshot in a git project', async () => {
     const manager = new SnapshotManager({ projectDir: gitDir });
-    const snap = await manager.captureSnapshot(
-      snapshotParams('edit_file: file.txt'),
-    );
+    const snap = await manager.captureSnapshot(snapshotParams('edit_file: file.txt'));
 
     expect(snap.id).toBeTruthy();
     expect(snap.treeHash).toBeTruthy();
@@ -215,9 +199,7 @@ describe('Git-based snapshots', () => {
     const filePath = path.join(gitDir, 'file.txt');
 
     // Capture state before modification
-    const before = await manager.captureSnapshot(
-      snapshotParams('before edit'),
-    );
+    const before = await manager.captureSnapshot(snapshotParams('before edit'));
 
     // Modify the file
     fs.writeFileSync(filePath, 'modified content');
@@ -483,9 +465,7 @@ describe('Non-git snapshots', () => {
     fs.writeFileSync(filePath, 'console.log("hello");');
 
     const manager = new SnapshotManager({ projectDir: nonGitDir });
-    const snap = await manager.captureSnapshot(
-      snapshotParams('write_file: app.js'),
-    );
+    const snap = await manager.captureSnapshot(snapshotParams('write_file: app.js'));
 
     expect(snap.isGitProject).toBe(false);
     expect(snap.treeHash).toBe('');
@@ -497,9 +477,7 @@ describe('Non-git snapshots', () => {
 
     // Verify the file was copied
     expect(fs.existsSync(path.join(snapDir, 'app.js'))).toBe(true);
-    expect(fs.readFileSync(path.join(snapDir, 'app.js'), 'utf-8')).toBe(
-      'console.log("hello");',
-    );
+    expect(fs.readFileSync(path.join(snapDir, 'app.js'), 'utf-8')).toBe('console.log("hello");');
   });
 
   test('restore recovers files for non-git project', async () => {
@@ -587,10 +565,7 @@ describe('Non-git snapshots', () => {
   test('non-git snapshot skips node_modules and .git directories', async () => {
     // Create directories that should be skipped
     fs.mkdirSync(path.join(nonGitDir, 'node_modules'), { recursive: true });
-    fs.writeFileSync(
-      path.join(nonGitDir, 'node_modules', 'pkg.json'),
-      '{}',
-    );
+    fs.writeFileSync(path.join(nonGitDir, 'node_modules', 'pkg.json'), '{}');
     fs.mkdirSync(path.join(nonGitDir, 'src'), { recursive: true });
     fs.writeFileSync(path.join(nonGitDir, 'src', 'index.ts'), 'export {};');
 
@@ -599,9 +574,7 @@ describe('Non-git snapshots', () => {
 
     const snapDir = path.join(nonGitDir, '.nimbus', 'snapshots', snap.id);
     // node_modules should NOT be copied
-    expect(
-      fs.existsSync(path.join(snapDir, 'node_modules')),
-    ).toBe(false);
+    expect(fs.existsSync(path.join(snapDir, 'node_modules'))).toBe(false);
     // src should be copied
     expect(fs.existsSync(path.join(snapDir, 'src', 'index.ts'))).toBe(true);
   });

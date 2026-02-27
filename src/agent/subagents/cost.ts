@@ -9,16 +9,8 @@
  */
 
 import { Subagent, type SubagentConfig } from './base';
-import {
-  readFileTool,
-  globTool,
-  grepTool,
-  listDirTool,
-} from '../../tools/schemas/standard';
-import {
-  costEstimateTool,
-  cloudDiscoverTool,
-} from '../../tools/schemas/devops';
+import { readFileTool, globTool, grepTool, listDirTool } from '../../tools/schemas/standard';
+import { costEstimateTool, cloudDiscoverTool } from '../../tools/schemas/devops';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -26,8 +18,7 @@ import {
 
 const costConfig: SubagentConfig = {
   name: 'cost',
-  description:
-    'Cost optimization specialist — analyzes infrastructure costs and suggests savings.',
+  description: 'Cost optimization specialist — analyzes infrastructure costs and suggests savings.',
   systemPrompt: `You are a cost optimization subagent. You analyze cloud infrastructure costs.
 
 Your job:
@@ -43,14 +34,7 @@ Rules:
 - Flag oversized or underutilized resources
 - Do NOT modify any files
 - Do NOT spawn further subagents`,
-  tools: [
-    readFileTool,
-    globTool,
-    grepTool,
-    listDirTool,
-    costEstimateTool,
-    cloudDiscoverTool,
-  ],
+  tools: [readFileTool, globTool, grepTool, listDirTool, costEstimateTool, cloudDiscoverTool],
   model: 'anthropic/claude-haiku-4-5',
   maxTurns: 15,
 };

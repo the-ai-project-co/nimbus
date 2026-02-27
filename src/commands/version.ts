@@ -45,7 +45,7 @@ function getCliVersion(): string {
 
   // Fallback to reading package.json
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const pkg = require('../../package.json');
     return pkg.version || '0.1.0';
   } catch {
@@ -73,7 +73,10 @@ async function fetchComponentVersions(): Promise<Record<string, string>> {
   const services = [
     { name: 'core-engine', url: process.env.CORE_ENGINE_URL || 'http://localhost:3001' },
     { name: 'llm-service', url: process.env.LLM_SERVICE_URL || 'http://localhost:3002' },
-    { name: 'generator-service', url: process.env.GENERATOR_SERVICE_URL || 'http://localhost:3003' },
+    {
+      name: 'generator-service',
+      url: process.env.GENERATOR_SERVICE_URL || 'http://localhost:3003',
+    },
     { name: 'terraform-tools', url: process.env.TERRAFORM_TOOLS_URL || 'http://localhost:3006' },
     { name: 'k8s-tools', url: process.env.K8S_TOOLS_URL || 'http://localhost:3007' },
     { name: 'helm-tools', url: process.env.HELM_TOOLS_URL || 'http://localhost:3008' },
@@ -93,11 +96,11 @@ async function fetchComponentVersions(): Promise<Record<string, string>> {
   };
 
   await Promise.all(
-    services.map(async (service) => {
+    services.map(async service => {
       try {
         const response = await fetchWithTimeout(`${service.url}/health`);
         if (response.ok) {
-          const data = await response.json() as { version?: string; status?: string };
+          const data = (await response.json()) as { version?: string; status?: string };
           components[service.name] = data.version || 'running';
         } else {
           components[service.name] = 'unavailable';
@@ -155,7 +158,8 @@ export async function versionCommand(options: VersionOptions = {}): Promise<void
       ui.newLine();
       ui.print(`Components:`);
       for (const [name, version] of Object.entries(versionInfo.components)) {
-        const status = version === 'unavailable' ? ui.color(version, 'red') : ui.color(version, 'green');
+        const status =
+          version === 'unavailable' ? ui.color(version, 'red') : ui.color(version, 'green');
         ui.print(`  ${name.padEnd(18)} ${status}`);
       }
     }

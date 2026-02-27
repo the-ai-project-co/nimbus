@@ -59,7 +59,8 @@ export function Header({ session }: HeaderProps) {
       {/* Right: mode badge */}
       <Box>
         <Text color={modeColor} bold inverse>
-          {' '}{session.mode.toUpperCase()}{' '}
+          {' '}
+          {session.mode.toUpperCase()}{' '}
         </Text>
       </Box>
     </Box>

@@ -341,7 +341,7 @@ export class GitHubOperations {
     });
 
     // Filter out pull requests (issues endpoint returns both)
-    const issues = data.filter((item) => !item.pull_request);
+    const issues = data.filter((item: any) => !item.pull_request);
 
     return issues as unknown as Issue[];
   }
@@ -482,7 +482,11 @@ export class GitHubOperations {
   /**
    * Get a specific branch
    */
-  async getBranch(owner: string, repo: string, branch: string): Promise<Branch & { commit: { sha: string } }> {
+  async getBranch(
+    owner: string,
+    repo: string,
+    branch: string
+  ): Promise<Branch & { commit: { sha: string } }> {
     logger.info(`Getting branch ${branch} for ${owner}/${repo}`);
 
     const { data } = await this.octokit.repos.getBranch({ owner, repo, branch });
@@ -560,10 +564,18 @@ export class GitHubOperations {
       per_page: options?.perPage || 30,
     };
 
-    if (options?.workflowId) params.workflow_id = options.workflowId;
-    if (options?.branch) params.branch = options.branch;
-    if (options?.event) params.event = options.event;
-    if (options?.status) params.status = options.status;
+    if (options?.workflowId) {
+      params.workflow_id = options.workflowId;
+    }
+    if (options?.branch) {
+      params.branch = options.branch;
+    }
+    if (options?.event) {
+      params.event = options.event;
+    }
+    if (options?.status) {
+      params.status = options.status;
+    }
 
     const { data } = await this.octokit.actions.listWorkflowRunsForRepo(params);
 
@@ -669,11 +681,7 @@ export class GitHubOperations {
   /**
    * Create a release
    */
-  async createRelease(
-    owner: string,
-    repo: string,
-    options: ReleaseOptions
-  ): Promise<Release> {
+  async createRelease(owner: string, repo: string, options: ReleaseOptions): Promise<Release> {
     logger.info(`Creating release ${options.tagName} for ${owner}/${repo}`);
 
     const { data } = await this.octokit.repos.createRelease({

@@ -213,7 +213,7 @@ describe('fuzzyFileSearch', () => {
 
     const results = await fuzzyFileSearch('server', tmpDir);
     expect(results.length).toBeGreaterThanOrEqual(1);
-    expect(results.some((r) => r.endsWith('server.ts'))).toBe(true);
+    expect(results.some(r => r.endsWith('server.ts'))).toBe(true);
   });
 
   test('finds exact matches first', async () => {

@@ -134,8 +134,12 @@ export class GitHubClient {
     const params = new URLSearchParams();
     params.set('owner', owner);
     params.set('repo', repo);
-    if (options?.state) params.set('state', options.state);
-    if (options?.perPage) params.set('per_page', String(options.perPage));
+    if (options?.state) {
+      params.set('state', options.state);
+    }
+    if (options?.perPage) {
+      params.set('per_page', String(options.perPage));
+    }
 
     const response = await client.get<{ success: boolean; data: GitHubPullRequest[] }>(
       `/api/github/prs?${params.toString()}`
@@ -195,7 +199,11 @@ export class GitHubClient {
     repo: string,
     prNumber: number,
     options?: { mergeMethod?: 'merge' | 'squash' | 'rebase'; commitTitle?: string }
-  ): Promise<{ success: boolean; data?: { sha: string; merged: boolean; message: string }; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    data?: { sha: string; merged: boolean; message: string };
+    error?: string;
+  }> {
     const client = this.getAuthClient();
     const response = await client.post<{
       success: boolean;
@@ -240,8 +248,12 @@ export class GitHubClient {
     const params = new URLSearchParams();
     params.set('owner', owner);
     params.set('repo', repo);
-    if (options?.state) params.set('state', options.state);
-    if (options?.perPage) params.set('per_page', String(options.perPage));
+    if (options?.state) {
+      params.set('state', options.state);
+    }
+    if (options?.perPage) {
+      params.set('per_page', String(options.perPage));
+    }
 
     const response = await client.get<{ success: boolean; data: GitHubIssue[] }>(
       `/api/github/issues?${params.toString()}`
@@ -369,7 +381,9 @@ export class GitHubClient {
     const params = new URLSearchParams();
     params.set('owner', owner);
     params.set('repo', repo);
-    if (options?.perPage) params.set('per_page', String(options.perPage));
+    if (options?.perPage) {
+      params.set('per_page', String(options.perPage));
+    }
 
     const response = await client.get<{ success: boolean; data: GitHubBranch[] }>(
       `/api/github/repos/branches?${params.toString()}`

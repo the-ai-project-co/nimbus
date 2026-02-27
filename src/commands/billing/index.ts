@@ -102,7 +102,9 @@ export async function billingStatusCommand(options: BillingStatusOptions): Promi
 
     ui.print(`  Plan: ${status.plan.toUpperCase()}`);
     ui.print(`  Status: ${status.status}`);
-    ui.print(`  Period: ${new Date(status.currentPeriodStart).toLocaleDateString()} - ${new Date(status.currentPeriodEnd).toLocaleDateString()}`);
+    ui.print(
+      `  Period: ${new Date(status.currentPeriodStart).toLocaleDateString()} - ${new Date(status.currentPeriodEnd).toLocaleDateString()}`
+    );
     ui.print(`  Seats: ${status.seats.used} / ${status.seats.total} used`);
 
     if (status.cancelAtPeriodEnd) {
@@ -214,7 +216,9 @@ export async function billingCancelCommand(): Promise<void> {
     ui.stopSpinnerSuccess('Subscription canceled');
 
     ui.newLine();
-    ui.warning(`Your subscription will end on ${new Date(status.currentPeriodEnd).toLocaleDateString()}`);
+    ui.warning(
+      `Your subscription will end on ${new Date(status.currentPeriodEnd).toLocaleDateString()}`
+    );
     ui.info('You will retain access until then.');
   } catch (error: any) {
     ui.stopSpinnerFail('Failed to cancel');

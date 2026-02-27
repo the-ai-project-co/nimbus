@@ -22,10 +22,4 @@ export {
 } from './prompts';
 
 // Wizard framework
-export {
-  Wizard,
-  createWizard,
-  stepBuilders,
-  type WizardConfig,
-  type WizardResult,
-} from './wizard';
+export { Wizard, createWizard, stepBuilders, type WizardConfig, type WizardResult } from './wizard';

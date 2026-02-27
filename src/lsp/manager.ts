@@ -51,14 +51,20 @@ export class LSPManager {
    * This lazily starts the appropriate language server and sends the update.
    */
   async touchFile(filePath: string): Promise<void> {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      return;
+    }
 
     const config = getLanguageForFile(filePath);
-    if (!config) return;
+    if (!config) {
+      return;
+    }
 
     // Ensure the client is running
     const client = await this.ensureClient(config);
-    if (!client) return;
+    if (!client) {
+      return;
+    }
 
     // Read file content and bump version
     let content: string;
@@ -79,14 +85,23 @@ export class LSPManager {
    * Get diagnostics for a file.
    * Waits up to `delayMs` for the LSP to process and return results.
    */
-  async getDiagnostics(filePath: string, delayMs: number = DIAGNOSTIC_DELAY): Promise<Diagnostic[]> {
-    if (!this.enabled) return [];
+  async getDiagnostics(
+    filePath: string,
+    delayMs: number = DIAGNOSTIC_DELAY
+  ): Promise<Diagnostic[]> {
+    if (!this.enabled) {
+      return [];
+    }
 
     const config = getLanguageForFile(filePath);
-    if (!config) return [];
+    if (!config) {
+      return [];
+    }
 
     const client = this.clients.get(config.id);
-    if (!client?.isInitialized) return [];
+    if (!client?.isInitialized) {
+      return [];
+    }
 
     // Wait a brief moment for the LSP to process
     await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -106,12 +121,16 @@ export class LSPManager {
    * Format diagnostics as messages suitable for injection into the agent conversation.
    */
   formatDiagnosticsForAgent(diagnostics: Diagnostic[]): string | null {
-    if (diagnostics.length === 0) return null;
+    if (diagnostics.length === 0) {
+      return null;
+    }
 
     const errors = diagnostics.filter(d => d.severity === 1);
     const warnings = diagnostics.filter(d => d.severity === 2);
 
-    if (errors.length === 0 && warnings.length === 0) return null;
+    if (errors.length === 0 && warnings.length === 0) {
+      return null;
+    }
 
     const lines: string[] = ['[LSP Diagnostics]'];
     for (const d of errors) {
@@ -150,7 +169,9 @@ export class LSPManager {
     for (const [id, client] of this.clients) {
       await client.stop();
       const timer = this.idleTimers.get(id);
-      if (timer) clearTimeout(timer);
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
     this.clients.clear();
     this.idleTimers.clear();
@@ -173,15 +194,21 @@ export class LSPManager {
   /** Ensure a client exists and is initialized for the given language. */
   private async ensureClient(config: LanguageConfig): Promise<LSPClient | null> {
     const existing = this.clients.get(config.id);
-    if (existing?.isInitialized) return existing;
+    if (existing?.isInitialized) {
+      return existing;
+    }
 
     // Check if the binary is available
     const available = await this.isAvailable(config);
-    if (!available) return null;
+    if (!available) {
+      return null;
+    }
 
     const client = new LSPClient(config, this.rootUri);
     const started = await client.start();
-    if (!started) return null;
+    if (!started) {
+      return null;
+    }
 
     this.clients.set(config.id, client);
     this.resetIdleTimer(config.id);
@@ -201,7 +228,9 @@ export class LSPManager {
   /** Check if a language server binary is available in PATH. */
   private async isAvailable(config: LanguageConfig): Promise<boolean> {
     const cached = this.availabilityCache.get(config.id);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      return cached;
+    }
 
     try {
       await execAsync(`which ${config.command}`);
@@ -216,7 +245,9 @@ export class LSPManager {
   /** Reset the idle timer for a language server. */
   private resetIdleTimer(languageId: string): void {
     const existing = this.idleTimers.get(languageId);
-    if (existing) clearTimeout(existing);
+    if (existing) {
+      clearTimeout(existing);
+    }
 
     const config = LANGUAGE_CONFIGS.find(c => c.id === languageId);
     const timeout = config?.idleTimeout ?? DEFAULT_IDLE_TIMEOUT;

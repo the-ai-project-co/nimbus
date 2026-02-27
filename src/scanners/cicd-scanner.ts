@@ -153,22 +153,25 @@ export class CICDScanner implements Scanner {
     return detected.sort((a, b) => {
       const order: Record<ConfidenceLevel, number> = { high: 3, medium: 2, low: 1 };
       const confDiff = order[b.confidence] - order[a.confidence];
-      if (confDiff !== 0) return confDiff;
+      if (confDiff !== 0) {
+        return confDiff;
+      }
 
       // Prioritize CI/CD platforms over local build tools
       const buildTools = ['makefile', 'taskfile', 'justfile'];
       const aIsBuildTool = buildTools.includes(a.platform);
       const bIsBuildTool = buildTools.includes(b.platform);
-      if (aIsBuildTool && !bIsBuildTool) return 1;
-      if (!aIsBuildTool && bIsBuildTool) return -1;
+      if (aIsBuildTool && !bIsBuildTool) {
+        return 1;
+      }
+      if (!aIsBuildTool && bIsBuildTool) {
+        return -1;
+      }
       return 0;
     });
   }
 
-  private async detectCICDPlatform(
-    cwd: string,
-    pattern: CICDPattern
-  ): Promise<CICDInfo | null> {
+  private async detectCICDPlatform(cwd: string, pattern: CICDPattern): Promise<CICDInfo | null> {
     let confidence: ConfidenceLevel = 'low';
     const workflows: string[] = [];
 

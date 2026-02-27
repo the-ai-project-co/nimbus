@@ -35,7 +35,9 @@ export async function logoutCommand(options: LogoutOptions = {}): Promise<boolea
   ui.section('Current Authentication State');
 
   if (status.identity) {
-    ui.print(`  GitHub Identity: ${status.identity.username}${status.identity.name ? ` (${status.identity.name})` : ''}`);
+    ui.print(
+      `  GitHub Identity: ${status.identity.username}${status.identity.name ? ` (${status.identity.name})` : ''}`
+    );
   }
 
   if (status.providers.length > 0) {

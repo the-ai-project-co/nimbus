@@ -10,9 +10,9 @@ import {
   getShareUrl,
   cleanupExpiredShares,
   _deps,
+  type SharedSession,
 } from '../sharing/sync';
 import { generateShareViewer } from '../sharing/viewer';
-import type { SharedSession } from '../sharing/sync';
 
 // ---------------------------------------------------------------------------
 // Mock data
@@ -43,7 +43,7 @@ beforeEach(() => {
   _deps.getConversation = (id: string) =>
     id === 'test-session-id' ? { messages: mockMessages } : null;
   _deps.getSessionManager = () => ({
-    get: (id: string) => id === 'test-session-id' ? mockSession : null,
+    get: (id: string) => (id === 'test-session-id' ? mockSession : null),
   });
 });
 

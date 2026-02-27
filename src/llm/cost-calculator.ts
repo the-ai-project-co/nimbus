@@ -71,6 +71,36 @@ const PRICING: Record<string, Record<string, PricingEntry>> = {
   ollama: {
     // All local models are free
   },
+  groq: {
+    'llama-3.1-70b-versatile': [0.00059, 0.00079],
+    'llama-3.1-8b-instant': [0.00005, 0.00008],
+    'llama-3.3-70b-versatile': [0.00059, 0.00079],
+    'mixtral-8x7b-32768': [0.00024, 0.00024],
+    'gemma2-9b-it': [0.0002, 0.0002],
+  },
+  together: {
+    'meta-llama/Llama-3.1-70B-Instruct-Turbo': [0.00088, 0.00088],
+    'meta-llama/Llama-3.1-8B-Instruct-Turbo': [0.00018, 0.00018],
+    'meta-llama/Llama-3.3-70B-Instruct-Turbo': [0.00088, 0.00088],
+    'mistralai/Mixtral-8x22B-Instruct-v0.1': [0.0012, 0.0012],
+    'Qwen/Qwen2.5-72B-Instruct-Turbo': [0.0012, 0.0012],
+  },
+  deepseek: {
+    'deepseek-chat': [0.00014, 0.00028],
+    'deepseek-coder': [0.00014, 0.00028],
+    'deepseek-reasoner': [0.00055, 0.00219],
+  },
+  fireworks: {
+    'accounts/fireworks/models/llama-v3p1-70b-instruct': [0.0009, 0.0009],
+    'accounts/fireworks/models/llama-v3p1-8b-instruct': [0.0002, 0.0002],
+    'accounts/fireworks/models/mixtral-8x22b-instruct': [0.0009, 0.0009],
+    'accounts/fireworks/models/qwen2p5-72b-instruct': [0.0009, 0.0009],
+  },
+  perplexity: {
+    'llama-3.1-sonar-large-128k-online': [0.001, 0.001],
+    'llama-3.1-sonar-small-128k-online': [0.0002, 0.0002],
+    'llama-3.1-sonar-huge-128k-online': [0.005, 0.005],
+  },
   openrouter: {
     // OpenRouter models use provider/model format; prices approximate the underlying provider
     'anthropic/claude-sonnet-4-20250514': [0.003, 0.015],

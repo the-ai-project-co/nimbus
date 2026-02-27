@@ -9,8 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { homedir } from 'node:os';
 import { MCPClient, type MCPServerConfig } from './client';
-import type { ToolDefinition } from '../tools/schemas/types';
-import { ToolRegistry } from '../tools/schemas/types';
+import type { ToolDefinition, ToolRegistry } from '../tools/schemas/types';
 
 /** Configuration file format for MCP servers */
 export interface MCPConfig {
@@ -66,7 +65,8 @@ export class MCPManager {
     for (const [name, client] of this.clients) {
       if (!client.config.lazy) {
         connectPromises.push(
-          client.connect()
+          client
+            .connect()
             .then(() => client.listTools())
             .then(() => undefined)
             .catch((err: unknown) => {
@@ -117,8 +117,7 @@ export class MCPManager {
    * Disconnect all MCP servers.
    */
   async disconnectAll(): Promise<void> {
-    const disconnectPromises = Array.from(this.clients.values())
-      .map(client => client.disconnect());
+    const disconnectPromises = Array.from(this.clients.values()).map(client => client.disconnect());
     await Promise.all(disconnectPromises);
   }
 

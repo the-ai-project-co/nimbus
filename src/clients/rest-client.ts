@@ -91,11 +91,7 @@ export class RestClient {
           logger.warn(`Request timeout, retrying (${attempt + 1}/${this.retries})...`);
           return this.request<T>(method, path, body, attempt + 1);
         }
-        throw new TimeoutError(
-          `${method} ${path}`,
-          this.baseUrl,
-          this.timeout
-        );
+        throw new TimeoutError(`${method} ${path}`, this.baseUrl, this.timeout);
       }
 
       // Handle connection errors

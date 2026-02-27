@@ -56,7 +56,11 @@ export const PROVIDER_REGISTRY: Record<LLMProviderName, ProviderInfo> = {
     apiKeyUrl: 'https://openrouter.ai/keys',
     requiresApiKey: true,
     models: [
-      { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4 (via OpenRouter)', isDefault: true },
+      {
+        id: 'anthropic/claude-sonnet-4',
+        name: 'Claude Sonnet 4 (via OpenRouter)',
+        isDefault: true,
+      },
       { id: 'openai/gpt-4o', name: 'GPT-4o (via OpenRouter)' },
       { id: 'google/gemini-pro', name: 'Gemini Pro (via OpenRouter)' },
       { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B' },
@@ -74,6 +78,93 @@ export const PROVIDER_REGISTRY: Record<LLMProviderName, ProviderInfo> = {
       { id: 'codellama', name: 'CodeLlama' },
       { id: 'mistral', name: 'Mistral' },
       { id: 'deepseek-coder', name: 'DeepSeek Coder' },
+    ],
+  },
+  groq: {
+    name: 'groq',
+    displayName: 'Groq',
+    description: 'Ultra-fast inference: Llama 3, Mixtral',
+    envVarName: 'GROQ_API_KEY',
+    apiKeyUrl: 'https://console.groq.com/keys',
+    requiresApiKey: true,
+    models: [
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', isDefault: true },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant' },
+      { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B' },
+    ],
+  },
+  together: {
+    name: 'together',
+    displayName: 'Together AI',
+    description: 'Open-source models: Llama, CodeLlama, Mistral',
+    envVarName: 'TOGETHER_API_KEY',
+    apiKeyUrl: 'https://api.together.xyz/settings/api-keys',
+    requiresApiKey: true,
+    models: [
+      {
+        id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+        name: 'Llama 3.3 70B Turbo',
+        isDefault: true,
+      },
+      { id: 'meta-llama/Llama-3.1-8B-Instruct-Turbo', name: 'Llama 3.1 8B Turbo' },
+      { id: 'mistralai/Mixtral-8x7B-Instruct-v0.1', name: 'Mixtral 8x7B' },
+    ],
+  },
+  deepseek: {
+    name: 'deepseek',
+    displayName: 'DeepSeek',
+    description: 'DeepSeek V3, DeepSeek Coder',
+    envVarName: 'DEEPSEEK_API_KEY',
+    apiKeyUrl: 'https://platform.deepseek.com/api_keys',
+    requiresApiKey: true,
+    models: [
+      { id: 'deepseek-chat', name: 'DeepSeek V3', isDefault: true },
+      { id: 'deepseek-coder', name: 'DeepSeek Coder' },
+    ],
+  },
+  fireworks: {
+    name: 'fireworks',
+    displayName: 'Fireworks AI',
+    description: 'Fast inference: Llama, Mixtral, FireFunction',
+    envVarName: 'FIREWORKS_API_KEY',
+    apiKeyUrl: 'https://fireworks.ai/api-keys',
+    requiresApiKey: true,
+    models: [
+      {
+        id: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+        name: 'Llama 3.3 70B',
+        isDefault: true,
+      },
+      { id: 'accounts/fireworks/models/mixtral-8x7b-instruct', name: 'Mixtral 8x7B' },
+    ],
+  },
+  perplexity: {
+    name: 'perplexity',
+    displayName: 'Perplexity',
+    description: 'Search-augmented AI: Sonar models',
+    envVarName: 'PERPLEXITY_API_KEY',
+    apiKeyUrl: 'https://www.perplexity.ai/settings/api',
+    requiresApiKey: true,
+    models: [
+      { id: 'sonar-pro', name: 'Sonar Pro', isDefault: true },
+      { id: 'sonar', name: 'Sonar' },
+    ],
+  },
+  bedrock: {
+    name: 'bedrock',
+    displayName: 'AWS Bedrock',
+    description: 'Claude via AWS Bedrock (uses IAM credentials)',
+    envVarName: 'AWS_ACCESS_KEY_ID',
+    requiresApiKey: false,
+    supportsBaseUrl: true,
+    defaultBaseUrl: 'us-east-1',
+    models: [
+      {
+        id: 'anthropic.claude-sonnet-4-20250514-v1:0',
+        name: 'Claude Sonnet 4 (Bedrock)',
+        isDefault: true,
+      },
+      { id: 'anthropic.claude-haiku-4-20250514-v1:0', name: 'Claude Haiku 4 (Bedrock)' },
     ],
   },
 };
@@ -97,7 +188,7 @@ export function getProviderNames(): LLMProviderName[] {
  */
 export function getDefaultModel(name: LLMProviderName): string {
   const info = PROVIDER_REGISTRY[name];
-  const defaultModel = info.models.find((m) => m.isDefault);
+  const defaultModel = info.models.find(m => m.isDefault);
   return defaultModel?.id || info.models[0].id;
 }
 
@@ -122,6 +213,21 @@ export async function validateProviderApiKey(
         return await validateOpenRouter(apiKey);
       case 'ollama':
         return await validateOllama(baseUrl);
+      case 'groq':
+        return await validateOpenAICompatible(apiKey, 'https://api.groq.com/openai/v1/models');
+      case 'together':
+        return await validateOpenAICompatible(apiKey, 'https://api.together.xyz/v1/models');
+      case 'deepseek':
+        return await validateOpenAICompatible(apiKey, 'https://api.deepseek.com/v1/models');
+      case 'fireworks':
+        return await validateOpenAICompatible(
+          apiKey,
+          'https://api.fireworks.ai/inference/v1/models'
+        );
+      case 'perplexity':
+        return await validateOpenAICompatible(apiKey, 'https://api.perplexity.ai/models');
+      case 'bedrock':
+        return await validateBedrock(baseUrl);
       default:
         return { valid: false, error: `Unknown provider: ${provider}` };
     }
@@ -195,7 +301,7 @@ async function validateOpenAI(apiKey?: string): Promise<ProviderValidationResult
 
   if (response.ok) {
     const data = (await response.json()) as { data?: Array<{ id: string }> };
-    const models = data.data?.map((m) => m.id) || [];
+    const models = data.data?.map(m => m.id) || [];
     return { valid: true, models };
   }
 
@@ -225,7 +331,7 @@ async function validateGoogle(apiKey?: string): Promise<ProviderValidationResult
 
   if (response.ok) {
     const data = (await response.json()) as { models?: Array<{ name: string }> };
-    const models = data.models?.map((m) => m.name) || [];
+    const models = data.models?.map(m => m.name) || [];
     return { valid: true, models };
   }
 
@@ -255,11 +361,44 @@ async function validateOpenRouter(apiKey?: string): Promise<ProviderValidationRe
 
   if (response.ok) {
     const data = (await response.json()) as { data?: Array<{ id: string }> };
-    const models = data.data?.map((m) => m.id) || [];
+    const models = data.data?.map(m => m.id) || [];
     return { valid: true, models };
   }
 
   if (response.status === 401) {
+    return { valid: false, error: 'Invalid API key' };
+  }
+
+  const errorText = await response.text().catch(() => 'Unknown error');
+  return { valid: false, error: `API error: ${response.status} - ${errorText}` };
+}
+
+/**
+ * Validate OpenAI-compatible provider API key
+ * Uses GET /v1/models (or equivalent) with Bearer auth
+ */
+async function validateOpenAICompatible(
+  apiKey?: string,
+  modelsUrl?: string
+): Promise<ProviderValidationResult> {
+  if (!apiKey) {
+    return { valid: false, error: 'API key is required' };
+  }
+
+  const url = modelsUrl || 'https://api.openai.com/v1/models';
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+
+  if (response.ok) {
+    return { valid: true };
+  }
+
+  if (response.status === 401 || response.status === 403) {
     return { valid: false, error: 'Invalid API key' };
   }
 
@@ -281,7 +420,7 @@ async function validateOllama(baseUrl?: string): Promise<ProviderValidationResul
 
     if (response.ok) {
       const data = (await response.json()) as { models?: Array<{ name: string }> };
-      const models = data.models?.map((m) => m.name) || [];
+      const models = data.models?.map(m => m.name) || [];
       return { valid: true, models };
     }
 
@@ -296,4 +435,36 @@ async function validateOllama(baseUrl?: string): Promise<ProviderValidationResul
     }
     throw error;
   }
+}
+
+/**
+ * Validate AWS Bedrock credentials
+ * Checks for AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env vars,
+ * or AWS credentials file (~/.aws/credentials).
+ */
+async function validateBedrock(_region?: string): Promise<ProviderValidationResult> {
+  const hasAccessKey = !!process.env.AWS_ACCESS_KEY_ID;
+  const hasSecretKey = !!process.env.AWS_SECRET_ACCESS_KEY;
+  const hasProfile = !!process.env.AWS_PROFILE;
+
+  // Check for AWS credentials file
+  const fs = await import('fs');
+  const path = await import('path');
+  const os = await import('os');
+  const credentialsPath = path.join(os.homedir(), '.aws', 'credentials');
+  const hasCredentialsFile = fs.existsSync(credentialsPath);
+
+  if (hasAccessKey && hasSecretKey) {
+    return { valid: true };
+  }
+
+  if (hasProfile || hasCredentialsFile) {
+    return { valid: true };
+  }
+
+  return {
+    valid: false,
+    error:
+      'AWS credentials not found. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or configure ~/.aws/credentials.',
+  };
 }

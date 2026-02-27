@@ -3,7 +3,6 @@
  * Resume a task from its last checkpoint
  */
 
-import { logger } from '../utils';
 import { ui } from '../wizard/ui';
 import { CoreEngineClient } from '../clients/core-engine-client';
 
@@ -12,9 +11,7 @@ export interface ResumeOptions {
 }
 
 export async function resumeCommand(taskIdOrOptions: string | ResumeOptions = {}): Promise<void> {
-  const taskId = typeof taskIdOrOptions === 'string'
-    ? taskIdOrOptions
-    : taskIdOrOptions.taskId;
+  const taskId = typeof taskIdOrOptions === 'string' ? taskIdOrOptions : taskIdOrOptions.taskId;
 
   if (!taskId) {
     ui.error('Task ID is required. Usage: nimbus resume <task-id>');

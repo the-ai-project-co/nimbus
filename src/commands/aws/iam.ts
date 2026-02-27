@@ -93,10 +93,7 @@ async function listUsers(options: AwsCommandOptions): Promise<void> {
   ui.startSpinner({ message: 'Fetching IAM users...' });
 
   try {
-    const result = await runAwsCommand<{ Users: IAMUser[] }>(
-      'iam list-users',
-      options
-    );
+    const result = await runAwsCommand<{ Users: IAMUser[] }>('iam list-users', options);
 
     const users = result.Users || [];
 
@@ -133,10 +130,7 @@ async function listRoles(options: AwsCommandOptions): Promise<void> {
   ui.startSpinner({ message: 'Fetching IAM roles...' });
 
   try {
-    const result = await runAwsCommand<{ Roles: IAMRole[] }>(
-      'iam list-roles',
-      options
-    );
+    const result = await runAwsCommand<{ Roles: IAMRole[] }>('iam list-roles', options);
 
     const roles = result.Roles || [];
 
@@ -252,7 +246,9 @@ async function describeUser(userName: string, options: AwsCommandOptions): Promi
     ui.print(`  User ID:         ${user.UserId}`);
     ui.print(`  ARN:             ${user.Arn}`);
     ui.print(`  Created:         ${new Date(user.CreateDate).toLocaleString()}`);
-    ui.print(`  Last Login:      ${user.PasswordLastUsed ? new Date(user.PasswordLastUsed).toLocaleString() : 'Never'}`);
+    ui.print(
+      `  Last Login:      ${user.PasswordLastUsed ? new Date(user.PasswordLastUsed).toLocaleString() : 'Never'}`
+    );
 
     if (groups.length > 0) {
       ui.newLine();
@@ -291,7 +287,14 @@ async function describeRole(roleName: string, options: AwsCommandOptions): Promi
     const role = roleData.Role;
 
     // Get attached policies
-    const policyArgs = ['iam', 'list-attached-role-policies', '--role-name', roleName, '--output', 'json'];
+    const policyArgs = [
+      'iam',
+      'list-attached-role-policies',
+      '--role-name',
+      roleName,
+      '--output',
+      'json',
+    ];
     if (options.profile) {
       policyArgs.push('--profile', options.profile);
     }

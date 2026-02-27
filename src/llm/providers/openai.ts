@@ -7,12 +7,13 @@ import OpenAI from 'openai';
 import { encode } from 'gpt-tokenizer';
 import {
   BaseProvider,
-  CompletionRequest,
-  LLMMessage,
-  LLMResponse,
-  StreamChunk,
-  ToolCall,
-  ToolCompletionRequest,
+  getTextContent,
+  type CompletionRequest,
+  type LLMMessage,
+  type LLMResponse,
+  type StreamChunk,
+  type ToolCall,
+  type ToolCompletionRequest,
 } from '../types';
 import { getProviderApiKey } from '../auth-bridge';
 
@@ -47,7 +48,7 @@ export class OpenAIProvider extends BaseProvider {
 
     return {
       content: choice.message.content || '',
-      toolCalls: choice.message.tool_calls?.map(this.convertToolCall),
+      toolCalls: choice.message.tool_calls?.map(tc => this.convertToolCall(tc)),
       usage: {
         promptTokens: response.usage?.prompt_tokens || 0,
         completionTokens: response.usage?.completion_tokens || 0,
@@ -68,13 +69,12 @@ export class OpenAIProvider extends BaseProvider {
       temperature: request.temperature,
       stop: request.stopSequences,
       stream: true,
+      stream_options: { include_usage: true },
     });
 
     // Accumulator for tool calls across chunks
-    const toolCallAccumulator = new Map<
-      number,
-      { id: string; name: string; arguments: string }
-    >();
+    const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
+    let usage: StreamChunk['usage'] | undefined;
 
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta;
@@ -88,7 +88,7 @@ export class OpenAIProvider extends BaseProvider {
       }
 
       if (delta?.tool_calls) {
-        // Accumulate tool calls across chunks
+        // Accumulate tool calls across chunks (do not yield until done)
         for (const tc of delta.tool_calls) {
           const index = tc.index ?? 0;
           const existing = toolCallAccumulator.get(index);
@@ -107,38 +107,28 @@ export class OpenAIProvider extends BaseProvider {
             });
           }
         }
-
-        // Yield accumulated tool calls
-        const toolCalls = Array.from(toolCallAccumulator.values()).map((tc) => ({
-          id: tc.id,
-          type: 'function' as const,
-          function: {
-            name: tc.name,
-            arguments: tc.arguments,
-          },
-        }));
-
-        yield {
-          done: false,
-          toolCalls,
-        };
       }
 
-      // Capture usage from streaming chunks if available
-      const chunkUsage = (chunk as any).usage;
-      if (chunkUsage) {
-        yield {
-          done: false,
-          usage: {
-            promptTokens: chunkUsage.prompt_tokens || 0,
-            completionTokens: chunkUsage.completion_tokens || 0,
-            totalTokens: chunkUsage.total_tokens || 0,
-          },
+      // Accumulate usage (do not yield until done)
+      if (chunk.usage) {
+        usage = {
+          promptTokens: chunk.usage.prompt_tokens || 0,
+          completionTokens: chunk.usage.completion_tokens || 0,
+          totalTokens: chunk.usage.total_tokens || 0,
         };
       }
 
       if (finishReason) {
-        yield { done: true };
+        const toolCalls =
+          toolCallAccumulator.size > 0
+            ? Array.from(toolCallAccumulator.values()).map(tc => ({
+                id: tc.id,
+                type: 'function' as const,
+                function: { name: tc.name, arguments: tc.arguments },
+              }))
+            : undefined;
+        yield { done: true, toolCalls, usage };
+        return;
       }
     }
   }
@@ -149,7 +139,7 @@ export class OpenAIProvider extends BaseProvider {
     const response = await this.client.chat.completions.create({
       model: request.model || this.defaultModel,
       messages,
-      tools: request.tools.map((t) => ({
+      tools: request.tools.map(t => ({
         type: 'function' as const,
         function: {
           name: t.function.name,
@@ -169,7 +159,7 @@ export class OpenAIProvider extends BaseProvider {
 
     return {
       content: choice.message.content || '',
-      toolCalls: choice.message.tool_calls?.map(this.convertToolCall),
+      toolCalls: choice.message.tool_calls?.map(tc => this.convertToolCall(tc)),
       usage: {
         promptTokens: response.usage?.prompt_tokens || 0,
         completionTokens: response.usage?.completion_tokens || 0,
@@ -178,6 +168,79 @@ export class OpenAIProvider extends BaseProvider {
       model: response.model,
       finishReason: this.mapFinishReason(choice.finish_reason),
     };
+  }
+
+  async *streamWithTools(request: ToolCompletionRequest): AsyncIterable<StreamChunk> {
+    const messages = this.convertMessages(request.messages);
+
+    const stream = await this.client.chat.completions.create({
+      model: request.model || this.defaultModel,
+      messages,
+      tools: request.tools.map(t => ({
+        type: 'function' as const,
+        function: {
+          name: t.function.name,
+          description: t.function.description,
+          parameters: t.function.parameters,
+        },
+      })),
+      tool_choice: request.toolChoice,
+      max_tokens: request.maxTokens,
+      temperature: request.temperature,
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+
+    const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
+    let usage: StreamChunk['usage'] | undefined;
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta;
+      const finishReason = chunk.choices[0]?.finish_reason;
+
+      if (delta?.content) {
+        yield { content: delta.content, done: false };
+      }
+
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const index = tc.index ?? 0;
+          const existing = toolCallAccumulator.get(index);
+          if (existing) {
+            if (tc.function?.arguments) {
+              existing.arguments += tc.function.arguments;
+            }
+          } else {
+            toolCallAccumulator.set(index, {
+              id: tc.id || '',
+              name: tc.function?.name || '',
+              arguments: tc.function?.arguments || '',
+            });
+          }
+        }
+      }
+
+      if (chunk.usage) {
+        usage = {
+          promptTokens: chunk.usage.prompt_tokens || 0,
+          completionTokens: chunk.usage.completion_tokens || 0,
+          totalTokens: chunk.usage.total_tokens || 0,
+        };
+      }
+
+      if (finishReason) {
+        const toolCalls =
+          toolCallAccumulator.size > 0
+            ? Array.from(toolCallAccumulator.values()).map(tc => ({
+                id: tc.id,
+                type: 'function' as const,
+                function: { name: tc.name, arguments: tc.arguments },
+              }))
+            : undefined;
+        yield { done: true, toolCalls, usage };
+        return;
+      }
+    }
   }
 
   async countTokens(text: string): Promise<number> {
@@ -214,12 +277,12 @@ export class OpenAIProvider extends BaseProvider {
    * Convert messages to OpenAI format
    */
   private convertMessages(messages: LLMMessage[]): OpenAI.ChatCompletionMessageParam[] {
-    return messages.map((m) => {
+    return messages.map(m => {
       if (m.role === 'tool') {
         // Tool result message
         return {
           role: 'tool' as const,
-          content: m.content,
+          content: getTextContent(m.content),
           tool_call_id: m.toolCallId!,
         };
       }
@@ -228,8 +291,8 @@ export class OpenAIProvider extends BaseProvider {
         // Assistant message with tool calls
         return {
           role: 'assistant' as const,
-          content: m.content || null,
-          tool_calls: m.toolCalls.map((tc) => ({
+          content: getTextContent(m.content) || null,
+          tool_calls: m.toolCalls.map(tc => ({
             id: tc.id,
             type: 'function' as const,
             function: {
@@ -243,7 +306,7 @@ export class OpenAIProvider extends BaseProvider {
       // Regular message
       return {
         role: m.role as 'system' | 'user' | 'assistant',
-        content: m.content,
+        content: getTextContent(m.content),
       };
     });
   }
@@ -251,13 +314,14 @@ export class OpenAIProvider extends BaseProvider {
   /**
    * Convert OpenAI tool call to standard format
    */
-  private convertToolCall(tc: any): ToolCall {
+  private convertToolCall(tc: OpenAI.Chat.Completions.ChatCompletionMessageToolCall): ToolCall {
+    const fn = 'function' in tc ? tc.function : { name: '', arguments: '{}' };
     return {
       id: tc.id,
       type: 'function',
       function: {
-        name: tc.function.name,
-        arguments: tc.function.arguments,
+        name: fn.name,
+        arguments: fn.arguments,
       },
     };
   }

@@ -81,8 +81,7 @@ describe('OpenAPI Spec', () => {
     const sessionsGet = paths['/api/sessions'].get;
     expect(sessionsGet.operationId).toBe('listSessions');
 
-    const responseSchema =
-      sessionsGet.responses['200'].content['application/json'].schema;
+    const responseSchema = sessionsGet.responses['200'].content['application/json'].schema;
     expect(responseSchema.properties.sessions.type).toBe('array');
   });
 
@@ -91,8 +90,7 @@ describe('OpenAPI Spec', () => {
     const healthGet = paths['/api/health'].get;
     expect(healthGet.operationId).toBe('getHealth');
 
-    const schema =
-      healthGet.responses['200'].content['application/json'].schema;
+    const schema = healthGet.responses['200'].content['application/json'].schema;
     expect(schema.properties.status.enum).toEqual(['ok']);
     expect(schema.properties.uptime.type).toBe('number');
     expect(schema.properties.db.type).toBe('boolean');
@@ -161,7 +159,7 @@ describe('Auth Middleware', () => {
   function invokeMiddleware(
     url: string,
     method = 'POST',
-    headers: Record<string, string> = {},
+    headers: Record<string, string> = {}
   ): { result: { error: string } | undefined; set: any } {
     const request = new Request(url, { method, headers });
     const set: any = {};
@@ -172,93 +170,70 @@ describe('Auth Middleware', () => {
   // -- Public endpoints bypass auth --
 
   it('should skip auth for GET /api/health', () => {
-    const { result } = invokeMiddleware(
-      'http://localhost:4200/api/health',
-      'GET',
-    );
+    const { result } = invokeMiddleware('http://localhost:4200/api/health', 'GET');
     expect(result).toBeUndefined();
   });
 
   it('should skip auth for GET /api/openapi.json', () => {
-    const { result } = invokeMiddleware(
-      'http://localhost:4200/api/openapi.json',
-      'GET',
-    );
+    const { result } = invokeMiddleware('http://localhost:4200/api/openapi.json', 'GET');
     expect(result).toBeUndefined();
   });
 
   it('should skip auth for CORS OPTIONS preflight', () => {
-    const { result } = invokeMiddleware(
-      'http://localhost:4200/api/chat',
-      'OPTIONS',
-    );
+    const { result } = invokeMiddleware('http://localhost:4200/api/chat', 'OPTIONS');
     expect(result).toBeUndefined();
   });
 
   // -- Protected endpoints require auth --
 
   it('should reject requests without Authorization header', () => {
-    const { result, set } = invokeMiddleware(
-      'http://localhost:4200/api/chat',
-    );
+    const { result, set } = invokeMiddleware('http://localhost:4200/api/chat');
     expect(set.status).toBe(401);
     expect(result).toEqual({ error: 'Authentication required' });
     expect(set.headers['WWW-Authenticate']).toBe('Basic realm="Nimbus API"');
   });
 
   it('should reject requests with invalid credentials', () => {
-    const { result, set } = invokeMiddleware(
-      'http://localhost:4200/api/chat',
-      'POST',
-      { Authorization: `Basic ${btoa('wrong:creds')}` },
-    );
+    const { result, set } = invokeMiddleware('http://localhost:4200/api/chat', 'POST', {
+      Authorization: `Basic ${btoa('wrong:creds')}`,
+    });
     expect(set.status).toBe(401);
     expect(result).toEqual({ error: 'Invalid credentials' });
   });
 
   it('should reject requests with malformed Authorization header', () => {
-    const { result, set } = invokeMiddleware(
-      'http://localhost:4200/api/chat',
-      'POST',
-      { Authorization: 'Bearer some-token' },
-    );
+    const { result, set } = invokeMiddleware('http://localhost:4200/api/chat', 'POST', {
+      Authorization: 'Bearer some-token',
+    });
     expect(set.status).toBe(401);
     expect(result).toEqual({ error: 'Invalid credentials' });
   });
 
   it('should allow requests with valid credentials', () => {
-    const { result } = invokeMiddleware(
-      'http://localhost:4200/api/chat',
-      'POST',
-      { Authorization: `Basic ${btoa('admin:secret')}` },
-    );
+    const { result } = invokeMiddleware('http://localhost:4200/api/chat', 'POST', {
+      Authorization: `Basic ${btoa('admin:secret')}`,
+    });
     expect(result).toBeUndefined();
   });
 
   it('should allow valid credentials for session endpoints', () => {
-    const { result } = invokeMiddleware(
-      'http://localhost:4200/api/session/abc-123',
-      'GET',
-      { Authorization: `Basic ${btoa('admin:secret')}` },
-    );
+    const { result } = invokeMiddleware('http://localhost:4200/api/session/abc-123', 'GET', {
+      Authorization: `Basic ${btoa('admin:secret')}`,
+    });
     expect(result).toBeUndefined();
   });
 
   it('should allow valid credentials for the run endpoint', () => {
-    const { result } = invokeMiddleware(
-      'http://localhost:4200/api/run',
-      'POST',
-      { Authorization: `Basic ${btoa('admin:secret')}` },
-    );
+    const { result } = invokeMiddleware('http://localhost:4200/api/run', 'POST', {
+      Authorization: `Basic ${btoa('admin:secret')}`,
+    });
     expect(result).toBeUndefined();
   });
 
   it('should allow valid credentials for the sessions list endpoint', () => {
-    const { result } = invokeMiddleware(
-      'http://localhost:4200/api/sessions',
-      'GET',
-      { Authorization: `Basic ${btoa('admin:secret')}` },
-    );
+    const { result } = invokeMiddleware('http://localhost:4200/api/sessions', 'GET', {
+      Authorization: `Basic ${btoa('admin:secret')}`,
+    });
     expect(result).toBeUndefined();
   });
 });
@@ -294,7 +269,7 @@ describe('Auth Middleware — edge cases', () => {
       headers: { Authorization: '' },
     });
     const set: any = {};
-    const result = mw({ request, set });
+    const _result = mw({ request, set });
     expect(set.status).toBe(401);
   });
 });

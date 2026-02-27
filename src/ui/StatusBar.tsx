@@ -2,10 +2,10 @@
  * StatusBar Component
  *
  * A single-line footer that shows the active agent mode, token usage with a
- * percentage bar, estimated cost, and snapshot count.
+ * percentage bar, estimated cost, snapshot count, and elapsed processing time.
  *
  * Layout:
- *   [Plan] [Build] [Deploy] | Tokens: 45.2k/200k (22%) | Cost: $0.03 | Snapshots: 3
+ *   [Plan] [Build] [Deploy] | Tokens: 45.2k/200k (22%) | Cost: $0.03 | Snapshots: 3 | 12s
  *
  * Token percentage colour:
  *   green  < 50%
@@ -13,13 +13,17 @@
  *   red    > 80%
  */
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text } from 'ink';
 import type { SessionInfo, AgentMode } from './types';
 
 /** Props accepted by the StatusBar component. */
 export interface StatusBarProps {
   session: SessionInfo;
+  /** Whether the agent is currently processing a request. */
+  isProcessing?: boolean;
+  /** Timestamp (Date.now()) when processing started. Null when idle. */
+  processingStartTime?: number | null;
 }
 
 /** All modes in display order. */
@@ -42,8 +46,12 @@ function formatTokens(count: number): string {
  * Pick the colour for the token percentage indicator.
  */
 function tokenColor(pct: number): string {
-  if (pct > 80) return 'red';
-  if (pct >= 50) return 'yellow';
+  if (pct > 80) {
+    return 'red';
+  }
+  if (pct >= 50) {
+    return 'yellow';
+  }
   return 'green';
 }
 
@@ -67,14 +75,45 @@ function ModeBadge({ mode, active }: { mode: AgentMode; active: boolean }) {
 /**
  * StatusBar renders the bottom status line of the TUI.
  */
-export function StatusBar({ session }: StatusBarProps) {
-  const pct = session.maxTokens > 0
-    ? Math.round((session.tokenCount / session.maxTokens) * 100)
-    : 0;
+export function StatusBar({
+  session,
+  isProcessing = false,
+  processingStartTime = null,
+}: StatusBarProps) {
+  const pct =
+    session.maxTokens > 0 ? Math.round((session.tokenCount / session.maxTokens) * 100) : 0;
   const pctColor = tokenColor(pct);
-  const costStr = session.costUSD < 0.01 && session.costUSD > 0
-    ? `$${session.costUSD.toFixed(4)}`
-    : `$${session.costUSD.toFixed(2)}`;
+  const costStr =
+    session.costUSD < 0.01 && session.costUSD > 0
+      ? `$${session.costUSD.toFixed(4)}`
+      : `$${session.costUSD.toFixed(2)}`;
+
+  // Elapsed time counter
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isProcessing && processingStartTime) {
+      // Immediately calculate current elapsed
+      setElapsedSeconds(Math.floor((Date.now() - processingStartTime) / 1000));
+
+      intervalRef.current = setInterval(() => {
+        setElapsedSeconds(Math.floor((Date.now() - processingStartTime) / 1000));
+      }, 1000);
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+      };
+    } else {
+      setElapsedSeconds(0);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+  }, [isProcessing, processingStartTime]);
 
   return (
     <Box
@@ -86,12 +125,12 @@ export function StatusBar({ session }: StatusBarProps) {
     >
       {/* Mode badges */}
       <Box>
-        {MODES.map((m) => (
+        {MODES.map(m => (
           <ModeBadge key={m} mode={m} active={m === session.mode} />
         ))}
       </Box>
 
-      {/* Metrics */}
+      {/* Metrics + keyboard hints */}
       <Box>
         <Text dimColor>Tokens: </Text>
         <Text color={pctColor}>
@@ -101,6 +140,18 @@ export function StatusBar({ session }: StatusBarProps) {
         <Text>{costStr}</Text>
         <Text dimColor> | Snapshots: </Text>
         <Text>{String(session.snapshotCount)}</Text>
+        {isProcessing && elapsedSeconds > 0 && (
+          <>
+            <Text dimColor> | </Text>
+            <Text color="cyan">{elapsedSeconds}s</Text>
+          </>
+        )}
+        <Text dimColor> | Tab</Text>
+        <Text dimColor>:mode </Text>
+        <Text dimColor>Esc</Text>
+        <Text dimColor>:cancel </Text>
+        <Text dimColor>^C</Text>
+        <Text dimColor>:exit</Text>
       </Box>
     </Box>
   );

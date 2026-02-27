@@ -16,14 +16,21 @@ import * as path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const _execAsync = promisify(exec);
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 /** Detected language / runtime of the project */
-export type ProjectType = 'typescript' | 'javascript' | 'go' | 'python' | 'rust' | 'java' | 'unknown';
+export type ProjectType =
+  | 'typescript'
+  | 'javascript'
+  | 'go'
+  | 'python'
+  | 'rust'
+  | 'java'
+  | 'unknown';
 
 /** Infrastructure tool category */
 export type InfraType = 'terraform' | 'kubernetes' | 'helm' | 'docker' | 'cicd';
@@ -120,15 +127,19 @@ function findFiles(
   dir: string,
   predicate: (name: string) => boolean,
   maxDepth = 3,
-  limit = 50,
+  limit = 50
 ): string[] {
   const results: string[] = [];
 
   function walk(current: string, depth: number): void {
-    if (depth > maxDepth || results.length >= limit) return;
+    if (depth > maxDepth || results.length >= limit) {
+      return;
+    }
 
     for (const entry of listDir(current)) {
-      if (results.length >= limit) return;
+      if (results.length >= limit) {
+        return;
+      }
 
       // Skip heavy directories that would slow detection
       if (entry === 'node_modules' || entry === '.git' || entry === 'dist' || entry === 'vendor') {
@@ -165,9 +176,15 @@ function findFiles(
  */
 export function detectProjectType(dir: string): ProjectType {
   try {
-    if (exists(path.join(dir, 'tsconfig.json'))) return 'typescript';
-    if (exists(path.join(dir, 'package.json'))) return 'javascript';
-    if (exists(path.join(dir, 'go.mod'))) return 'go';
+    if (exists(path.join(dir, 'tsconfig.json'))) {
+      return 'typescript';
+    }
+    if (exists(path.join(dir, 'package.json'))) {
+      return 'javascript';
+    }
+    if (exists(path.join(dir, 'go.mod'))) {
+      return 'go';
+    }
     if (
       exists(path.join(dir, 'pyproject.toml')) ||
       exists(path.join(dir, 'setup.py')) ||
@@ -175,7 +192,9 @@ export function detectProjectType(dir: string): ProjectType {
     ) {
       return 'python';
     }
-    if (exists(path.join(dir, 'Cargo.toml'))) return 'rust';
+    if (exists(path.join(dir, 'Cargo.toml'))) {
+      return 'rust';
+    }
     if (
       exists(path.join(dir, 'pom.xml')) ||
       exists(path.join(dir, 'build.gradle')) ||
@@ -201,7 +220,7 @@ export function detectInfrastructure(dir: string): InfraType[] {
 
   try {
     // Terraform -- look for any .tf files
-    const tfFiles = findFiles(dir, (name) => name.endsWith('.tf'), 3, 5);
+    const tfFiles = findFiles(dir, name => name.endsWith('.tf'), 3, 5);
     if (tfFiles.length > 0) {
       found.add('terraform');
     }
@@ -209,9 +228,9 @@ export function detectInfrastructure(dir: string): InfraType[] {
     // Kubernetes -- look for YAML files containing common K8s markers
     const yamlFiles = findFiles(
       dir,
-      (name) => name.endsWith('.yaml') || name.endsWith('.yml'),
+      name => name.endsWith('.yaml') || name.endsWith('.yml'),
       3,
-      30,
+      30
     );
     for (const yamlFile of yamlFiles) {
       const content = readText(yamlFile);
@@ -226,7 +245,7 @@ export function detectInfrastructure(dir: string): InfraType[] {
     }
 
     // Helm
-    if (findFiles(dir, (name) => name === 'Chart.yaml', 3, 1).length > 0) {
+    if (findFiles(dir, name => name === 'Chart.yaml', 3, 1).length > 0) {
       found.add('helm');
     }
 
@@ -234,10 +253,7 @@ export function detectInfrastructure(dir: string): InfraType[] {
     const entries = listDir(dir);
     if (
       entries.some(
-        (e) =>
-          e === 'Dockerfile' ||
-          e === 'docker-compose.yml' ||
-          e === 'docker-compose.yaml',
+        e => e === 'Dockerfile' || e === 'docker-compose.yml' || e === 'docker-compose.yaml'
       )
     ) {
       found.add('docker');
@@ -245,7 +261,9 @@ export function detectInfrastructure(dir: string): InfraType[] {
     // Also check for a docker/ directory with Dockerfiles
     if (exists(path.join(dir, 'docker'))) {
       const dockerDir = listDir(path.join(dir, 'docker'));
-      if (dockerDir.some((e) => e.startsWith('Dockerfile') || e.endsWith('.yml') || e.endsWith('.yaml'))) {
+      if (
+        dockerDir.some(e => e.startsWith('Dockerfile') || e.endsWith('.yml') || e.endsWith('.yaml'))
+      ) {
         found.add('docker');
       }
     }
@@ -277,7 +295,7 @@ export function detectCloudProviders(dir: string): CloudProvider[] {
 
   try {
     // --- Scan Terraform files for provider blocks ---
-    const tfFiles = findFiles(dir, (name) => name.endsWith('.tf'), 3, 20);
+    const tfFiles = findFiles(dir, name => name.endsWith('.tf'), 3, 20);
 
     for (const tfFile of tfFiles) {
       const content = readText(tfFile);
@@ -307,7 +325,10 @@ export function detectCloudProviders(dir: string): CloudProvider[] {
     // --- Check local credential files ---
     const home = process.env['HOME'] ?? process.env['USERPROFILE'] ?? '';
     if (home) {
-      if (exists(path.join(home, '.aws', 'credentials')) || exists(path.join(home, '.aws', 'config'))) {
+      if (
+        exists(path.join(home, '.aws', 'credentials')) ||
+        exists(path.join(home, '.aws', 'config'))
+      ) {
         found.add('aws');
       }
       if (exists(path.join(home, '.config', 'gcloud'))) {
@@ -332,10 +353,18 @@ export function detectCloudProviders(dir: string): CloudProvider[] {
  */
 export function detectPackageManager(dir: string): 'npm' | 'yarn' | 'pnpm' | 'bun' | undefined {
   try {
-    if (exists(path.join(dir, 'bun.lock')) || exists(path.join(dir, 'bun.lockb'))) return 'bun';
-    if (exists(path.join(dir, 'yarn.lock'))) return 'yarn';
-    if (exists(path.join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
-    if (exists(path.join(dir, 'package-lock.json'))) return 'npm';
+    if (exists(path.join(dir, 'bun.lock')) || exists(path.join(dir, 'bun.lockb'))) {
+      return 'bun';
+    }
+    if (exists(path.join(dir, 'yarn.lock'))) {
+      return 'yarn';
+    }
+    if (exists(path.join(dir, 'pnpm-lock.yaml'))) {
+      return 'pnpm';
+    }
+    if (exists(path.join(dir, 'package-lock.json'))) {
+      return 'npm';
+    }
   } catch {
     // fall through
   }
@@ -352,7 +381,9 @@ export function detectPackageManager(dir: string): 'npm' | 'yarn' | 'pnpm' | 'bu
 export function detectTestFramework(dir: string): string | undefined {
   try {
     const pkgPath = path.join(dir, 'package.json');
-    if (!exists(pkgPath)) return undefined;
+    if (!exists(pkgPath)) {
+      return undefined;
+    }
 
     const pkg = JSON.parse(readText(pkgPath)) as Record<string, unknown>;
     const allDeps = {
@@ -360,10 +391,18 @@ export function detectTestFramework(dir: string): string | undefined {
       ...(pkg['devDependencies'] as Record<string, string> | undefined),
     };
 
-    if ('vitest' in allDeps) return 'vitest';
-    if ('jest' in allDeps) return 'jest';
-    if ('mocha' in allDeps) return 'mocha';
-    if ('@playwright/test' in allDeps) return 'playwright';
+    if ('vitest' in allDeps) {
+      return 'vitest';
+    }
+    if ('jest' in allDeps) {
+      return 'jest';
+    }
+    if ('mocha' in allDeps) {
+      return 'mocha';
+    }
+    if ('@playwright/test' in allDeps) {
+      return 'playwright';
+    }
 
     // Bun ships its own test runner -- detect via lock file
     if (exists(path.join(dir, 'bun.lock')) || exists(path.join(dir, 'bun.lockb'))) {
@@ -374,15 +413,20 @@ export function detectTestFramework(dir: string): string | undefined {
   }
 
   // Non-JS projects
-  if (exists(path.join(dir, 'go.mod'))) return 'go test';
-  if (exists(path.join(dir, 'Cargo.toml'))) return 'cargo test';
-  if (
-    exists(path.join(dir, 'pyproject.toml')) ||
-    exists(path.join(dir, 'setup.py'))
-  ) {
+  if (exists(path.join(dir, 'go.mod'))) {
+    return 'go test';
+  }
+  if (exists(path.join(dir, 'Cargo.toml'))) {
+    return 'cargo test';
+  }
+  if (exists(path.join(dir, 'pyproject.toml')) || exists(path.join(dir, 'setup.py'))) {
     const pyproject = readText(path.join(dir, 'pyproject.toml'));
-    if (pyproject.includes('pytest')) return 'pytest';
-    if (exists(path.join(dir, 'pytest.ini')) || exists(path.join(dir, 'setup.cfg'))) return 'pytest';
+    if (pyproject.includes('pytest')) {
+      return 'pytest';
+    }
+    if (exists(path.join(dir, 'pytest.ini')) || exists(path.join(dir, 'setup.cfg'))) {
+      return 'pytest';
+    }
     return 'unittest';
   }
 
@@ -399,13 +443,7 @@ export function detectLinter(dir: string): string | undefined {
     const entries = listDir(dir);
 
     // ESLint (various config formats)
-    if (
-      entries.some(
-        (e) =>
-          e.startsWith('.eslintrc') ||
-          e.startsWith('eslint.config'),
-      )
-    ) {
+    if (entries.some(e => e.startsWith('.eslintrc') || e.startsWith('eslint.config'))) {
       return 'eslint';
     }
 
@@ -427,8 +465,12 @@ export function detectLinter(dir: string): string | undefined {
     // Check pyproject.toml for ruff or flake8
     if (exists(path.join(dir, 'pyproject.toml'))) {
       const pyproject = readText(path.join(dir, 'pyproject.toml'));
-      if (pyproject.includes('[tool.ruff]')) return 'ruff';
-      if (pyproject.includes('[tool.flake8]')) return 'flake8';
+      if (pyproject.includes('[tool.ruff]')) {
+        return 'ruff';
+      }
+      if (pyproject.includes('[tool.flake8]')) {
+        return 'flake8';
+      }
     }
 
     // Rust -- clippy is part of the toolchain, detect via Cargo.toml
@@ -451,13 +493,7 @@ export function detectFormatter(dir: string): string | undefined {
     const entries = listDir(dir);
 
     // Prettier
-    if (
-      entries.some(
-        (e) =>
-          e.startsWith('.prettierrc') ||
-          e.startsWith('prettier.config'),
-      )
-    ) {
+    if (entries.some(e => e.startsWith('.prettierrc') || e.startsWith('prettier.config'))) {
       return 'prettier';
     }
 
@@ -482,8 +518,12 @@ export function detectFormatter(dir: string): string | undefined {
     // Python -- black / ruff format
     if (exists(path.join(dir, 'pyproject.toml'))) {
       const pyproject = readText(path.join(dir, 'pyproject.toml'));
-      if (pyproject.includes('[tool.black]')) return 'black';
-      if (pyproject.includes('[tool.ruff]')) return 'ruff';
+      if (pyproject.includes('[tool.black]')) {
+        return 'black';
+      }
+      if (pyproject.includes('[tool.ruff]')) {
+        return 'ruff';
+      }
     }
   } catch {
     // fall through
@@ -523,7 +563,7 @@ export function detectProject(dir: string): ProjectDetection {
  * The generated markdown serves as both human-readable documentation
  * and machine-readable project metadata for the Nimbus agent.
  */
-export function generateNimbusMd(detection: ProjectDetection, dir: string): string {
+export function generateNimbusMd(detection: ProjectDetection, _dir: string): string {
   const lines: string[] = [];
 
   // --- Header ---
@@ -693,17 +733,23 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
   const detection = detectProject(dir);
 
   log(`  Project type: ${detection.projectType}`);
-  if (detection.packageManager) log(`  Package manager: ${detection.packageManager}`);
-  if (detection.infraTypes.length > 0) log(`  Infrastructure: ${detection.infraTypes.join(', ')}`);
-  if (detection.cloudProviders.length > 0) log(`  Cloud providers: ${detection.cloudProviders.join(', ')}`);
-  if (detection.testFramework) log(`  Test framework: ${detection.testFramework}`);
+  if (detection.packageManager) {
+    log(`  Package manager: ${detection.packageManager}`);
+  }
+  if (detection.infraTypes.length > 0) {
+    log(`  Infrastructure: ${detection.infraTypes.join(', ')}`);
+  }
+  if (detection.cloudProviders.length > 0) {
+    log(`  Cloud providers: ${detection.cloudProviders.join(', ')}`);
+  }
+  if (detection.testFramework) {
+    log(`  Test framework: ${detection.testFramework}`);
+  }
 
   // ---- Step 2: Check for existing NIMBUS.md ----
   const nimbusmdPath = path.join(dir, 'NIMBUS.md');
   if (exists(nimbusmdPath) && !force) {
-    throw new Error(
-      'NIMBUS.md already exists. Use --force to overwrite.',
-    );
+    throw new Error('NIMBUS.md already exists. Use --force to overwrite.');
   }
 
   // ---- Step 3: Create .nimbus/ directory structure ----

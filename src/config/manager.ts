@@ -7,8 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import type { NimbusConfig, ConfigKey } from './types';
-import { CONFIG_KEYS } from './types';
+import { CONFIG_KEYS, type NimbusConfig, type ConfigKey } from './types';
 import { NimbusConfigSchema } from './schema';
 
 const CONFIG_VERSION = 1;
@@ -173,7 +172,10 @@ function parseSimpleYaml(content: string): Record<string, any> {
         value = null;
       } else if (!isNaN(Number(value)) && value !== '') {
         value = Number(value);
-      } else if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      } else if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
         value = value.slice(1, -1);
       }
 
@@ -204,7 +206,13 @@ function serializeToYaml(config: Record<string, any>, indent = 0): string {
 
       if (typeof value === 'string') {
         // Quote strings that need it - escape backslashes and quotes
-        if (value.includes(':') || value.includes('#') || value.includes("'") || value.includes('"') || value.includes('\\')) {
+        if (
+          value.includes(':') ||
+          value.includes('#') ||
+          value.includes("'") ||
+          value.includes('"') ||
+          value.includes('\\')
+        ) {
           serializedValue = `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
         } else {
           serializedValue = value;
@@ -479,7 +487,7 @@ export class ConfigManager {
   /**
    * Get config key info
    */
-  getKeyInfo(key: string): typeof CONFIG_KEYS[number] | undefined {
+  getKeyInfo(key: string): (typeof CONFIG_KEYS)[number] | undefined {
     return CONFIG_KEYS.find(k => k.key === key);
   }
 

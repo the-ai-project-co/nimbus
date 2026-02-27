@@ -46,7 +46,7 @@ export class SafetyManager {
     logger.info(`Running pre-execution safety checks for task: ${task.id}`);
 
     const preExecutionChecks = Array.from(this.checks.values()).filter(
-      (check) => check.type === 'pre_execution'
+      check => check.type === 'pre_execution'
     );
 
     const results: SafetyCheckResult[] = [];
@@ -79,12 +79,12 @@ export class SafetyManager {
     }
 
     // Identify blockers (failed checks that prevent execution)
-    const blockers = results.filter((r) => !r.passed && !r.can_proceed);
+    const blockers = results.filter(r => !r.passed && !r.can_proceed);
 
     const passed = blockers.length === 0;
 
     logger.info(
-      `Pre-execution checks: ${results.length} total, ${results.filter((r) => r.passed).length} passed, ${blockers.length} blockers`
+      `Pre-execution checks: ${results.length} total, ${results.filter(r => r.passed).length} passed, ${blockers.length} blockers`
     );
 
     return { passed, results, blockers };
@@ -99,7 +99,7 @@ export class SafetyManager {
     logger.info('Running during-execution safety checks');
 
     const duringExecutionChecks = Array.from(this.checks.values()).filter(
-      (check) => check.type === 'during_execution'
+      check => check.type === 'during_execution'
     );
 
     const results: SafetyCheckResult[] = [];
@@ -120,7 +120,7 @@ export class SafetyManager {
       }
     }
 
-    const passed = results.every((r) => r.passed || r.can_proceed);
+    const passed = results.every(r => r.passed || r.can_proceed);
 
     return { passed, results };
   }
@@ -134,7 +134,7 @@ export class SafetyManager {
     logger.info('Running post-execution safety checks');
 
     const postExecutionChecks = Array.from(this.checks.values()).filter(
-      (check) => check.type === 'post_execution'
+      check => check.type === 'post_execution'
     );
 
     const results: SafetyCheckResult[] = [];
@@ -155,7 +155,7 @@ export class SafetyManager {
       }
     }
 
-    const passed = results.every((r) => r.passed);
+    const passed = results.every(r => r.passed);
 
     return { passed, results };
   }
@@ -197,7 +197,7 @@ export class SafetyManager {
       name: 'Production Environment Safeguards',
       description: 'Verify additional safeguards for production deployments',
       severity: 'critical',
-      check: async (context) => {
+      check: async context => {
         const task = context.task as AgentTask;
         const plan = context.plan as AgentPlan;
 
@@ -247,7 +247,7 @@ export class SafetyManager {
       name: 'Cost Limit Check',
       description: 'Verify estimated cost is within acceptable limits',
       severity: 'high',
-      check: async (context) => {
+      check: async context => {
         const plan = context.plan as AgentPlan;
         const estimatedCost = plan.estimated_cost || 0;
         const maxCost = 5000; // $5000 per month limit
@@ -284,12 +284,12 @@ export class SafetyManager {
       name: 'Security Best Practices',
       description: 'Verify security best practices are applied',
       severity: 'critical',
-      check: async (context) => {
+      check: async context => {
         const plan = context.plan as AgentPlan;
 
         // Check if security validation steps are included
         const hasSecurityValidation = plan.steps.some(
-          (step) => step.action === 'apply_best_practices'
+          step => step.action === 'apply_best_practices'
         );
 
         if (!hasSecurityValidation) {
@@ -320,9 +320,9 @@ export class SafetyManager {
       name: 'Backup Strategy',
       description: 'Verify backup strategy is defined for stateful components',
       severity: 'high',
-      check: async (context) => {
+      check: async context => {
         const task = context.task as AgentTask;
-        const hasStatefulComponents = task.context.components.some((c) =>
+        const hasStatefulComponents = task.context.components.some(c =>
           ['rds', 's3', 'efs'].includes(c)
         );
 
@@ -369,15 +369,15 @@ export class SafetyManager {
       name: 'Destructive Operations',
       description: 'Verify destructive operations are intentional',
       severity: 'critical',
-      check: async (context) => {
+      check: async context => {
         const plan = context.plan as AgentPlan;
 
         // Check for deployment steps that could be destructive
-        const hasDeployment = plan.steps.some((step) => step.action === 'apply_deployment');
+        const hasDeployment = plan.steps.some(step => step.action === 'apply_deployment');
 
         if (hasDeployment) {
           // Ensure plan has rollback capability
-          const hasRollback = plan.steps.some((step) => step.rollback_action);
+          const hasRollback = plan.steps.some(step => step.rollback_action);
 
           if (!hasRollback) {
             return {
@@ -410,7 +410,7 @@ export class SafetyManager {
       name: 'Resource Creation Rate',
       description: 'Monitor resource creation rate for anomalies',
       severity: 'medium',
-      check: async (context) => {
+      check: async context => {
         // In production, this would monitor actual resource creation
         const resourcesCreated = (context.resources_created as number) || 0;
         const maxRate = 50; // Max 50 resources per execution
@@ -444,7 +444,7 @@ export class SafetyManager {
       name: 'Execution Timeout',
       description: 'Ensure execution does not exceed time limits',
       severity: 'medium',
-      check: async (context) => {
+      check: async context => {
         const startTime = context.start_time as Date;
         const maxDuration = 3600000; // 1 hour
 
@@ -483,7 +483,7 @@ export class SafetyManager {
       name: 'Deployment Verification',
       description: 'Verify deployed resources are healthy',
       severity: 'high',
-      check: async (context) => {
+      check: async context => {
         const deploymentSuccess = context.deployment_success as boolean;
 
         if (deploymentSuccess === false) {
@@ -514,7 +514,7 @@ export class SafetyManager {
       name: 'Cost Anomaly Detection',
       description: 'Check for unexpected cost increases',
       severity: 'medium',
-      check: async (context) => {
+      check: async context => {
         const estimatedCost = (context.estimated_cost as number) || 0;
         const actualCost = (context.actual_cost as number) || estimatedCost;
 
@@ -554,7 +554,7 @@ export class SafetyManager {
       name: 'Security Posture Assessment',
       description: 'Assess final security configuration',
       severity: 'critical',
-      check: async (context) => {
+      check: async context => {
         const securityScore = (context.security_score as number) || 0;
         const minScore = 80;
 
@@ -587,7 +587,7 @@ export class SafetyManager {
       name: 'No Production Delete Without Backup',
       description: 'Blocks destroy/delete operations in production when backup is not enabled',
       severity: 'critical',
-      check: async (context) => {
+      check: async context => {
         const task = context.task as AgentTask;
         const plan = context.plan as AgentPlan;
 
@@ -602,7 +602,7 @@ export class SafetyManager {
         }
 
         const hasDestructiveAction = plan.steps.some(
-          (step) =>
+          step =>
             (step.action === 'apply_deployment' && step.parameters?.destroy) ||
             (step.action === 'apply_deployment' &&
               step.description?.toLowerCase().includes('delete')) ||
@@ -651,10 +651,10 @@ export class SafetyManager {
       name: 'Require Dry Run First',
       description: 'Blocks apply_deployment if no plan_deployment step precedes it',
       severity: 'high',
-      check: async (context) => {
+      check: async context => {
         const plan = context.plan as AgentPlan;
 
-        const hasApply = plan.steps.some((step) => step.action === 'apply_deployment');
+        const hasApply = plan.steps.some(step => step.action === 'apply_deployment');
 
         if (!hasApply) {
           return {
@@ -666,7 +666,7 @@ export class SafetyManager {
           };
         }
 
-        const hasPlan = plan.steps.some((step) => step.action === 'plan_deployment');
+        const hasPlan = plan.steps.some(step => step.action === 'plan_deployment');
 
         if (!hasPlan) {
           return {
@@ -698,7 +698,7 @@ export class SafetyManager {
       name: 'Token Budget Check',
       description: 'Verify estimated token usage does not exceed budget',
       severity: 'high',
-      check: async (context) => {
+      check: async context => {
         const plan = context.plan as AgentPlan & { estimated_tokens?: number };
         const maxTokensPerTask = parseInt(process.env.MAX_TOKENS_PER_TASK || '0', 10);
 

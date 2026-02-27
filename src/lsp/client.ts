@@ -44,7 +44,10 @@ export class LSPClient extends EventEmitter {
   private process: ChildProcess | null = null;
   private config: LanguageConfig;
   private requestId = 0;
-  private pending = new Map<number, { resolve: (value: any) => void; reject: (err: Error) => void }>();
+  private pending = new Map<
+    number,
+    { resolve: (value: any) => void; reject: (err: Error) => void }
+  >();
   private buffer = '';
   private initialized = false;
   private rootUri: string;
@@ -95,7 +98,7 @@ export class LSPClient extends EventEmitter {
       });
 
       // Send initialize request
-      const initResult = await this.sendRequest('initialize', {
+      const _initResult = await this.sendRequest('initialize', {
         processId: process.pid,
         rootUri: `file://${this.rootUri}`,
         capabilities: {
@@ -119,7 +122,9 @@ export class LSPClient extends EventEmitter {
 
   /** Stop the language server. */
   async stop(): Promise<void> {
-    if (!this.process) return;
+    if (!this.process) {
+      return;
+    }
 
     try {
       await this.sendRequest('shutdown', null);
@@ -142,7 +147,9 @@ export class LSPClient extends EventEmitter {
 
   /** Notify the server that a file was opened or changed. */
   async touchFile(filePath: string, content: string, version: number = 1): Promise<void> {
-    if (!this.initialized) return;
+    if (!this.initialized) {
+      return;
+    }
 
     const uri = `file://${filePath}`;
     const languageId = this.config.id;
@@ -161,7 +168,7 @@ export class LSPClient extends EventEmitter {
     const cached = this.diagnostics.get(uri);
 
     // Wait for new diagnostics up to timeout
-    return new Promise<Diagnostic[]>((resolve) => {
+    return new Promise<Diagnostic[]>(resolve => {
       const timer = setTimeout(() => {
         resolve(cached ?? []);
       }, timeoutMs);
@@ -210,7 +217,9 @@ export class LSPClient extends EventEmitter {
 
   /** Send a JSON-RPC notification (no response expected). */
   private sendNotification(method: string, params: any): void {
-    if (!this.process?.stdin) return;
+    if (!this.process?.stdin) {
+      return;
+    }
 
     const message = JSON.stringify({ jsonrpc: '2.0', method, params });
     const header = `Content-Length: ${Buffer.byteLength(message)}\r\n\r\n`;
@@ -221,9 +230,11 @@ export class LSPClient extends EventEmitter {
   private handleData(data: string): void {
     this.buffer += data;
 
-    while (true) {
+    for (;;) {
       const headerEnd = this.buffer.indexOf('\r\n\r\n');
-      if (headerEnd === -1) break;
+      if (headerEnd === -1) {
+        break;
+      }
 
       const header = this.buffer.slice(0, headerEnd);
       const contentLengthMatch = header.match(/Content-Length:\s*(\d+)/i);
@@ -235,7 +246,9 @@ export class LSPClient extends EventEmitter {
       const contentLength = parseInt(contentLengthMatch[1], 10);
       const bodyStart = headerEnd + 4;
 
-      if (this.buffer.length < bodyStart + contentLength) break;
+      if (this.buffer.length < bodyStart + contentLength) {
+        break;
+      }
 
       const body = this.buffer.slice(bodyStart, bodyStart + contentLength);
       this.buffer = this.buffer.slice(bodyStart + contentLength);

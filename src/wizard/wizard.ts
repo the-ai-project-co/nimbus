@@ -4,12 +4,7 @@
  * Provides a step-based wizard system for complex CLI workflows
  */
 
-import type {
-  WizardStep,
-  StepResult,
-  WizardEvent,
-  WizardEventHandler,
-} from './types';
+import type { WizardStep, StepResult, WizardEvent, WizardEventHandler } from './types';
 import { ui } from './ui';
 
 export interface WizardConfig<TContext> {

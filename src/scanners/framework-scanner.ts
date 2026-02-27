@@ -383,7 +383,9 @@ export class FrameworkScanner implements Scanner {
       for (const dir of pattern.directoryPattern) {
         const dirPath = path.join(cwd, dir);
         if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
-          if (confidence === 'low') confidence = 'medium';
+          if (confidence === 'low') {
+            confidence = 'medium';
+          }
         }
       }
     }
@@ -393,12 +395,14 @@ export class FrameworkScanner implements Scanner {
       // Check JavaScript/TypeScript packages
       if (deps.packageJson && ['typescript', 'javascript'].includes(pattern.language)) {
         const allDeps = {
-          ...(deps.packageJson.dependencies as Record<string, string> || {}),
-          ...(deps.packageJson.devDependencies as Record<string, string> || {}),
+          ...((deps.packageJson.dependencies as Record<string, string>) || {}),
+          ...((deps.packageJson.devDependencies as Record<string, string>) || {}),
         };
         if (allDeps[packageName]) {
           version = allDeps[packageName].replace(/[\^~>=<]/g, '');
-          if (confidence === 'low') confidence = 'medium';
+          if (confidence === 'low') {
+            confidence = 'medium';
+          }
           break;
         }
       }
@@ -409,7 +413,9 @@ export class FrameworkScanner implements Scanner {
         if (lowerReq.includes(packageName.toLowerCase())) {
           const match = deps.requirements.match(new RegExp(`${packageName}[>=~!<]*([\\d.]+)`, 'i'));
           version = match ? match[1] : undefined;
-          if (confidence === 'low') confidence = 'medium';
+          if (confidence === 'low') {
+            confidence = 'medium';
+          }
           break;
         }
       }
@@ -417,7 +423,9 @@ export class FrameworkScanner implements Scanner {
       // Check Go modules
       if (deps.goMod && pattern.language === 'go') {
         if (deps.goMod.includes(packageName)) {
-          if (confidence === 'low') confidence = 'medium';
+          if (confidence === 'low') {
+            confidence = 'medium';
+          }
           break;
         }
       }
@@ -427,7 +435,9 @@ export class FrameworkScanner implements Scanner {
         if (deps.cargoToml.includes(packageName)) {
           const match = deps.cargoToml.match(new RegExp(`${packageName}\\s*=\\s*["']?([\\d.]+)`));
           version = match ? match[1] : undefined;
-          if (confidence === 'low') confidence = 'medium';
+          if (confidence === 'low') {
+            confidence = 'medium';
+          }
           break;
         }
       }

@@ -18,7 +18,7 @@
  * @module tools/schemas/types
  */
 
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { JSONSchema } from '../../llm/types';
 
 // ---------------------------------------------------------------------------
@@ -204,9 +204,8 @@ export interface ToolDefinition {
  * // { path: string; encoding?: 'utf-8' | 'base64' }
  * ```
  */
-export type ToolInput<T extends ToolDefinition> = T['inputSchema'] extends z.ZodType<infer U>
-  ? U
-  : never;
+export type ToolInput<T extends ToolDefinition> =
+  T['inputSchema'] extends z.ZodType<infer U> ? U : never;
 
 // ---------------------------------------------------------------------------
 // Provider-Specific Tool Formats
@@ -411,14 +410,13 @@ function convertZodNode(schema: z.ZodType<unknown>): JSONSchema {
   // ZodUnion (simple enum-like unions of literals)
   if (isZodUnion(schema)) {
     const options: z.ZodType<unknown>[] = s.options;
-    return { type: 'object', anyOf: options.map((o) => convertZodNode(o)) };
+    return { type: 'object', anyOf: options.map(o => convertZodNode(o)) };
   }
 
   // ZodRecord
   if (isZodRecord(schema)) {
     // Zod v3: `.valueSchema`.  Zod v4: `._zod.def.valueType`.
-    const valueSchema: z.ZodType<unknown> =
-      s.valueSchema ?? s._zod?.def?.valueType;
+    const valueSchema: z.ZodType<unknown> = s.valueSchema ?? s._zod?.def?.valueType;
     if (valueSchema) {
       return { type: 'object', additionalProperties: convertZodNode(valueSchema) };
     }
@@ -447,13 +445,15 @@ function zodTypeName(schema: z.ZodType<unknown>): string {
 
   // Zod v3 path
   const v3Name: string | undefined = s._def?.typeName;
-  if (v3Name) return v3Name;
+  if (v3Name) {
+    return v3Name;
+  }
 
   // Zod v4 path: `_zod.def.type` is a lowercase short name like 'string'.
   const v4Type: string | undefined = s._zod?.def?.type;
   if (v4Type) {
     // Capitalize to match Zod v3 convention: 'string' -> 'ZodString'.
-    return 'Zod' + v4Type.charAt(0).toUpperCase() + v4Type.slice(1);
+    return `Zod${v4Type.charAt(0).toUpperCase()}${v4Type.slice(1)}`;
   }
 
   return '';
@@ -545,7 +545,7 @@ export function toOpenAITool(tool: ToolDefinition): OpenAITool {
  */
 export function toGoogleTool(tools: readonly ToolDefinition[]): GoogleTool {
   return {
-    functionDeclarations: tools.map((tool) => {
+    functionDeclarations: tools.map(tool => {
       const jsonSchema = zodToJsonSchema(tool.inputSchema);
       return {
         name: tool.name,
@@ -627,7 +627,7 @@ export class ToolRegistry {
    * @returns An array of matching tool definitions (may be empty).
    */
   getByCategory(category: ToolCategory): ToolDefinition[] {
-    return this.getAll().filter((t) => t.category === category);
+    return this.getAll().filter(t => t.category === category);
   }
 
   /**
@@ -637,7 +637,7 @@ export class ToolRegistry {
    * @returns An array of matching tool definitions (may be empty).
    */
   getByPermissionTier(tier: PermissionTier): ToolDefinition[] {
-    return this.getAll().filter((t) => t.permissionTier === tier);
+    return this.getAll().filter(t => t.permissionTier === tier);
   }
 
   /**

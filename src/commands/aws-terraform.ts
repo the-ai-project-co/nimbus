@@ -18,6 +18,7 @@ import {
   type StepResult,
 } from '../wizard';
 import { awsDiscoverCommand, type AwsDiscoverOptions } from './aws-discover';
+import { readFile, writeFile } from 'node:fs/promises';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -133,7 +134,7 @@ export async function awsTerraformCommand(options: AwsTerraformOptions = {}): Pr
   else if (options.resourcesFile) {
     ui.startSpinner({ message: 'Loading resources from file...' });
     try {
-      const fileContent = await Bun.file(options.resourcesFile).text();
+      const fileContent = await readFile(options.resourcesFile, 'utf-8');
       const data = JSON.parse(fileContent);
       resources = data.resources || data;
       ui.stopSpinnerSuccess(`Loaded ${resources!.length} resources from file`);
@@ -184,7 +185,7 @@ export async function awsTerraformCommand(options: AwsTerraformOptions = {}): Pr
       includeMakefile: options.includeMakefile ?? options.includeStarterKit,
     },
     steps: createWizardSteps(!!discoverySessionId || !!resources),
-    onEvent: (event) => {
+    onEvent: event => {
       logger.debug('Wizard event', { type: event.type });
     },
   });
@@ -202,7 +203,7 @@ export async function awsTerraformCommand(options: AwsTerraformOptions = {}): Pr
 /**
  * Create wizard steps
  */
-function createWizardSteps(hasResources: boolean): WizardStep<AwsTerraformContext>[] {
+function createWizardSteps(_hasResources: boolean): WizardStep<AwsTerraformContext>[] {
   const steps: WizardStep<AwsTerraformContext>[] = [];
 
   // Step 1: Generation Options
@@ -479,7 +480,7 @@ async function writeFilesStep(ctx: AwsTerraformContext): Promise<StepResult> {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      await Bun.write(filePath, content);
+      await writeFile(filePath, content, 'utf-8');
     }
 
     // Make import script executable
@@ -695,7 +696,7 @@ async function runNonInteractive(options: AwsTerraformOptions): Promise<void> {
   if (options.resourcesFile) {
     ui.startSpinner({ message: 'Loading resources from file...' });
     try {
-      const fileContent = await Bun.file(options.resourcesFile).text();
+      const fileContent = await readFile(options.resourcesFile, 'utf-8');
       const data = JSON.parse(fileContent);
       resources = data.resources || data;
       ui.stopSpinnerSuccess(`Loaded ${resources!.length} resources`);
@@ -779,7 +780,7 @@ async function runNonInteractive(options: AwsTerraformOptions): Promise<void> {
 
     for (const [fileName, content] of Object.entries(files)) {
       const filePath = path.join(outputPath, fileName);
-      await Bun.write(filePath, content as string);
+      await writeFile(filePath, content as string, 'utf-8');
     }
 
     if (files['import.sh']) {
@@ -792,7 +793,9 @@ async function runNonInteractive(options: AwsTerraformOptions): Promise<void> {
     ui.newLine();
     ui.success('Generation complete!');
     ui.print(`  Output: ${outputPath}`);
-    ui.print(`  Resources: ${summary.mappedResources} mapped, ${summary.unmappedResources} unmapped`);
+    ui.print(
+      `  Resources: ${summary.mappedResources} mapped, ${summary.unmappedResources} unmapped`
+    );
   } catch (error: any) {
     ui.stopSpinnerFail(`Generation failed: ${error.message}`);
     process.exit(1);

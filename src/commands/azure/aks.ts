@@ -128,11 +128,12 @@ async function listClusters(options: AzureCommandOptions): Promise<void> {
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(25) +
+        `${
+          'Name'.padEnd(25) +
           'Resource Group'.padEnd(25) +
           'Location'.padEnd(15) +
-          'K8s Version'.padEnd(15) +
-          'Status',
+          'K8s Version'.padEnd(15)
+        }Status`,
         'cyan'
       )
     );
@@ -169,10 +170,7 @@ async function listClusters(options: AzureCommandOptions): Promise<void> {
 /**
  * Show AKS cluster details
  */
-async function showCluster(
-  clusterName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function showCluster(clusterName: string, options: AzureCommandOptions): Promise<void> {
   ui.header(`AKS Cluster: ${clusterName}`);
   ui.newLine();
 
@@ -232,10 +230,7 @@ async function showCluster(
 /**
  * Get cluster credentials for kubectl
  */
-async function getCredentials(
-  clusterName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function getCredentials(clusterName: string, options: AzureCommandOptions): Promise<void> {
   if (!options.resourceGroup) {
     ui.error('Resource group required (use -g)');
     return;
@@ -294,7 +289,16 @@ async function scaleCluster(
     }
   }
 
-  const azArgs = ['aks', 'scale', '-n', clusterName, '-g', options.resourceGroup, '--node-count', String(nodeCount)];
+  const azArgs = [
+    'aks',
+    'scale',
+    '-n',
+    clusterName,
+    '-g',
+    options.resourceGroup,
+    '--node-count',
+    String(nodeCount),
+  ];
   if (options.subscription) {
     azArgs.push('--subscription', options.subscription);
   }
@@ -314,10 +318,7 @@ async function scaleCluster(
 /**
  * Delete AKS cluster (requires safety approval)
  */
-async function deleteCluster(
-  clusterName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function deleteCluster(clusterName: string, options: AzureCommandOptions): Promise<void> {
   if (!options.resourceGroup) {
     ui.error('Resource group required (use -g)');
     return;

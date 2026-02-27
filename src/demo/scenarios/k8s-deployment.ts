@@ -12,10 +12,7 @@ export const k8sDeploymentScenario: DemoScenario = {
   description: 'Learn how to generate and deploy Kubernetes manifests',
   category: 'kubernetes',
   duration: 10,
-  prerequisites: [
-    'kubectl configured with cluster access',
-    'Nimbus CLI installed',
-  ],
+  prerequisites: ['kubectl configured with cluster access', 'Nimbus CLI installed'],
   tags: ['kubernetes', 'k8s', 'deployment', 'manifests'],
   steps: [
     {
@@ -36,7 +33,8 @@ node-3               Ready    <none>          30d   v1.28.0
       id: 'generate-manifests',
       title: 'Generate Kubernetes Manifests',
       description: 'Use Nimbus to generate deployment manifests for an nginx application',
-      command: 'nimbus generate k8s --type deployment --image nginx:latest --replicas 3 --port 80 --output ./k8s-demo',
+      command:
+        'nimbus generate k8s --type deployment --image nginx:latest --replicas 3 --port 80 --output ./k8s-demo',
       showOutput: true,
       waitForInput: true,
       mockResponse: `

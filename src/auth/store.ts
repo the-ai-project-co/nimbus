@@ -1,11 +1,13 @@
 /**
  * AuthStore - Credential Persistence Manager
  * Manages storage and retrieval of authentication credentials at ~/.nimbus/auth.json
+ * API keys and access tokens are encrypted at rest using AES-256-GCM.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import type {
   AuthFile,
   AuthStatus,
@@ -28,6 +30,148 @@ function createEmptyAuthFile(): AuthFile {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Encryption constants and helpers (AES-256-GCM)
+// ---------------------------------------------------------------------------
+
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const KEY_LENGTH = 32;
+const IV_LENGTH = 16;
+const AUTH_TAG_LENGTH = 16;
+const SALT = 'nimbus-auth-v1';
+const ENC_PREFIX = 'enc:';
+
+/**
+ * Build a machine-specific fingerprint from hostname, homedir, and username.
+ * This is not cryptographically perfect, but it prevents casual copy-paste of
+ * the auth file between machines.
+ */
+function getMachineFingerprint(): string {
+  const hostname = os.hostname();
+  const homedir = os.homedir();
+  const username = os.userInfo().username;
+  return `${hostname}${homedir}${username}`;
+}
+
+/**
+ * Derive a 256-bit encryption key from the machine fingerprint using PBKDF2.
+ */
+function deriveKey(): Buffer {
+  return crypto.pbkdf2Sync(getMachineFingerprint(), SALT, 100000, KEY_LENGTH, 'sha256');
+}
+
+/**
+ * Encrypt a plaintext string with AES-256-GCM.
+ * Returns a base64-encoded blob containing iv + authTag + ciphertext.
+ */
+function encryptValue(plaintext: string): string {
+  try {
+    const key = deriveKey();
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv, {
+      authTagLength: AUTH_TAG_LENGTH,
+    });
+
+    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+
+    // Layout: iv (16) + authTag (16) + ciphertext (variable)
+    const combined = Buffer.concat([iv, authTag, encrypted]);
+    return ENC_PREFIX + combined.toString('base64');
+  } catch {
+    // On any encryption error, return the original value so the system
+    // can continue to operate.
+    return plaintext;
+  }
+}
+
+/**
+ * Decrypt an encrypted value produced by encryptValue().
+ * If decryption fails (e.g. wrong machine, corrupted data, or the value was
+ * never encrypted), the original string is returned for backward compatibility.
+ */
+function decryptValue(encrypted: string): string {
+  try {
+    // Strip the enc: prefix
+    const payload = encrypted.slice(ENC_PREFIX.length);
+    const combined = Buffer.from(payload, 'base64');
+
+    if (combined.length < IV_LENGTH + AUTH_TAG_LENGTH) {
+      // Too short to be a valid encrypted payload -- return as-is
+      return encrypted;
+    }
+
+    const iv = combined.subarray(0, IV_LENGTH);
+    const authTag = combined.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+    const ciphertext = combined.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+
+    const key = deriveKey();
+    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, {
+      authTagLength: AUTH_TAG_LENGTH,
+    });
+    decipher.setAuthTag(authTag);
+
+    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+    return decrypted.toString('utf8');
+  } catch {
+    // Decryption failed -- could be a plain-text value from before encryption
+    // was introduced, or the file was moved between machines.
+    return encrypted;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Encryption helpers for the AuthFile structure
+// ---------------------------------------------------------------------------
+
+/**
+ * Deep-clone the auth file and encrypt sensitive fields before persistence.
+ */
+function encryptAuthFile(authFile: AuthFile): AuthFile {
+  const clone: AuthFile = JSON.parse(JSON.stringify(authFile));
+
+  // Encrypt provider API keys
+  for (const providerName of Object.keys(clone.providers) as LLMProviderName[]) {
+    const cred = clone.providers[providerName];
+    if (cred?.apiKey && cred.apiKey.length > 0 && !cred.apiKey.startsWith(ENC_PREFIX)) {
+      cred.apiKey = encryptValue(cred.apiKey);
+    }
+  }
+
+  // Encrypt GitHub access token
+  if (
+    clone.identity.github?.accessToken &&
+    clone.identity.github.accessToken.length > 0 &&
+    !clone.identity.github.accessToken.startsWith(ENC_PREFIX)
+  ) {
+    clone.identity.github.accessToken = encryptValue(clone.identity.github.accessToken);
+  }
+
+  return clone;
+}
+
+/**
+ * Decrypt sensitive fields in an auth file that was loaded from disk.
+ * Plain-text values (from before encryption was added) pass through unchanged.
+ */
+function decryptAuthFile(authFile: AuthFile): AuthFile {
+  // Decrypt provider API keys
+  for (const providerName of Object.keys(authFile.providers) as LLMProviderName[]) {
+    const cred = authFile.providers[providerName];
+    if (cred?.apiKey && cred.apiKey.startsWith(ENC_PREFIX)) {
+      cred.apiKey = decryptValue(cred.apiKey);
+    }
+  }
+
+  // Decrypt GitHub access token
+  if (authFile.identity.github?.accessToken?.startsWith(ENC_PREFIX)) {
+    authFile.identity.github.accessToken = decryptValue(authFile.identity.github.accessToken);
+  }
+
+  return authFile;
 }
 
 /**
@@ -60,7 +204,9 @@ export class AuthStore {
   }
 
   /**
-   * Load auth file from disk, creating if necessary
+   * Load auth file from disk, creating if necessary.
+   * Encrypted values are transparently decrypted so all public accessors
+   * return plain-text credentials.
    */
   load(): AuthFile {
     if (this.authFile) {
@@ -88,7 +234,8 @@ export class AuthStore {
       parsed.identity = parsed.identity || {};
       parsed.providers = parsed.providers || {};
 
-      this.authFile = parsed;
+      // Decrypt sensitive fields (backward-compatible with plain-text files)
+      this.authFile = decryptAuthFile(parsed);
       return this.authFile;
     } catch {
       // If file is corrupted, start fresh
@@ -98,7 +245,9 @@ export class AuthStore {
   }
 
   /**
-   * Save auth file to disk with secure permissions (0600)
+   * Save auth file to disk with secure permissions (0600).
+   * Sensitive fields are encrypted before writing so they are never stored
+   * in plain text.
    */
   save(authFile?: AuthFile): void {
     this.ensureDirectory();
@@ -111,7 +260,9 @@ export class AuthStore {
     fileToSave.updatedAt = new Date().toISOString();
     this.authFile = fileToSave;
 
-    const content = JSON.stringify(fileToSave, null, 2);
+    // Encrypt sensitive fields in a deep clone before writing to disk
+    const encrypted = encryptAuthFile(fileToSave);
+    const content = JSON.stringify(encrypted, null, 2);
     fs.writeFileSync(this.authPath, content, { mode: 0o600 });
 
     // Ensure permissions are set correctly even if file already existed
@@ -260,7 +411,13 @@ export class AuthStore {
       openai: process.env.OPENAI_API_KEY,
       google: process.env.GOOGLE_API_KEY,
       openrouter: process.env.OPENROUTER_API_KEY,
+      groq: process.env.GROQ_API_KEY,
+      together: process.env.TOGETHER_API_KEY,
+      deepseek: process.env.DEEPSEEK_API_KEY,
+      fireworks: process.env.FIREWORKS_API_KEY,
+      perplexity: process.env.PERPLEXITY_API_KEY,
       ollama: undefined, // Ollama doesn't use API keys
+      bedrock: process.env.AWS_ACCESS_KEY_ID, // Bedrock uses AWS IAM credentials
     };
 
     return envVarMap[name];

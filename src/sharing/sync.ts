@@ -2,6 +2,7 @@
  * Session Sharing — Generate share IDs and sync session data
  *
  * Provides local sharing via the nimbus serve API.
+ * Shares are persisted to the SQLite `shares` table so they survive restarts.
  * For hosted sharing via Supabase, the astron-landing web UI handles
  * the sync directly using its existing Supabase integration.
  */
@@ -55,8 +56,18 @@ export interface SharedSession {
   writeToken?: string;
 }
 
-/** In-memory store for shared sessions (persisted via serve API). */
-const sharedSessions = new Map<string, SharedSession>();
+/**
+ * Lazily import the DB to avoid circular dependency.
+ */
+function getDb() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getDb: _getDb } = require('../state/db');
+    return _getDb();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Generate a short, URL-safe share ID.
@@ -79,16 +90,23 @@ function generateWriteToken(): string {
 /**
  * Create a share for a session.
  */
-export function shareSession(sessionId: string, options?: {
-  isLive?: boolean;
-  ttlDays?: number;
-}): SharedSession | null {
+export function shareSession(
+  sessionId: string,
+  options?: {
+    isLive?: boolean;
+    ttlDays?: number;
+  }
+): SharedSession | null {
   const sessionManager = getSessionManager();
   const session = sessionManager.get(sessionId);
-  if (!session) return null;
+  if (!session) {
+    return null;
+  }
 
   const conversation = getConversation(sessionId);
-  if (!conversation) return null;
+  if (!conversation) {
+    return null;
+  }
 
   const ttlDays = options?.ttlDays ?? 30;
   const now = new Date();
@@ -109,8 +127,57 @@ export function shareSession(sessionId: string, options?: {
     writeToken: generateWriteToken(),
   };
 
-  sharedSessions.set(shared.id, shared);
+  // Persist to SQLite
+  const db = getDb();
+  if (db) {
+    try {
+      db.run(
+        `INSERT INTO shares (id, session_id, name, messages, model, mode, cost_usd, token_count, is_live, write_token, created_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          shared.id,
+          shared.sessionId,
+          shared.name,
+          JSON.stringify(shared.messages),
+          shared.model,
+          shared.mode,
+          shared.costUSD,
+          shared.tokenCount,
+          shared.isLive ? 1 : 0,
+          shared.writeToken,
+          shared.createdAt,
+          shared.expiresAt,
+        ]
+      );
+    } catch {
+      // Non-critical — share is still returned but won't survive restart
+    }
+  }
+
   return shared;
+}
+
+/**
+ * Convert a raw SQLite row to a SharedSession object.
+ */
+function rowToSharedSession(row: any, includeWriteToken = false): SharedSession {
+  const result: SharedSession = {
+    id: row.id,
+    sessionId: row.session_id,
+    name: row.name,
+    messages: JSON.parse(row.messages),
+    model: row.model || '',
+    mode: row.mode || '',
+    costUSD: row.cost_usd || 0,
+    tokenCount: row.token_count || 0,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    isLive: !!row.is_live,
+  };
+  if (includeWriteToken) {
+    result.writeToken = row.write_token;
+  }
+  return result;
 }
 
 /**
@@ -118,52 +185,88 @@ export function shareSession(sessionId: string, options?: {
  * If the share is live, refresh the messages from the current session.
  */
 export function getSharedSession(shareId: string): SharedSession | null {
-  const shared = sharedSessions.get(shareId);
-  if (!shared) return null;
-
-  // Check expiry
-  if (new Date(shared.expiresAt) <= new Date()) {
-    sharedSessions.delete(shareId);
+  const db = getDb();
+  if (!db) {
     return null;
   }
 
-  // Refresh messages for live shares
-  if (shared.isLive) {
-    const conversation = getConversation(shared.sessionId);
-    if (conversation) {
-      shared.messages = conversation.messages;
-    }
-  }
+  try {
+    const now = new Date().toISOString();
+    const row = db
+      .query(`SELECT * FROM shares WHERE id = ? AND expires_at > ?`)
+      .get(shareId, now) as any;
 
-  // Return without write token (read-only view)
-  const { writeToken, ...publicData } = shared;
-  return publicData as SharedSession;
+    if (!row) {
+      return null;
+    }
+
+    const shared = rowToSharedSession(row);
+
+    // Refresh messages for live shares
+    if (shared.isLive) {
+      const conversation = getConversation(shared.sessionId);
+      if (conversation) {
+        shared.messages = conversation.messages;
+        // Update stored messages
+        try {
+          db.run(`UPDATE shares SET messages = ? WHERE id = ?`, [
+            JSON.stringify(shared.messages),
+            shareId,
+          ]);
+        } catch {
+          /* non-critical */
+        }
+      }
+    }
+
+    return shared;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * List all active shares.
  */
 export function listShares(): SharedSession[] {
-  const now = new Date();
-  const result: SharedSession[] = [];
-
-  for (const [id, shared] of sharedSessions) {
-    if (new Date(shared.expiresAt) <= now) {
-      sharedSessions.delete(id);
-      continue;
-    }
-    const { writeToken, ...publicData } = shared;
-    result.push(publicData as SharedSession);
+  const db = getDb();
+  if (!db) {
+    return [];
   }
 
-  return result;
+  try {
+    // Clean up expired shares first
+    const now = new Date().toISOString();
+    db.run(`DELETE FROM shares WHERE expires_at <= ?`, [now]);
+
+    const rows = db
+      .query(
+        `SELECT id, session_id, name, messages, model, mode, cost_usd, token_count, is_live, created_at, expires_at
+       FROM shares ORDER BY created_at DESC`
+      )
+      .all() as any[];
+
+    return rows.map(row => rowToSharedSession(row));
+  } catch {
+    return [];
+  }
 }
 
 /**
  * Delete a share.
  */
 export function deleteShare(shareId: string): boolean {
-  return sharedSessions.delete(shareId);
+  const db = getDb();
+  if (!db) {
+    return false;
+  }
+
+  try {
+    const result = db.run(`DELETE FROM shares WHERE id = ?`, [shareId]);
+    return result.changes > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -178,15 +281,16 @@ export function getShareUrl(shareId: string, baseUrl?: string): string {
  * Clean up expired shares.
  */
 export function cleanupExpiredShares(): number {
-  const now = new Date();
-  let cleaned = 0;
-
-  for (const [id, shared] of sharedSessions) {
-    if (new Date(shared.expiresAt) <= now) {
-      sharedSessions.delete(id);
-      cleaned++;
-    }
+  const db = getDb();
+  if (!db) {
+    return 0;
   }
 
-  return cleaned;
+  try {
+    const now = new Date().toISOString();
+    const result = db.run(`DELETE FROM shares WHERE expires_at <= ?`, [now]);
+    return result.changes;
+  } catch {
+    return 0;
+  }
 }

@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect } from 'bun:test';
-import { parseRunArgs, type RunOptions } from '../cli/run';
+import { parseRunArgs } from '../cli/run';
 
 // ===========================================================================
 // parseRunArgs
@@ -93,12 +93,17 @@ describe('parseRunArgs', () => {
 
   test('combines multiple flags', () => {
     const result = parseRunArgs([
-      '--format', 'json',
+      '--format',
+      'json',
       '--auto-approve',
-      '--mode', 'deploy',
-      '--max-turns', '25',
-      '--model', 'openai/gpt-4',
-      'deploy', 'everything',
+      '--mode',
+      'deploy',
+      '--max-turns',
+      '25',
+      '--model',
+      'openai/gpt-4',
+      'deploy',
+      'everything',
     ]);
     expect(result.format).toBe('json');
     expect(result.autoApprove).toBe(true);

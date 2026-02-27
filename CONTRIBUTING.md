@@ -1,17 +1,23 @@
 # Contributing to Nimbus
 
-Thank you for your interest in contributing to Nimbus! We welcome contributions from developers of all skill levels and backgrounds. This guide will help you get started.
+Thank you for your interest in contributing to Nimbus! We welcome contributions
+from developers of all skill levels and backgrounds. This guide will help you
+get started.
 
 ## Ways to Contribute
 
 ### For Everyone
-- **Star this repository** - Show your support and help others discover the project
+
+- **Star this repository** - Show your support and help others discover the
+  project
 - **Report bugs** - Help us identify and fix issues
 - **Suggest features** - Share your ideas for improvements
 - **Improve documentation** - Help others understand the project better
-- **Spread the word** - Share the project on social media, blogs, or with colleagues
+- **Spread the word** - Share the project on social media, blogs, or with
+  colleagues
 
 ### For Developers
+
 - **Fix bugs** - Contribute code fixes
 - **Add features** - Implement new functionality
 - **Add cloud provider support** - Help expand AWS coverage or add GCP/Azure
@@ -19,6 +25,7 @@ Thank you for your interest in contributing to Nimbus! We welcome contributions 
 - **Improve tooling** - Enhance the development experience
 
 ### For Technical Writers
+
 - **Write guides** - Create tutorials and how-to guides
 - **API documentation** - Document functions and interfaces
 - **Create examples** - Build sample configurations and use cases
@@ -169,14 +176,14 @@ services/example-service/
 
 ### Naming Conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Files | kebab-case | `terraform-generator.ts` |
-| Classes | PascalCase | `TerraformGenerator` |
-| Functions | camelCase | `generateTerraform` |
-| Constants | UPPER_SNAKE_CASE | `DEFAULT_PORT` |
-| Interfaces | PascalCase | `DiscoveryConfig` |
-| Types | PascalCase | `ResourceType` |
+| Type       | Convention       | Example                  |
+| ---------- | ---------------- | ------------------------ |
+| Files      | kebab-case       | `terraform-generator.ts` |
+| Classes    | PascalCase       | `TerraformGenerator`     |
+| Functions  | camelCase        | `generateTerraform`      |
+| Constants  | UPPER_SNAKE_CASE | `DEFAULT_PORT`           |
+| Interfaces | PascalCase       | `DiscoveryConfig`        |
+| Types      | PascalCase       | `ResourceType`           |
 
 ### Example Code Style
 
@@ -200,7 +207,9 @@ export async function discoverInfrastructure(
     };
   } catch (error) {
     logger.error('Discovery failed', error);
-    throw new DiscoveryError(`Failed to discover infrastructure: ${error.message}`);
+    throw new DiscoveryError(
+      `Failed to discover infrastructure: ${error.message}`
+    );
   }
 }
 ```
@@ -221,6 +230,7 @@ refactor(scanner): improve error handling in base scanner
 ```
 
 **Types:**
+
 - `feat`: New features
 - `fix`: Bug fixes
 - `docs`: Documentation changes
@@ -230,6 +240,7 @@ refactor(scanner): improve error handling in base scanner
 - `perf`: Performance improvements
 
 **Scopes (examples):**
+
 - `aws`, `cli`, `terraform`, `k8s`, `helm`, `git`, `fs`
 - `discovery`, `scanner`, `generator`, `formatter`
 - `deps`, `ci`, `build`
@@ -290,7 +301,8 @@ describe('EC2Scanner', () => {
       // Mock AWS SDK calls
       mock.module('@aws-sdk/client-ec2', () => ({
         EC2Client: class {
-          send = () => Promise.resolve({ Reservations: [{ Instances: mockInstances }] });
+          send = () =>
+            Promise.resolve({ Reservations: [{ Instances: mockInstances }] });
         },
         DescribeInstancesCommand: class {},
       }));
@@ -393,12 +405,14 @@ mkdir -p services/new-service/tests
 ### Before Submitting
 
 1. **Sync with upstream**
+
    ```bash
    git fetch upstream
    git rebase upstream/main
    ```
 
 2. **Run all checks**
+
    ```bash
    bun run lint
    bun run typecheck
@@ -412,6 +426,7 @@ mkdir -p services/new-service/tests
 ### Submitting Your PR
 
 1. Push to your fork:
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -433,6 +448,7 @@ mkdir -p services/new-service/tests
 ## Good First Issues
 
 Looking for a place to start? Look for issues labeled:
+
 - `good first issue` - Perfect for newcomers
 - `help wanted` - We'd love community help
 - `documentation` - Great for non-code contributions
@@ -450,7 +466,9 @@ Looking for a place to start? Look for issues labeled:
 
 ### Reporting Bugs
 
-Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml) and include:
+Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml) and
+include:
+
 - **Environment**: OS, Bun version, Node.js version
 - **Affected service**: Which service is impacted
 - **Steps to reproduce**: Detailed steps
@@ -459,7 +477,9 @@ Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml) and include
 
 ### Suggesting Features
 
-Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml) and include:
+Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml)
+and include:
+
 - **Problem**: What problem does this solve?
 - **Solution**: Describe your proposed solution
 - **Alternatives**: Other approaches you've considered
@@ -503,6 +523,7 @@ Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml) a
 ### Contributors
 
 All contributors are recognized in:
+
 - GitHub contributors page
 - Release notes for significant contributions
 - README mentions for major features
@@ -510,6 +531,7 @@ All contributors are recognized in:
 ### Becoming a Maintainer
 
 Regular contributors who demonstrate:
+
 - Technical expertise
 - Good communication skills
 - Community helpfulness
@@ -521,12 +543,15 @@ May be invited to join the maintainer team!
 
 Stuck? Need help? Reach out:
 
-- **GitHub Discussions**: [Ask questions](https://github.com/the-ai-project-co/nimbus/discussions)
-- **GitHub Issues**: [Report issues](https://github.com/the-ai-project-co/nimbus/issues)
+- **GitHub Discussions**:
+  [Ask questions](https://github.com/the-ai-project-co/nimbus/discussions)
+- **GitHub Issues**:
+  [Report issues](https://github.com/the-ai-project-co/nimbus/issues)
 - **Documentation**: Check the README and docs/ first
 
 ---
 
 **Thank you for contributing to Nimbus!**
 
-Every contribution, no matter how small, helps make Nimbus better for everyone. We're excited to see what you'll build!
+Every contribution, no matter how small, helps make Nimbus better for everyone.
+We're excited to see what you'll build!

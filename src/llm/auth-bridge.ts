@@ -9,11 +9,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-
-/**
- * Provider name type (must match CLI auth types)
- */
-type LLMProviderName = 'anthropic' | 'openai' | 'google' | 'openrouter' | 'ollama';
+import type { LLMProviderName } from '../auth/types';
 
 /**
  * Provider credential from auth file
@@ -98,12 +94,17 @@ export function getProviderApiKey(providerName: LLMProviderName): string | undef
   }
 
   // Fall back to environment variables
-  const envVarMap: Record<LLMProviderName, string | undefined> = {
+  const envVarMap: Partial<Record<LLMProviderName, string | undefined>> = {
     anthropic: process.env.ANTHROPIC_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     google: process.env.GOOGLE_API_KEY,
     openrouter: process.env.OPENROUTER_API_KEY,
-    ollama: undefined, // Ollama doesn't use API keys
+    ollama: undefined,
+    groq: process.env.GROQ_API_KEY,
+    together: process.env.TOGETHER_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
+    fireworks: process.env.FIREWORKS_API_KEY,
+    perplexity: process.env.PERPLEXITY_API_KEY,
   };
 
   return envVarMap[providerName];
@@ -171,12 +172,17 @@ export function isProviderConfigured(providerName: LLMProviderName): boolean {
   }
 
   // Fall back to environment variables
-  const envVarMap: Record<LLMProviderName, string | undefined> = {
+  const envVarMap: Partial<Record<LLMProviderName, string | undefined>> = {
     anthropic: process.env.ANTHROPIC_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     google: process.env.GOOGLE_API_KEY,
     openrouter: process.env.OPENROUTER_API_KEY,
     ollama: process.env.OLLAMA_BASE_URL,
+    groq: process.env.GROQ_API_KEY,
+    together: process.env.TOGETHER_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
+    fireworks: process.env.FIREWORKS_API_KEY,
+    perplexity: process.env.PERPLEXITY_API_KEY,
   };
 
   return !!envVarMap[providerName];

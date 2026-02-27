@@ -108,8 +108,8 @@ async function getSystemInfo(): Promise<Record<string, string>> {
   const { execFileSync } = await import('child_process');
 
   const info: Record<string, string> = {
-    'OS': `${os.platform()} ${os.release()}`,
-    'Architecture': os.arch(),
+    OS: `${os.platform()} ${os.release()}`,
+    Architecture: os.arch(),
     'Node Version': process.version,
   };
 
@@ -165,12 +165,7 @@ async function openInBrowser(url: string): Promise<boolean> {
 /**
  * Build GitHub issue URL with pre-filled content
  */
-function buildIssueUrl(
-  type: string,
-  title: string,
-  body: string,
-  labels: string[]
-): string {
+function buildIssueUrl(type: string, title: string, body: string, labels: string[]): string {
   const params = new URLSearchParams({
     title,
     body,
@@ -250,10 +245,7 @@ async function collectFeedbackInteractively(
 
   if (body && body.trim()) {
     // Replace first section placeholder with user's input
-    fullBody = fullBody.replace(
-      /<!-- .+? -->/,
-      body.trim()
-    );
+    fullBody = fullBody.replace(/<!-- .+? -->/, body.trim());
   }
 
   // Add system info for bug reports
@@ -307,21 +299,22 @@ export async function feedbackCommand(options: FeedbackOptions = {}): Promise<vo
   }
 
   const typeConfig = FEEDBACK_TYPES[feedback.type];
-  const issueUrl = buildIssueUrl(
-    feedback.type,
-    feedback.title,
-    feedback.body,
-    typeConfig.labels
-  );
+  const issueUrl = buildIssueUrl(feedback.type, feedback.title, feedback.body, typeConfig.labels);
 
   // JSON output
   if (options.json) {
-    console.log(JSON.stringify({
-      type: feedback.type,
-      title: feedback.title,
-      url: issueUrl,
-      labels: typeConfig.labels,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          type: feedback.type,
+          title: feedback.title,
+          url: issueUrl,
+          labels: typeConfig.labels,
+        },
+        null,
+        2
+      )
+    );
     return;
   }
 

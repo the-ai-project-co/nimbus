@@ -11,9 +11,7 @@ import {
   ToolRegistry,
   PERMISSION_TIER_ORDER,
   permissionTierIndex,
-  zodToJsonSchema,
   type ToolDefinition,
-  type PermissionTier,
 } from '../tools/schemas/types';
 import { standardTools } from '../tools/schemas/standard';
 import { devopsTools } from '../tools/schemas/devops';
@@ -62,7 +60,7 @@ describe('ToolRegistry', () => {
     registry.register(makeTool('c'));
     const all = registry.getAll();
     expect(all).toHaveLength(3);
-    expect(all.map((t) => t.name)).toEqual(['a', 'b', 'c']);
+    expect(all.map(t => t.name)).toEqual(['a', 'b', 'c']);
   });
 
   test('getByCategory filters correctly', () => {
@@ -129,12 +127,7 @@ describe('ToolRegistry', () => {
 
 describe('PERMISSION_TIER_ORDER', () => {
   test('is ordered from least to most restrictive', () => {
-    expect(PERMISSION_TIER_ORDER).toEqual([
-      'auto_allow',
-      'ask_once',
-      'always_ask',
-      'blocked',
-    ]);
+    expect(PERMISSION_TIER_ORDER).toEqual(['auto_allow', 'ask_once', 'always_ask', 'blocked']);
   });
 
   test('has exactly 4 tiers', () => {
@@ -174,8 +167,10 @@ describe('permissionTierIndex', () => {
 describe('Standard tool schemas', () => {
   /** Helper to find a standard tool by name. */
   function findStandard(name: string): ToolDefinition {
-    const t = standardTools.find((t) => t.name === name);
-    if (!t) throw new Error(`Standard tool '${name}' not found`);
+    const t = standardTools.find(t => t.name === name);
+    if (!t) {
+      throw new Error(`Standard tool '${name}' not found`);
+    }
     return t;
   }
 
@@ -203,7 +198,7 @@ describe('Standard tool schemas', () => {
       schema.parse({
         path: 'f',
         edits: [{ old_string: 'a', new_string: 'b' }],
-      }),
+      })
     ).not.toThrow();
     // edits missing -> error
     expect(() => schema.parse({ path: 'f' })).toThrow();
@@ -261,13 +256,13 @@ describe('Standard tool schemas', () => {
     expect(() =>
       schema.parse({
         tasks: [{ subject: 'Fix bug', status: 'pending' }],
-      }),
+      })
     ).not.toThrow();
     // Invalid status
     expect(() =>
       schema.parse({
         tasks: [{ subject: 'X', status: 'invalid_status' }],
-      }),
+      })
     ).toThrow();
     // Missing tasks
     expect(() => schema.parse({})).toThrow();
@@ -281,8 +276,10 @@ describe('Standard tool schemas', () => {
 describe('DevOps tool schemas', () => {
   /** Helper to find a devops tool by name. */
   function findDevops(name: string): ToolDefinition {
-    const t = devopsTools.find((t) => t.name === name);
-    if (!t) throw new Error(`DevOps tool '${name}' not found`);
+    const t = devopsTools.find(t => t.name === name);
+    if (!t) {
+      throw new Error(`DevOps tool '${name}' not found`);
+    }
     return t;
   }
 
@@ -352,8 +349,8 @@ describe('DevOps tool schemas', () => {
 // ===========================================================================
 
 describe('Tool counts and metadata', () => {
-  test('standardTools has exactly 11 tools', () => {
-    expect(standardTools).toHaveLength(11);
+  test('standardTools has exactly 12 tools', () => {
+    expect(standardTools).toHaveLength(12);
   });
 
   test('devopsTools has exactly 9 tools', () => {
@@ -387,7 +384,7 @@ describe('Tool counts and metadata', () => {
   });
 
   test('all tool names are unique across standard and devops', () => {
-    const allNames = [...standardTools, ...devopsTools].map((t) => t.name);
+    const allNames = [...standardTools, ...devopsTools].map(t => t.name);
     const uniqueNames = new Set(allNames);
     expect(uniqueNames.size).toBe(allNames.length);
   });

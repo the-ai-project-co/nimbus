@@ -75,7 +75,9 @@ export const UIConfigSchema = z.object({
 
 export const PersonaConfigSchema = z.object({
   // A9: added 'custom' to the mode enum
-  mode: z.enum(['professional', 'assistant', 'expert', 'standard', 'concise', 'detailed', 'custom']).optional(),
+  mode: z
+    .enum(['professional', 'assistant', 'expert', 'standard', 'concise', 'detailed', 'custom'])
+    .optional(),
   verbosity: z.enum(['minimal', 'normal', 'detailed', 'verbose']).optional(),
   custom: z.string().optional(),
 });

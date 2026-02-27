@@ -344,7 +344,11 @@ export async function tfFmtCommand(options: TfCommandOptions = {}): Promise<void
 /**
  * Manage Terraform workspaces
  */
-export async function tfWorkspaceCommand(subcommand: string, name: string | undefined, options: TfCommandOptions = {}): Promise<void> {
+export async function tfWorkspaceCommand(
+  subcommand: string,
+  name: string | undefined,
+  options: TfCommandOptions = {}
+): Promise<void> {
   const directory = options.directory || process.cwd();
 
   ui.header('Terraform Workspace');
@@ -458,7 +462,11 @@ export async function tfWorkspaceCommand(subcommand: string, name: string | unde
 /**
  * Import existing infrastructure into Terraform state
  */
-export async function tfImportCommand(address: string, id: string, options: TfCommandOptions = {}): Promise<void> {
+export async function tfImportCommand(
+  address: string,
+  id: string,
+  options: TfCommandOptions = {}
+): Promise<void> {
   const directory = options.directory || process.cwd();
 
   ui.header('Terraform Import');
@@ -498,7 +506,10 @@ export async function tfImportCommand(address: string, id: string, options: TfCo
 /**
  * Show Terraform output values
  */
-export async function tfOutputCommand(options: TfCommandOptions = {}, name?: string): Promise<void> {
+export async function tfOutputCommand(
+  options: TfCommandOptions = {},
+  name?: string
+): Promise<void> {
   const directory = options.directory || process.cwd();
 
   ui.header('Terraform Output');
@@ -545,7 +556,10 @@ export async function tfOutputCommand(options: TfCommandOptions = {}, name?: str
 /**
  * Manage Terraform state
  */
-export async function tfStateCommand(args: string[], options: TfCommandOptions = {}): Promise<void> {
+export async function tfStateCommand(
+  args: string[],
+  options: TfCommandOptions = {}
+): Promise<void> {
   const directory = options.directory || process.cwd();
   const subcommand = args[0];
 
@@ -678,7 +692,10 @@ export async function tfStateCommand(args: string[], options: TfCommandOptions =
 /**
  * Taint a resource, marking it for recreation on next apply
  */
-export async function tfTaintCommand(address: string, options: TfCommandOptions = {}): Promise<void> {
+export async function tfTaintCommand(
+  address: string,
+  options: TfCommandOptions = {}
+): Promise<void> {
   const directory = options.directory || process.cwd();
 
   ui.header('Terraform Taint');
@@ -718,7 +735,10 @@ export async function tfTaintCommand(address: string, options: TfCommandOptions 
 /**
  * Untaint a resource, removing the taint mark
  */
-export async function tfUntaintCommand(address: string, options: TfCommandOptions = {}): Promise<void> {
+export async function tfUntaintCommand(
+  address: string,
+  options: TfCommandOptions = {}
+): Promise<void> {
   const directory = options.directory || process.cwd();
 
   ui.header('Terraform Untaint');
@@ -757,7 +777,9 @@ export async function tfUntaintCommand(address: string, options: TfCommandOption
 /**
  * Generate a resource dependency graph in DOT format
  */
-export async function tfGraphCommand(options: TfCommandOptions & { type?: 'plan' | 'apply' } = {}): Promise<void> {
+export async function tfGraphCommand(
+  options: TfCommandOptions & { type?: 'plan' | 'apply' } = {}
+): Promise<void> {
   const directory = options.directory || process.cwd();
 
   ui.header('Terraform Graph');
@@ -798,7 +820,10 @@ export async function tfGraphCommand(options: TfCommandOptions & { type?: 'plan'
 /**
  * Force unlock a locked Terraform state
  */
-export async function tfForceUnlockCommand(lockId: string, options: TfCommandOptions = {}): Promise<void> {
+export async function tfForceUnlockCommand(
+  lockId: string,
+  options: TfCommandOptions = {}
+): Promise<void> {
   const directory = options.directory || process.cwd();
 
   ui.header('Terraform Force-Unlock');
@@ -994,12 +1019,16 @@ export async function tfCommand(subcommand: string, args: string[]): Promise<voi
         break;
       default:
         ui.error(`Unknown terraform subcommand: ${subcommand}`);
-        ui.info('Available commands: init, plan, apply, validate, destroy, show, fmt, workspace, import, output, state, taint, untaint, graph, force-unlock, refresh');
+        ui.info(
+          'Available commands: init, plan, apply, validate, destroy, show, fmt, workspace, import, output, state, taint, untaint, graph, force-unlock, refresh'
+        );
     }
 
     historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
   } catch (error: any) {
-    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, {
+      error: error.message,
+    });
     throw error;
   }
 }

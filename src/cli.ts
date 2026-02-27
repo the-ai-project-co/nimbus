@@ -4,7 +4,7 @@
  * Dispatches CLI commands to their implementations in src/commands/.
  */
 
-import { logger, analytics } from './utils';
+import { analytics } from './utils';
 import {
   generateTerraformCommand,
   type GenerateTerraformOptions,
@@ -44,43 +44,28 @@ import {
   ghCommand,
   // Enterprise commands
   teamCommand,
-  parseTeamCreateOptions,
-  parseTeamInviteOptions,
-  parseTeamMembersOptions,
-  parseTeamRemoveOptions,
-  parseTeamSwitchOptions,
   billingCommand,
-  parseBillingStatusOptions,
-  parseBillingUpgradeOptions,
-  parseBillingInvoicesOptions,
   usageCommand,
   parseUsageOptions,
   auditCommand,
-  parseAuditListOptions,
-  parseAuditExportOptions,
   analyzeCommand,
   parseAnalyzeOptions,
   // Cloud provider commands
   awsCommand,
   azureCommand,
-  parseAzureOptions,
   gcpCommand,
-  parseGcpOptions,
   // Cost and drift commands
   costCommand,
   driftCommand,
   // Demo, feedback, preview, import, questionnaire commands
   demoCommand,
   parseDemoOptions,
-  type DemoOptions,
   feedbackCommand,
   parseFeedbackOptions,
-  type FeedbackOptions,
   previewCommand,
   type PreviewOptions,
   importCommand,
   parseImportOptions,
-  type ImportOptions,
   questionnaireCommand,
   type QuestionnaireOptions,
   // Cloud auth command
@@ -117,21 +102,22 @@ import {
   // Auth profile commands
   authProfileCommand,
 } from './commands';
+import { upgradeCommand, type UpgradeOptions } from './commands/upgrade';
 import { requiresAuth, type LLMProviderName } from './auth';
 
 /** Top-level command aliases for convenience shortcuts. */
 const COMMAND_ALIASES: Record<string, string[]> = {
-  'pr': ['gh', 'pr'],
-  'issue': ['gh', 'issue'],
-  'read': ['fs', 'read'],
-  'tree': ['fs', 'tree'],
-  'search': ['fs', 'search'],
-  'write': ['fs', 'write'],
+  pr: ['gh', 'pr'],
+  issue: ['gh', 'issue'],
+  read: ['fs', 'read'],
+  tree: ['fs', 'tree'],
+  search: ['fs', 'search'],
+  write: ['fs', 'write'],
   // Short command aliases
-  'terraform': ['tf'],
-  'k': ['k8s'],
-  'g': ['generate'],
-  'h': ['helm'],
+  terraform: ['tf'],
+  k: ['k8s'],
+  g: ['generate'],
+  h: ['helm'],
 };
 
 /**
@@ -152,9 +138,8 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // Fire-and-forget analytics tracking for every CLI command invocation.
   // This is a no-op when POSTHOG_API_KEY is not set.
-  const commandName = subcommand && !subcommand.startsWith('-')
-    ? `${command} ${subcommand}`
-    : command;
+  const commandName =
+    subcommand && !subcommand.startsWith('-') ? `${command} ${subcommand}` : command;
   analytics.trackEvent('command_executed', { command: commandName }).catch(() => {});
 
   // ==========================================
@@ -236,8 +221,14 @@ export async function runCommand(args: string[]): Promise<void> {
   }
 
   // nimbus auth cloud|aws|gcp|azure
-  if (command === 'auth' && (subcommand === 'cloud' || subcommand === 'aws' || subcommand === 'gcp' || subcommand === 'azure')) {
-    const provider = subcommand === 'cloud' ? (args[2] || 'aws') : subcommand;
+  if (
+    command === 'auth' &&
+    (subcommand === 'cloud' ||
+      subcommand === 'aws' ||
+      subcommand === 'gcp' ||
+      subcommand === 'azure')
+  ) {
+    const provider = subcommand === 'cloud' ? args[2] || 'aws' : subcommand;
     const options: AuthCloudOptions = {};
 
     const startIdx = subcommand === 'cloud' ? 3 : 2;
@@ -317,6 +308,24 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus upgrade
+  if (command === 'upgrade' || command === 'update') {
+    const options: UpgradeOptions = {};
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+
+      if (arg === '--force' || arg === '-f') {
+        options.force = true;
+      } else if (arg === '--check' || arg === '-c') {
+        options.check = true;
+      }
+    }
+
+    await upgradeCommand(options);
+    return;
+  }
+
   // nimbus init
   if (command === 'init') {
     const options: InitOptions = {};
@@ -384,7 +393,9 @@ export async function runCommand(args: string[]): Promise<void> {
     if (isNonInteractive) {
       console.error('');
       console.error('Error: Authentication required but running in non-interactive mode.');
-      console.error('Please run `nimbus login` first, or set provider API keys via environment variables.');
+      console.error(
+        'Please run `nimbus login` first, or set provider API keys via environment variables.'
+      );
       console.error('');
       process.exit(1);
     }
@@ -766,6 +777,8 @@ export async function runCommand(args: string[]): Promise<void> {
         options.ui = args[++i] as ChatOptions['ui'];
       } else if (arg.startsWith('--ui=')) {
         options.ui = arg.slice('--ui='.length) as ChatOptions['ui'];
+      } else if (arg === '--continue' || arg === '--resume') {
+        options.continue = true;
       }
     }
 
@@ -870,7 +883,9 @@ export async function runCommand(args: string[]): Promise<void> {
         if (fs.existsSync(configPath)) {
           config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       if (telemetryAction === 'enable') {
         config.telemetry = {
@@ -879,7 +894,9 @@ export async function runCommand(args: string[]): Promise<void> {
           anonymousId: config.telemetry?.anonymousId || randomUUID(),
         };
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-        console.log('Telemetry enabled. Anonymous usage data will be collected to help improve Nimbus.');
+        console.log(
+          'Telemetry enabled. Anonymous usage data will be collected to help improve Nimbus.'
+        );
         console.log(`Anonymous ID: ${config.telemetry.anonymousId}`);
         return;
       }
@@ -1106,7 +1123,9 @@ export async function runCommand(args: string[]): Promise<void> {
       console.log('  checkout <branch>         - Checkout branch');
       console.log('  diff                      - Show diff');
       console.log('  merge <branch>            - Merge a branch');
-      console.log('  stash <action>            - Stash operations (push, pop, list, drop, apply, clear)');
+      console.log(
+        '  stash <action>            - Stash operations (push, pop, list, drop, apply, clear)'
+      );
       process.exit(1);
     }
 
@@ -1289,16 +1308,24 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus auth list         - List all available providers');
   console.log('');
   console.log('  Infrastructure Generation:');
-  console.log('    nimbus generate terraform  - Generate Terraform from AWS infrastructure (wizard)');
+  console.log(
+    '    nimbus generate terraform  - Generate Terraform from AWS infrastructure (wizard)'
+  );
   console.log('    nimbus generate k8s        - Generate Kubernetes manifests (wizard)');
   console.log('    nimbus generate helm       - Generate Helm values files (wizard)');
   console.log('    nimbus aws discover        - Discover AWS infrastructure resources');
   console.log('    nimbus aws terraform       - Generate Terraform from AWS resources');
   console.log('');
   console.log('  Cloud Providers:');
-  console.log('    nimbus aws <service> <action>  - AWS operations (ec2, s3, rds, lambda, iam, vpc)');
-  console.log('    nimbus azure <service> <action> - Azure operations (vm, storage, aks, functions)');
-  console.log('    nimbus gcp <service> <action>  - GCP operations (compute, storage, gke, functions, iam)');
+  console.log(
+    '    nimbus aws <service> <action>  - AWS operations (ec2, s3, rds, lambda, iam, vpc)'
+  );
+  console.log(
+    '    nimbus azure <service> <action> - Azure operations (vm, storage, aks, functions)'
+  );
+  console.log(
+    '    nimbus gcp <service> <action>  - GCP operations (compute, storage, gke, functions, iam)'
+  );
   console.log('    nimbus auth aws|gcp|azure      - Validate cloud credentials');
   console.log('');
   console.log('  Infrastructure Management:');
@@ -1313,11 +1340,21 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus plan              - Preview infrastructure changes');
   console.log('    nimbus apply <type>      - Apply infrastructure (terraform, k8s, helm)');
   console.log('    nimbus resume <task-id>  - Resume a task from its last checkpoint');
-  console.log('    nimbus tf <cmd>          - Terraform operations (init, plan, apply, validate, destroy, show, fmt, workspace, import, output)');
-  console.log('    nimbus k8s <cmd>         - Kubernetes operations (get, apply, delete, logs, describe, scale, exec, rollout)');
-  console.log('    nimbus helm <cmd>        - Helm operations (list, install, upgrade, uninstall, rollback, show)');
-  console.log('    nimbus git <cmd>         - Git operations (status, add, commit, push, pull, fetch, log, merge, stash)');
-  console.log('    nimbus fs <cmd>          - File system operations (list, search, read, write, diff)');
+  console.log(
+    '    nimbus tf <cmd>          - Terraform operations (init, plan, apply, validate, destroy, show, fmt, workspace, import, output)'
+  );
+  console.log(
+    '    nimbus k8s <cmd>         - Kubernetes operations (get, apply, delete, logs, describe, scale, exec, rollout)'
+  );
+  console.log(
+    '    nimbus helm <cmd>        - Helm operations (list, install, upgrade, uninstall, rollback, show)'
+  );
+  console.log(
+    '    nimbus git <cmd>         - Git operations (status, add, commit, push, pull, fetch, log, merge, stash)'
+  );
+  console.log(
+    '    nimbus fs <cmd>          - File system operations (list, search, read, write, diff)'
+  );
   console.log('');
   console.log('  Wizards & Tools:');
   console.log('    nimbus questionnaire <type> - Interactive infrastructure questionnaire');
@@ -1326,7 +1363,9 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('');
   console.log('  GitHub:');
   console.log('    nimbus gh pr <cmd>       - PR operations (list, view, create, merge)');
-  console.log('    nimbus gh issue <cmd>    - Issue operations (list, view, create, close, comment)');
+  console.log(
+    '    nimbus gh issue <cmd>    - Issue operations (list, view, create, close, comment)'
+  );
   console.log('    nimbus gh repo <cmd>     - Repo operations (info, branches)');
   console.log('');
   console.log('  Aliases:');
@@ -1371,6 +1410,7 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus help               - Show this help message');
   console.log('    nimbus help <command>     - Show help for a specific command');
   console.log('    nimbus doctor             - Run diagnostic checks');
+  console.log('    nimbus upgrade            - Check for and install updates');
   console.log('');
   console.log('Use --help with any command for more options');
   process.exit(1);

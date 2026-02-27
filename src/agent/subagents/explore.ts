@@ -8,12 +8,7 @@
  */
 
 import { Subagent, type SubagentConfig } from './base';
-import {
-  readFileTool,
-  globTool,
-  grepTool,
-  listDirTool,
-} from '../../tools/schemas/standard';
+import { readFileTool, globTool, grepTool, listDirTool } from '../../tools/schemas/standard';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -21,8 +16,7 @@ import {
 
 const exploreConfig: SubagentConfig = {
   name: 'explore',
-  description:
-    'Fast codebase exploration and search. Read-only, uses a small/fast model.',
+  description: 'Fast codebase exploration and search. Read-only, uses a small/fast model.',
   systemPrompt: `You are a codebase explorer subagent. Your job is to search through code, find files, and report findings.
 
 Rules:

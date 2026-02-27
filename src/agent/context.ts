@@ -96,7 +96,7 @@ export interface ContextResult {
  */
 export async function resolveReferences(
   message: string,
-  options?: ContextOptions,
+  options?: ContextOptions
 ): Promise<ContextResult> {
   const cwd = options?.cwd ?? process.cwd();
   const maxTokens = options?.maxTokens ?? 50_000;
@@ -121,7 +121,9 @@ export async function resolveReferences(
   for (const mention of mentions) {
     // Resolve the path
     const resolvedPath = await resolveFilePath(mention.path, cwd);
-    if (!resolvedPath) continue;
+    if (!resolvedPath) {
+      continue;
+    }
 
     // Check if it is a file or directory
     const stat = fs.statSync(resolvedPath);
@@ -168,7 +170,7 @@ export async function resolveReferences(
     // Replace @mention in message with a human-readable indicator
     processedMessage = processedMessage.replace(
       mention.raw,
-      `[File: ${path.relative(cwd, resolvedPath)}]`,
+      `[File: ${path.relative(cwd, resolvedPath)}]`
     );
   }
 
@@ -186,9 +188,11 @@ export async function resolveReferences(
  *          or an empty string if there are no references.
  */
 export function buildContextInjection(references: readonly FileReference[]): string {
-  if (references.length === 0) return '';
+  if (references.length === 0) {
+    return '';
+  }
 
-  const parts = references.map((ref) => {
+  const parts = references.map(ref => {
     const header = ref.isDirectory
       ? `### Directory: ${ref.resolvedPath}`
       : `### File: ${ref.resolvedPath}`;
@@ -209,10 +213,7 @@ export function buildContextInjection(references: readonly FileReference[]): str
  * @param cwd     - The directory to search within. Defaults to `process.cwd()`.
  * @returns Up to 10 absolute paths that match the partial input.
  */
-export async function fuzzyFileSearch(
-  partial: string,
-  cwd?: string,
-): Promise<string[]> {
+export async function fuzzyFileSearch(partial: string, cwd?: string): Promise<string[]> {
   const searchDir = cwd ?? process.cwd();
 
   // Try exact match first
@@ -222,11 +223,7 @@ export async function fuzzyFileSearch(
   }
 
   // Try progressively broader glob patterns
-  const patterns = [
-    `**/${partial}`,
-    `**/${partial}*`,
-    `**/*${partial}*`,
-  ];
+  const patterns = [`**/${partial}`, `**/${partial}*`, `**/*${partial}*`];
 
   const results = new Set<string>();
   for (const pattern of patterns) {
@@ -243,7 +240,9 @@ export async function fuzzyFileSearch(
     } catch {
       // Skip invalid patterns silently
     }
-    if (results.size >= 10) break;
+    if (results.size >= 10) {
+      break;
+    }
   }
 
   return Array.from(results).slice(0, 10);
@@ -271,13 +270,7 @@ interface Mention {
  * Known @mentions that refer to subagent modes, not file paths.
  * These are filtered out during extraction.
  */
-const SUBAGENT_MENTIONS = new Set([
-  'explore',
-  'infra',
-  'security',
-  'cost',
-  'general',
-]);
+const SUBAGENT_MENTIONS = new Set(['explore', 'infra', 'security', 'cost', 'general']);
 
 /**
  * Extract @path mentions from a message string.
@@ -324,10 +317,7 @@ function extractMentions(message: string): Mention[] {
  * @param cwd      - The working directory for relative resolution.
  * @returns The resolved absolute path, or `null` if not found.
  */
-async function resolveFilePath(
-  filePath: string,
-  cwd: string,
-): Promise<string | null> {
+async function resolveFilePath(filePath: string, cwd: string): Promise<string | null> {
   // Try absolute path
   if (path.isAbsolute(filePath) && fs.existsSync(filePath)) {
     return filePath;
@@ -397,8 +387,10 @@ export function estimateTokens(text: string): number {
  */
 function truncateToTokens(text: string, maxTokens: number): string {
   const maxChars = maxTokens * 4;
-  if (text.length <= maxChars) return text;
-  return text.slice(0, maxChars) + '\n\n... (truncated)';
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return `${text.slice(0, maxChars)}\n\n... (truncated)`;
 }
 
 /**
@@ -417,21 +409,15 @@ function truncateToTokens(text: string, maxTokens: number): string {
 export function getContextBreakdown(
   _systemPrompt: string,
   references: readonly FileReference[],
-  totalBudget: number,
+  totalBudget: number
 ): {
   fileCount: number;
   totalFileTokens: number;
   budgetUsed: number;
   budgetPercent: number;
 } {
-  const totalFileTokens = references.reduce(
-    (sum, ref) => sum + ref.tokenCount,
-    0,
-  );
-  const budgetPercent =
-    totalBudget > 0
-      ? Math.round((totalFileTokens / totalBudget) * 100)
-      : 0;
+  const totalFileTokens = references.reduce((sum, ref) => sum + ref.tokenCount, 0);
+  const budgetPercent = totalBudget > 0 ? Math.round((totalFileTokens / totalBudget) * 100) : 0;
   return {
     fileCount: references.length,
     totalFileTokens,

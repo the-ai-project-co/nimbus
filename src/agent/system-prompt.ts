@@ -21,6 +21,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { homedir } from 'node:os';
+import { execSync } from 'node:child_process';
 import type { ToolDefinition } from '../tools/schemas/types';
 
 // ---------------------------------------------------------------------------
@@ -268,9 +269,11 @@ Focus on safe, verified deployments with minimal blast radius.`;
  * @internal
  */
 function buildToolsSummary(tools: ToolDefinition[]): string {
-  if (tools.length === 0) return '';
+  if (tools.length === 0) {
+    return '';
+  }
 
-  const lines = tools.map((t) => `- **${t.name}**: ${t.description}`);
+  const lines = tools.map(t => `- **${t.name}**: ${t.description}`);
   return `# Available Tools (${tools.length})\n\n${lines.join('\n')}`;
 }
 
@@ -367,10 +370,66 @@ function buildEnvironmentContext(cwd?: string): string {
     `- Date: ${new Date().toISOString().split('T')[0]}`,
   ];
 
-  // Check for git repo
+  // Check for git repo and gather context
   const gitDir = path.join(effectiveCwd, '.git');
   if (fs.existsSync(gitDir)) {
     parts.push('- Git repository: yes');
+
+    const execOpts = {
+      cwd: effectiveCwd,
+      timeout: 1000,
+      encoding: 'utf-8' as const,
+      stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'],
+    };
+
+    try {
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', execOpts).trim();
+      parts.push(`- Git branch: ${branch}`);
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      const log = execSync('git log --oneline -5 2>/dev/null', execOpts).trim();
+      if (log) {
+        parts.push(
+          `- Recent commits:\n${log
+            .split('\n')
+            .map((l: string) => `    ${l}`)
+            .join('\n')}`
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      const staged = execSync('git diff --cached --stat 2>/dev/null', execOpts).trim();
+      if (staged) {
+        parts.push(
+          `- Staged changes:\n${staged
+            .split('\n')
+            .map((l: string) => `    ${l}`)
+            .join('\n')}`
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      const unstaged = execSync('git diff --stat 2>/dev/null', execOpts).trim();
+      if (unstaged) {
+        parts.push(
+          `- Unstaged changes:\n${unstaged
+            .split('\n')
+            .map((l: string) => `    ${l}`)
+            .join('\n')}`
+        );
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   return parts.join('\n');

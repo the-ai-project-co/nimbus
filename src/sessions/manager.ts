@@ -9,13 +9,8 @@
  */
 
 import { getDb } from '../state/db';
-import type { Database } from 'bun:sqlite';
-import type {
-  SessionRecord,
-  SessionStatus,
-  SessionEvent,
-  SessionFileEdit,
-} from './types';
+import type { Database } from '../compat/sqlite';
+import type { SessionRecord, SessionStatus, SessionEvent, SessionFileEdit } from './types';
 import type { LLMMessage } from '../llm/types';
 
 /** Singleton session manager instance. */
@@ -63,6 +58,17 @@ export class SessionManager {
         metadata TEXT
       )
     `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL DEFAULT 'Untitled',
+        messages TEXT NOT NULL DEFAULT '[]',
+        model TEXT NOT NULL DEFAULT 'default',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
   }
 
   /** Create a new session. */
@@ -78,10 +84,14 @@ export class SessionManager {
     const model = options.model ?? 'default';
     const cwd = options.cwd ?? process.cwd();
 
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT INTO sessions (id, name, status, mode, model, cwd, token_count, cost_usd, snapshot_count, created_at, updated_at)
       VALUES (?, ?, 'active', ?, ?, ?, 0, 0, 0, ?, ?)
-    `).run(id, options.name, mode, model, cwd, now, now);
+    `
+      )
+      .run(id, options.name, mode, model, cwd, now, now);
 
     const session: SessionRecord = {
       id,
@@ -105,13 +115,11 @@ export class SessionManager {
   list(status?: SessionStatus): SessionRecord[] {
     let rows: any[];
     if (status) {
-      rows = this.db.prepare(
-        'SELECT * FROM sessions WHERE status = ? ORDER BY updated_at DESC',
-      ).all(status) as any[];
+      rows = this.db
+        .prepare('SELECT * FROM sessions WHERE status = ? ORDER BY updated_at DESC')
+        .all(status) as any[];
     } else {
-      rows = this.db.prepare(
-        'SELECT * FROM sessions ORDER BY updated_at DESC',
-      ).all() as any[];
+      rows = this.db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all() as any[];
     }
     return rows.map(rowToSession);
   }
@@ -135,7 +143,9 @@ export class SessionManager {
   /** Switch to a different session. Suspends the current one. */
   switchTo(sessionId: string): SessionRecord | null {
     const session = this.get(sessionId);
-    if (!session) return null;
+    if (!session) {
+      return null;
+    }
 
     // Suspend current session
     if (this.activeSessionId && this.activeSessionId !== sessionId) {
@@ -167,7 +177,9 @@ export class SessionManager {
   /** Resume a suspended session. */
   resume(sessionId: string): SessionRecord | null {
     const session = this.get(sessionId);
-    if (!session || session.status === 'completed') return null;
+    if (!session || session.status === 'completed') {
+      return null;
+    }
 
     this.updateStatus(sessionId, 'active');
     this.activeSessionId = sessionId;
@@ -203,7 +215,12 @@ export class SessionManager {
   }
 
   /** Update session metadata (tokens, cost, mode, etc.). */
-  updateSession(sessionId: string, updates: Partial<Pick<SessionRecord, 'tokenCount' | 'costUSD' | 'snapshotCount' | 'mode' | 'model'>>): void {
+  updateSession(
+    sessionId: string,
+    updates: Partial<
+      Pick<SessionRecord, 'tokenCount' | 'costUSD' | 'snapshotCount' | 'mode' | 'model'>
+    >
+  ): void {
     const parts: string[] = [];
     const values: any[] = [];
 
@@ -228,7 +245,9 @@ export class SessionManager {
       values.push(updates.model);
     }
 
-    if (parts.length === 0) return;
+    if (parts.length === 0) {
+      return;
+    }
 
     parts.push("updated_at = datetime('now')");
     values.push(sessionId);
@@ -244,20 +263,26 @@ export class SessionManager {
     const messagesJson = JSON.stringify(messages);
 
     if (existing) {
-      this.db.prepare(
-        "UPDATE conversations SET messages = ?, updated_at = datetime('now') WHERE id = ?"
-      ).run(messagesJson, sessionId);
+      this.db
+        .prepare("UPDATE conversations SET messages = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(messagesJson, sessionId);
     } else {
-      this.db.prepare(
-        "INSERT INTO conversations (id, title, messages, model, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))"
-      ).run(sessionId, title, messagesJson, session?.model ?? 'default');
+      this.db
+        .prepare(
+          "INSERT INTO conversations (id, title, messages, model, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))"
+        )
+        .run(sessionId, title, messagesJson, session?.model ?? 'default');
     }
   }
 
   /** Load conversation messages for a session. Returns empty array if not found. */
   loadConversation(sessionId: string): LLMMessage[] {
-    const row: any = this.db.prepare('SELECT messages FROM conversations WHERE id = ?').get(sessionId);
-    if (!row?.messages) return [];
+    const row: any = this.db
+      .prepare('SELECT messages FROM conversations WHERE id = ?')
+      .get(sessionId);
+    if (!row?.messages) {
+      return [];
+    }
     try {
       return JSON.parse(row.messages);
     } catch {
@@ -277,8 +302,7 @@ export class SessionManager {
     // Check for conflicts (other sessions editing the same file)
     const conflicts: string[] = [];
     const otherEditors = existing.filter(
-      e => e.sessionId !== sessionId &&
-        e.timestamp.getTime() > Date.now() - 5 * 60 * 1000, // Within last 5 minutes
+      e => e.sessionId !== sessionId && e.timestamp.getTime() > Date.now() - 5 * 60 * 1000 // Within last 5 minutes
     );
 
     for (const editor of otherEditors) {
@@ -307,14 +331,18 @@ export class SessionManager {
 
   private emit(event: SessionEvent): void {
     for (const listener of this.eventListeners) {
-      try { listener(event); } catch { /* ignore */ }
+      try {
+        listener(event);
+      } catch {
+        /* ignore */
+      }
     }
   }
 
   private updateStatus(sessionId: string, status: SessionStatus): void {
-    this.db.prepare(
-      "UPDATE sessions SET status = ?, updated_at = datetime('now') WHERE id = ?",
-    ).run(status, sessionId);
+    this.db
+      .prepare("UPDATE sessions SET status = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(status, sessionId);
   }
 }
 

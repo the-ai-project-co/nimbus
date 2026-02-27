@@ -16,7 +16,6 @@ import {
   confirm,
   input,
   pathInput,
-  pressEnter,
   type TerraformWizardContext,
   type WizardStep,
   type StepResult,
@@ -64,7 +63,9 @@ export interface GenerateTerraformOptions {
 /**
  * Run the generate terraform command
  */
-export async function generateTerraformCommand(options: GenerateTerraformOptions = {}): Promise<void> {
+export async function generateTerraformCommand(
+  options: GenerateTerraformOptions = {}
+): Promise<void> {
   logger.info('Starting Terraform generation wizard');
 
   // Non-interactive mode
@@ -103,15 +104,19 @@ export async function generateTerraformCommand(options: GenerateTerraformOptions
       outputPath: options.output,
     },
     steps,
-    onEvent: (event) => {
+    onEvent: event => {
       if (event.type === 'step:start' && process.stdout.isTTY) {
         const idx = steps.findIndex(s => s.id === event.stepId);
         if (idx >= 0) {
           // Visual step progress bar
           const progress = steps.map((s, i) => {
-            if (i < idx) return ui.color('\u2713 ' + s.title, 'green');
-            if (i === idx) return ui.color('\u25CF ' + s.title, 'cyan');
-            return ui.dim('\u25CB ' + s.title);
+            if (i < idx) {
+              return ui.color(`\u2713 ${s.title}`, 'green');
+            }
+            if (i === idx) {
+              return ui.color(`\u25CF ${s.title}`, 'cyan');
+            }
+            return ui.dim(`\u25CB ${s.title}`);
           });
           ui.newLine();
           ui.print(ui.dim('  Progress: ') + progress.join(ui.dim(' \u2500 ')));
@@ -165,7 +170,7 @@ function createWizardSteps(): WizardStep<TerraformWizardContext>[] {
       id: 'aws-config',
       title: 'AWS Configuration',
       description: 'Configure AWS profile and regions to scan',
-      condition: (ctx) => ctx.provider === 'aws',
+      condition: ctx => ctx.provider === 'aws',
       execute: awsConfigStep,
     },
 
@@ -174,7 +179,7 @@ function createWizardSteps(): WizardStep<TerraformWizardContext>[] {
       id: 'services',
       title: 'Service Selection',
       description: 'Select which AWS services to scan',
-      condition: (ctx) => ctx.provider === 'aws',
+      condition: ctx => ctx.provider === 'aws',
       execute: serviceSelectionStep,
     },
 
@@ -183,7 +188,7 @@ function createWizardSteps(): WizardStep<TerraformWizardContext>[] {
       id: 'gcp-config',
       title: 'GCP Configuration',
       description: 'Configure GCP project and regions to scan',
-      condition: (ctx) => ctx.provider === 'gcp',
+      condition: ctx => ctx.provider === 'gcp',
       execute: gcpConfigStep,
     },
 
@@ -192,7 +197,7 @@ function createWizardSteps(): WizardStep<TerraformWizardContext>[] {
       id: 'gcp-services',
       title: 'GCP Service Selection',
       description: 'Select which GCP services to scan',
-      condition: (ctx) => ctx.provider === 'gcp',
+      condition: ctx => ctx.provider === 'gcp',
       execute: gcpServiceSelectionStep,
     },
 
@@ -201,7 +206,7 @@ function createWizardSteps(): WizardStep<TerraformWizardContext>[] {
       id: 'azure-config',
       title: 'Azure Configuration',
       description: 'Configure Azure subscription and resource group',
-      condition: (ctx) => ctx.provider === 'azure',
+      condition: ctx => ctx.provider === 'azure',
       execute: azureConfigStep,
     },
 
@@ -210,7 +215,7 @@ function createWizardSteps(): WizardStep<TerraformWizardContext>[] {
       id: 'azure-services',
       title: 'Azure Service Selection',
       description: 'Select which Azure services to scan',
-      condition: (ctx) => ctx.provider === 'azure',
+      condition: ctx => ctx.provider === 'azure',
       execute: azureServiceSelectionStep,
     },
 
@@ -346,8 +351,9 @@ async function awsConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
     }
 
     ui.stopSpinnerSuccess(
-      `Authenticated to account ${validateResponse.data.accountId}` +
-      (validateResponse.data.accountAlias ? ` (${validateResponse.data.accountAlias})` : '')
+      `Authenticated to account ${validateResponse.data.accountId}${
+        validateResponse.data.accountAlias ? ` (${validateResponse.data.accountAlias})` : ''
+      }`
     );
 
     ctx.awsAccountId = validateResponse.data.accountId;
@@ -396,11 +402,11 @@ async function awsConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
           label: `${r.name} - ${r.displayName}`,
         }));
 
-        selectedRegions = await multiSelect({
+        selectedRegions = (await multiSelect({
           message: 'Select regions to scan:',
           options: regionOptions,
           required: true,
-        }) as string[];
+        })) as string[];
       }
     } catch (error) {
       ui.stopSpinnerFail('Could not fetch regions');
@@ -421,7 +427,7 @@ async function awsConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
 /**
  * Step 3: Service Selection
  */
-async function serviceSelectionStep(ctx: TerraformWizardContext): Promise<StepResult> {
+async function serviceSelectionStep(_ctx: TerraformWizardContext): Promise<StepResult> {
   const serviceChoice = await select<'all' | 'specific'>({
     message: 'Select services to scan:',
     options: [
@@ -498,8 +504,9 @@ async function gcpConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
     }
 
     ui.stopSpinnerSuccess(
-      `Connected to project ${projectId}` +
-      (validateResponse.data.projectName ? ` (${validateResponse.data.projectName})` : '')
+      `Connected to project ${projectId}${
+        validateResponse.data.projectName ? ` (${validateResponse.data.projectName})` : ''
+      }`
     );
   } catch (error: any) {
     ui.stopSpinnerFail(`Failed to validate project: ${error.message}`);
@@ -540,11 +547,11 @@ async function gcpConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
       { value: 'asia-southeast1', label: 'asia-southeast1 - Singapore' },
     ];
 
-    selectedRegions = await multiSelect({
+    selectedRegions = (await multiSelect({
       message: 'Select GCP regions to scan:',
       options: gcpRegionOptions,
       required: true,
-    }) as string[];
+    })) as string[];
   }
 
   return {
@@ -559,7 +566,7 @@ async function gcpConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
 /**
  * GCP Service Selection Step
  */
-async function gcpServiceSelectionStep(ctx: TerraformWizardContext): Promise<StepResult> {
+async function gcpServiceSelectionStep(_ctx: TerraformWizardContext): Promise<StepResult> {
   const serviceChoice = await select<'all' | 'specific'>({
     message: 'Select GCP services to scan:',
     options: [
@@ -629,13 +636,16 @@ async function azureConfigStep(ctx: TerraformWizardContext): Promise<StepResult>
     }>('/api/azure/subscriptions/validate', { subscriptionId });
 
     if (!validateResponse.success || !validateResponse.data?.valid) {
-      ui.stopSpinnerFail(`Invalid subscription: ${validateResponse.data?.error || 'Unknown error'}`);
+      ui.stopSpinnerFail(
+        `Invalid subscription: ${validateResponse.data?.error || 'Unknown error'}`
+      );
       return { success: false, error: 'Invalid Azure subscription' };
     }
 
     ui.stopSpinnerSuccess(
-      `Connected to subscription ${subscriptionId}` +
-      (validateResponse.data.subscriptionName ? ` (${validateResponse.data.subscriptionName})` : '')
+      `Connected to subscription ${subscriptionId}${
+        validateResponse.data.subscriptionName ? ` (${validateResponse.data.subscriptionName})` : ''
+      }`
     );
   } catch (error: any) {
     ui.stopSpinnerFail(`Failed to validate subscription: ${error.message}`);
@@ -669,7 +679,7 @@ async function azureConfigStep(ctx: TerraformWizardContext): Promise<StepResult>
     defaultValue: 'all',
   });
 
-  let selectedRegions: string[] = [];
+  let _selectedRegions: string[] = [];
 
   if (regionChoice === 'specific') {
     const azureRegionOptions = [
@@ -683,11 +693,11 @@ async function azureConfigStep(ctx: TerraformWizardContext): Promise<StepResult>
       { value: 'eastasia', label: 'East Asia' },
     ];
 
-    selectedRegions = await multiSelect({
+    _selectedRegions = (await multiSelect({
       message: 'Select Azure regions to scan:',
       options: azureRegionOptions,
       required: true,
-    }) as string[];
+    })) as string[];
   }
 
   return {
@@ -702,7 +712,7 @@ async function azureConfigStep(ctx: TerraformWizardContext): Promise<StepResult>
 /**
  * Azure Service Selection Step
  */
-async function azureServiceSelectionStep(ctx: TerraformWizardContext): Promise<StepResult> {
+async function azureServiceSelectionStep(_ctx: TerraformWizardContext): Promise<StepResult> {
   const serviceChoice = await select<'all' | 'specific'>({
     message: 'Select Azure services to scan:',
     options: [
@@ -726,7 +736,11 @@ async function azureServiceSelectionStep(ctx: TerraformWizardContext): Promise<S
 
   const serviceOptions = [
     { value: 'VirtualMachines', label: 'Virtual Machines', description: 'VMs, disks, images' },
-    { value: 'Storage', label: 'Storage Accounts', description: 'Blob, file, queue, table storage' },
+    {
+      value: 'Storage',
+      label: 'Storage Accounts',
+      description: 'Blob, file, queue, table storage',
+    },
     { value: 'AKS', label: 'Azure Kubernetes Service', description: 'Clusters and node pools' },
     { value: 'Functions', label: 'Azure Functions', description: 'Serverless functions' },
     { value: 'VNet', label: 'Virtual Network', description: 'VNets, subnets, NSGs' },
@@ -800,7 +814,7 @@ async function pollDiscovery(
         ui.clearLine();
         ui.write(
           `  Scanning: ${progress.regionsScanned}/${progress.totalRegions} regions | ` +
-          `${progress.resourcesFound} resources found`
+            `${progress.resourcesFound} resources found`
         );
         if (progress.currentRegion) {
           ui.write(` | Current: ${progress.currentRegion}`);
@@ -820,7 +834,9 @@ async function pollDiscovery(
         if (inventory?.summary) {
           ui.newLine();
           ui.print('  Resources by service:');
-          for (const [service, count] of Object.entries(inventory.summary.resourcesByService || {})) {
+          for (const [service, count] of Object.entries(
+            inventory.summary.resourcesByService || {}
+          )) {
             ui.print(`    ${service}: ${count}`);
           }
         }
@@ -854,7 +870,7 @@ async function discoveryStep(ctx: TerraformWizardContext): Promise<StepResult> {
       return pollDiscovery(
         gcpClient,
         '/api/gcp/discover/start',
-        (id) => `/api/gcp/discover/session/${id}`,
+        id => `/api/gcp/discover/session/${id}`,
         {
           projectId: ctx.gcpProject,
           regions: ctx.gcpRegions || 'all',
@@ -867,7 +883,7 @@ async function discoveryStep(ctx: TerraformWizardContext): Promise<StepResult> {
       return pollDiscovery(
         azureClient,
         '/api/azure/discover/start',
-        (id) => `/api/azure/discover/session/${id}`,
+        id => `/api/azure/discover/session/${id}`,
         {
           subscriptionId: ctx.azureSubscription,
           resourceGroup: ctx.azureResourceGroup,
@@ -881,7 +897,7 @@ async function discoveryStep(ctx: TerraformWizardContext): Promise<StepResult> {
       return pollDiscovery(
         awsClient,
         '/api/aws/discover',
-        (id) => `/api/aws/discover/${id}`,
+        id => `/api/aws/discover/${id}`,
         {
           profile: ctx.awsProfile,
           regions: ctx.awsRegions || 'all',
@@ -895,7 +911,7 @@ async function discoveryStep(ctx: TerraformWizardContext): Promise<StepResult> {
 /**
  * Step 5: Generation Options
  */
-async function generationOptionsStep(ctx: TerraformWizardContext): Promise<StepResult> {
+async function generationOptionsStep(_ctx: TerraformWizardContext): Promise<StepResult> {
   // Import method
   const importMethod = await select<'both' | 'blocks' | 'script'>({
     message: 'How should imports be generated?',
@@ -985,7 +1001,7 @@ async function runConversational(options: GenerateTerraformOptions): Promise<voi
   ui.print('Type "exit" to quit.');
   ui.newLine();
 
-  while (true) {
+  for (;;) {
     const message = await input({
       message: 'You:',
       defaultValue: '',
@@ -1066,7 +1082,7 @@ async function generateFromConversation(
   sessionId: string,
   options: GenerateTerraformOptions,
   fs: typeof import('fs/promises'),
-  pathMod: typeof import('path'),
+  pathMod: typeof import('path')
 ): Promise<boolean> {
   ui.newLine();
   ui.startSpinner({ message: 'Generating Terraform from conversation...' });
@@ -1181,7 +1197,7 @@ async function runNonInteractive(options: GenerateTerraformOptions): Promise<voi
       discoveryResult = await pollDiscovery(
         gcpClient,
         '/api/gcp/discover/start',
-        (id) => `/api/gcp/discover/session/${id}`,
+        id => `/api/gcp/discover/session/${id}`,
         {
           projectId: ctx.gcpProject,
           regions: ctx.awsRegions || 'all',
@@ -1195,7 +1211,7 @@ async function runNonInteractive(options: GenerateTerraformOptions): Promise<voi
       discoveryResult = await pollDiscovery(
         azureClient,
         '/api/azure/discover/start',
-        (id) => `/api/azure/discover/session/${id}`,
+        id => `/api/azure/discover/session/${id}`,
         {
           subscriptionId: ctx.azureSubscription,
           services: ctx.servicesToScan,
@@ -1209,7 +1225,7 @@ async function runNonInteractive(options: GenerateTerraformOptions): Promise<voi
       discoveryResult = await pollDiscovery(
         awsClient,
         '/api/aws/discover',
-        (id) => `/api/aws/discover/${id}`,
+        id => `/api/aws/discover/${id}`,
         {
           profile: ctx.awsProfile,
           regions: ctx.awsRegions || 'all',
@@ -1312,7 +1328,7 @@ async function runNonInteractive(options: GenerateTerraformOptions): Promise<voi
  */
 async function runPostGenerationValidation(
   files: Array<{ path: string; content: string }>,
-  jsonOutput?: boolean,
+  jsonOutput?: boolean
 ): Promise<Record<string, unknown> | undefined> {
   try {
     if (!jsonOutput) {
@@ -1374,9 +1390,15 @@ function displayValidationReport(report: any): void {
 
   // Summary line
   const parts: string[] = [];
-  if (summary.errors > 0) parts.push(ui.color(`${summary.errors} error(s)`, 'red'));
-  if (summary.warnings > 0) parts.push(ui.color(`${summary.warnings} warning(s)`, 'yellow'));
-  if (summary.info > 0) parts.push(ui.dim(`${summary.info} info`));
+  if (summary.errors > 0) {
+    parts.push(ui.color(`${summary.errors} error(s)`, 'red'));
+  }
+  if (summary.warnings > 0) {
+    parts.push(ui.color(`${summary.warnings} warning(s)`, 'yellow'));
+  }
+  if (summary.info > 0) {
+    parts.push(ui.dim(`${summary.info} info`));
+  }
   if (parts.length > 0) {
     ui.print(`  Summary: ${parts.join(', ')}`);
   }
@@ -1385,28 +1407,34 @@ function displayValidationReport(report: any): void {
   const toolStatus: Record<string, 'pass' | 'fail' | 'not-installed'> = {
     'terraform-fmt': 'pass',
     'terraform-validate': 'pass',
-    'tflint': 'pass',
-    'checkov': 'pass',
+    tflint: 'pass',
+    checkov: 'pass',
   };
 
   for (const item of items) {
     if (item.severity === 'error' || item.severity === 'warning') {
       const rule = item.rule || '';
-      if (rule.startsWith('fmt') || rule.includes('format')) toolStatus['terraform-fmt'] = 'fail';
-      else if (rule.startsWith('hcl') || rule.includes('syntax')) toolStatus['terraform-validate'] = 'fail';
-      else if (rule.startsWith('require-') || rule.includes('anti-pattern')) toolStatus['tflint'] = 'fail';
-      else if (rule.startsWith('checkov') || rule.includes('security')) toolStatus['checkov'] = 'fail';
+      if (rule.startsWith('fmt') || rule.includes('format')) {
+        toolStatus['terraform-fmt'] = 'fail';
+      } else if (rule.startsWith('hcl') || rule.includes('syntax')) {
+        toolStatus['terraform-validate'] = 'fail';
+      } else if (rule.startsWith('require-') || rule.includes('anti-pattern')) {
+        toolStatus['tflint'] = 'fail';
+      } else if (rule.startsWith('checkov') || rule.includes('security')) {
+        toolStatus['checkov'] = 'fail';
+      }
     }
   }
 
   ui.newLine();
   ui.print('  Tool Results:');
   for (const [tool, status] of Object.entries(toolStatus)) {
-    const icon = status === 'pass'
-      ? ui.color('\u2713', 'green')
-      : status === 'fail'
-        ? ui.color('\u2717', 'red')
-        : ui.dim('-');
+    const icon =
+      status === 'pass'
+        ? ui.color('\u2713', 'green')
+        : status === 'fail'
+          ? ui.color('\u2717', 'red')
+          : ui.dim('-');
     const label = status === 'not-installed' ? ui.dim('not installed') : status;
     ui.print(`    ${icon} ${tool}: ${label}`);
   }

@@ -6,7 +6,7 @@
  * that operate against the unified Nimbus database.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Row shape for the device_codes table. */
@@ -44,7 +44,7 @@ export function saveDeviceCode(
   expiresAt: Date,
   clientId?: string,
   scope?: string,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -52,13 +52,7 @@ export function saveDeviceCode(
     VALUES (?, ?, ?, ?, 'pending', ?)
   `);
 
-  stmt.run(
-    deviceCode,
-    userCode,
-    clientId || null,
-    scope || null,
-    expiresAt.toISOString(),
-  );
+  stmt.run(deviceCode, userCode, clientId || null, scope || null, expiresAt.toISOString());
 }
 
 /**
@@ -92,7 +86,7 @@ export function updateDeviceCodeStatus(
   deviceCode: string,
   status: string,
   token?: string,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -117,7 +111,7 @@ export function saveToken(
   type: string = 'access',
   userId?: string,
   expiresAt?: Date,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -125,13 +119,7 @@ export function saveToken(
     VALUES (?, ?, ?, ?, ?)
   `);
 
-  stmt.run(
-    id,
-    userId || null,
-    token,
-    type,
-    expiresAt ? expiresAt.toISOString() : null,
-  );
+  stmt.run(id, userId || null, token, type, expiresAt ? expiresAt.toISOString() : null);
 }
 
 /**

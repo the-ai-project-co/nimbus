@@ -28,7 +28,7 @@ async function authProfileListCommand(): Promise<void> {
       { key: 'default', header: 'Default' },
       { key: 'validatedAt', header: 'Validated' },
     ],
-    data: status.providers.map((p) => ({
+    data: status.providers.map(p => ({
       name: p.name,
       model: p.model || '-',
       default: p.isDefault ? 'Yes' : '',
@@ -52,12 +52,14 @@ async function authProfileShowCommand(): Promise<void> {
   }
 
   const status = authStore.getStatus();
-  const providerInfo = status.providers.find((p) => p.name === defaultProvider);
+  const providerInfo = status.providers.find(p => p.name === defaultProvider);
 
   ui.print(`  ${ui.color('Provider:', 'cyan')} ${defaultProvider}`);
   if (providerInfo) {
     ui.print(`  ${ui.color('Model:', 'cyan')} ${providerInfo.model || '-'}`);
-    ui.print(`  ${ui.color('Validated:', 'cyan')} ${providerInfo.validatedAt ? new Date(providerInfo.validatedAt).toLocaleDateString() : '-'}`);
+    ui.print(
+      `  ${ui.color('Validated:', 'cyan')} ${providerInfo.validatedAt ? new Date(providerInfo.validatedAt).toLocaleDateString() : '-'}`
+    );
   }
 }
 
@@ -77,7 +79,7 @@ async function authProfileSwitchCommand(provider: string): Promise<void> {
     ui.error(error.message);
     ui.info('Available providers:');
     const status = authStore.getStatus();
-    status.providers.forEach((p) => {
+    status.providers.forEach(p => {
       ui.print(`  - ${p.name}${p.isDefault ? ' (current default)' : ''}`);
     });
   }

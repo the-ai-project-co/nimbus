@@ -176,8 +176,8 @@ export class AwsOperations {
       const response = await client.send(command);
 
       const instances = response.Reservations?.flatMap(
-        (r) =>
-          r.Instances?.map((i) => ({
+        (r: any) =>
+          r.Instances?.map((i: any) => ({
             instanceId: i.InstanceId,
             instanceType: i.InstanceType,
             state: i.State?.Name,
@@ -190,8 +190,10 @@ export class AwsOperations {
             imageId: i.ImageId,
             keyName: i.KeyName,
             tags: i.Tags?.reduce(
-              (acc, tag) => {
-                if (tag.Key) acc[tag.Key] = tag.Value || '';
+              (acc: any, tag: any) => {
+                if (tag.Key) {
+                  acc[tag.Key] = tag.Value || '';
+                }
                 return acc;
               },
               {} as Record<string, string>
@@ -223,7 +225,7 @@ export class AwsOperations {
       const command = new StartInstancesCommand({ InstanceIds: instanceIds });
       const response = await client.send(command);
 
-      const results = response.StartingInstances?.map((i) => ({
+      const results = response.StartingInstances?.map((i: any) => ({
         instanceId: i.InstanceId,
         previousState: i.PreviousState?.Name,
         currentState: i.CurrentState?.Name,
@@ -254,7 +256,7 @@ export class AwsOperations {
       const command = new StopInstancesCommand({ InstanceIds: instanceIds, Force: force });
       const response = await client.send(command);
 
-      const results = response.StoppingInstances?.map((i) => ({
+      const results = response.StoppingInstances?.map((i: any) => ({
         instanceId: i.InstanceId,
         previousState: i.PreviousState?.Name,
         currentState: i.CurrentState?.Name,
@@ -306,7 +308,7 @@ export class AwsOperations {
       const command = new TerminateInstancesCommand({ InstanceIds: instanceIds });
       const response = await client.send(command);
 
-      const results = response.TerminatingInstances?.map((i) => ({
+      const results = response.TerminatingInstances?.map((i: any) => ({
         instanceId: i.InstanceId,
         previousState: i.PreviousState?.Name,
         currentState: i.CurrentState?.Name,
@@ -340,7 +342,7 @@ export class AwsOperations {
       });
       const response = await client.send(command);
 
-      const statuses = response.InstanceStatuses?.map((s) => ({
+      const statuses = response.InstanceStatuses?.map((s: any) => ({
         instanceId: s.InstanceId,
         instanceState: s.InstanceState?.Name,
         instanceStatus: s.InstanceStatus?.Status,
@@ -366,14 +368,16 @@ export class AwsOperations {
       const command = new DescribeVpcsCommand({});
       const response = await client.send(command);
 
-      const vpcs = response.Vpcs?.map((v) => ({
+      const vpcs = response.Vpcs?.map((v: any) => ({
         vpcId: v.VpcId,
         cidrBlock: v.CidrBlock,
         state: v.State,
         isDefault: v.IsDefault,
         tags: v.Tags?.reduce(
-          (acc, tag) => {
-            if (tag.Key) acc[tag.Key] = tag.Value || '';
+          (acc: any, tag: any) => {
+            if (tag.Key) {
+              acc[tag.Key] = tag.Value || '';
+            }
             return acc;
           },
           {} as Record<string, string>
@@ -403,7 +407,7 @@ export class AwsOperations {
       const command = new DescribeSubnetsCommand(input);
       const response = await client.send(command);
 
-      const subnets = response.Subnets?.map((s) => ({
+      const subnets = response.Subnets?.map((s: any) => ({
         subnetId: s.SubnetId,
         vpcId: s.VpcId,
         cidrBlock: s.CidrBlock,
@@ -411,8 +415,10 @@ export class AwsOperations {
         availableIpAddressCount: s.AvailableIpAddressCount,
         defaultForAz: s.DefaultForAz,
         tags: s.Tags?.reduce(
-          (acc, tag) => {
-            if (tag.Key) acc[tag.Key] = tag.Value || '';
+          (acc: any, tag: any) => {
+            if (tag.Key) {
+              acc[tag.Key] = tag.Value || '';
+            }
             return acc;
           },
           {} as Record<string, string>
@@ -442,7 +448,7 @@ export class AwsOperations {
       const command = new DescribeSecurityGroupsCommand(input);
       const response = await client.send(command);
 
-      const groups = response.SecurityGroups?.map((g) => ({
+      const groups = response.SecurityGroups?.map((g: any) => ({
         groupId: g.GroupId,
         groupName: g.GroupName,
         description: g.Description,
@@ -467,7 +473,7 @@ export class AwsOperations {
       const command = new DescribeRegionsCommand({});
       const response = await client.send(command);
 
-      const regions = response.Regions?.map((r) => ({
+      const regions = response.Regions?.map((r: any) => ({
         regionName: r.RegionName,
         endpoint: r.Endpoint,
       }));
@@ -494,7 +500,7 @@ export class AwsOperations {
       const command = new ListBucketsCommand({});
       const response = await client.send(command);
 
-      const buckets = response.Buckets?.map((b) => ({
+      const buckets = response.Buckets?.map((b: any) => ({
         name: b.Name,
         creationDate: b.CreationDate,
       }));
@@ -525,15 +531,23 @@ export class AwsOperations {
 
       const input: any = { Bucket: options.bucket };
 
-      if (options.prefix) input.Prefix = options.prefix;
-      if (options.delimiter) input.Delimiter = options.delimiter;
-      if (options.maxKeys) input.MaxKeys = options.maxKeys;
-      if (options.continuationToken) input.ContinuationToken = options.continuationToken;
+      if (options.prefix) {
+        input.Prefix = options.prefix;
+      }
+      if (options.delimiter) {
+        input.Delimiter = options.delimiter;
+      }
+      if (options.maxKeys) {
+        input.MaxKeys = options.maxKeys;
+      }
+      if (options.continuationToken) {
+        input.ContinuationToken = options.continuationToken;
+      }
 
       const command = new ListObjectsV2Command(input);
       const response = await client.send(command);
 
-      const objects = response.Contents?.map((o) => ({
+      const objects = response.Contents?.map((o: any) => ({
         key: o.Key,
         size: o.Size,
         lastModified: o.LastModified,
@@ -541,7 +555,7 @@ export class AwsOperations {
         storageClass: o.StorageClass,
       }));
 
-      const commonPrefixes = response.CommonPrefixes?.map((p) => p.Prefix);
+      const commonPrefixes = response.CommonPrefixes?.map((p: any) => p.Prefix);
 
       return {
         success: true,
@@ -655,9 +669,7 @@ export class AwsOperations {
       const command = new CreateBucketCommand({
         Bucket: bucket,
         CreateBucketConfiguration:
-          targetRegion !== 'us-east-1'
-            ? { LocationConstraint: targetRegion as any }
-            : undefined,
+          targetRegion !== 'us-east-1' ? { LocationConstraint: targetRegion as any } : undefined,
       });
 
       await client.send(command);
@@ -700,14 +712,20 @@ export class AwsOperations {
       const client = new IAMClient(this.getClientConfig());
 
       const input: any = {};
-      if (options.maxItems) input.MaxItems = options.maxItems;
-      if (options.marker) input.Marker = options.marker;
-      if (options.pathPrefix) input.PathPrefix = options.pathPrefix;
+      if (options.maxItems) {
+        input.MaxItems = options.maxItems;
+      }
+      if (options.marker) {
+        input.Marker = options.marker;
+      }
+      if (options.pathPrefix) {
+        input.PathPrefix = options.pathPrefix;
+      }
 
       const command = new ListUsersCommand(input);
       const response = await client.send(command);
 
-      const users = response.Users?.map((u) => ({
+      const users = response.Users?.map((u: any) => ({
         userName: u.UserName,
         userId: u.UserId,
         arn: u.Arn,
@@ -739,14 +757,20 @@ export class AwsOperations {
       const client = new IAMClient(this.getClientConfig());
 
       const input: any = {};
-      if (options.maxItems) input.MaxItems = options.maxItems;
-      if (options.marker) input.Marker = options.marker;
-      if (options.pathPrefix) input.PathPrefix = options.pathPrefix;
+      if (options.maxItems) {
+        input.MaxItems = options.maxItems;
+      }
+      if (options.marker) {
+        input.Marker = options.marker;
+      }
+      if (options.pathPrefix) {
+        input.PathPrefix = options.pathPrefix;
+      }
 
       const command = new ListRolesCommand(input);
       const response = await client.send(command);
 
-      const roles = response.Roles?.map((r) => ({
+      const roles = response.Roles?.map((r: any) => ({
         roleName: r.RoleName,
         roleId: r.RoleId,
         arn: r.Arn,
@@ -773,7 +797,9 @@ export class AwsOperations {
   /**
    * List IAM policies
    */
-  async listPolicies(options: IAMListOptions & { scope?: 'All' | 'AWS' | 'Local'; onlyAttached?: boolean } = {}): Promise<OperationResult> {
+  async listPolicies(
+    options: IAMListOptions & { scope?: 'All' | 'AWS' | 'Local'; onlyAttached?: boolean } = {}
+  ): Promise<OperationResult> {
     try {
       const { IAMClient, ListPoliciesCommand } = await import('@aws-sdk/client-iam');
       const client = new IAMClient(this.getClientConfig());
@@ -788,7 +814,7 @@ export class AwsOperations {
 
       const response = await client.send(command);
 
-      const policies = response.Policies?.map((p) => ({
+      const policies = response.Policies?.map((p: any) => ({
         policyName: p.PolicyName,
         policyId: p.PolicyId,
         arn: p.Arn,
@@ -830,7 +856,7 @@ export class AwsOperations {
 
       const response = await client.send(command);
 
-      const groups = response.Groups?.map((g) => ({
+      const groups = response.Groups?.map((g: any) => ({
         groupName: g.GroupName,
         groupId: g.GroupId,
         arn: g.Arn,

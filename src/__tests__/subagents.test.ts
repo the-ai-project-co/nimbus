@@ -34,7 +34,7 @@ describe('createSubagent', () => {
   test('createSubagent("infra") returns Subagent with correct tools', () => {
     const agent = createSubagent('infra');
     expect(agent.config.name).toBe('infra');
-    const toolNames = agent.config.tools.map((t) => t.name);
+    const toolNames = agent.config.tools.map(t => t.name);
     expect(toolNames).toContain('read_file');
     expect(toolNames).toContain('cloud_discover');
     expect(toolNames).toContain('cost_estimate');
@@ -55,7 +55,7 @@ describe('createSubagent', () => {
 
   test('createSubagent("general") has bash and webfetch tools', () => {
     const agent = createSubagent('general');
-    const toolNames = agent.config.tools.map((t) => t.name);
+    const toolNames = agent.config.tools.map(t => t.name);
     expect(toolNames).toContain('bash');
     expect(toolNames).toContain('webfetch');
   });
@@ -136,13 +136,13 @@ describe('Subagent tool restrictions', () => {
   test('all subagent configs exclude the "task" tool (no nesting)', () => {
     const configs = [exploreConfig, infraConfig, securityConfig, costConfig, generalConfig];
     for (const config of configs) {
-      const hasTask = config.tools.some((t) => t.name === 'task');
+      const hasTask = config.tools.some(t => t.name === 'task');
       expect(hasTask).toBe(false);
     }
   });
 
   test('explore subagent only has read-only tools', () => {
-    const toolNames = exploreConfig.tools.map((t) => t.name);
+    const toolNames = exploreConfig.tools.map(t => t.name);
     expect(toolNames).toEqual(['read_file', 'glob', 'grep', 'list_dir']);
     // None of these are destructive
     for (const tool of exploreConfig.tools) {
@@ -151,7 +151,7 @@ describe('Subagent tool restrictions', () => {
   });
 
   test('security subagent only has read-only tools', () => {
-    const toolNames = securityConfig.tools.map((t) => t.name);
+    const toolNames = securityConfig.tools.map(t => t.name);
     expect(toolNames).toEqual(['read_file', 'glob', 'grep', 'list_dir']);
     for (const tool of securityConfig.tools) {
       expect(tool.isDestructive).toBeFalsy();
@@ -159,14 +159,14 @@ describe('Subagent tool restrictions', () => {
   });
 
   test('infra subagent has cloud discovery tools', () => {
-    const toolNames = infraConfig.tools.map((t) => t.name);
+    const toolNames = infraConfig.tools.map(t => t.name);
     expect(toolNames).toContain('cloud_discover');
     expect(toolNames).toContain('cost_estimate');
     expect(toolNames).toContain('drift_detect');
   });
 
   test('cost subagent has cost_estimate and cloud_discover', () => {
-    const toolNames = costConfig.tools.map((t) => t.name);
+    const toolNames = costConfig.tools.map(t => t.name);
     expect(toolNames).toContain('cost_estimate');
     expect(toolNames).toContain('cloud_discover');
     // But should not have destructive tools

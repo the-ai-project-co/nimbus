@@ -24,8 +24,7 @@ import {
 
 const generalConfig: SubagentConfig = {
   name: 'general',
-  description:
-    'General-purpose research agent with broad tool access.',
+  description: 'General-purpose research agent with broad tool access.',
   systemPrompt: `You are a general-purpose research subagent. You can search code, run commands, and fetch web content.
 
 Your job:

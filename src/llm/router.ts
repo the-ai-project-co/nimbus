@@ -12,11 +12,12 @@
 
 import { logger } from '../utils';
 import {
-  LLMProvider,
-  CompletionRequest,
-  LLMResponse,
-  StreamChunk,
-  ToolCompletionRequest,
+  getTextContent,
+  type LLMProvider,
+  type CompletionRequest,
+  type LLMResponse,
+  type StreamChunk,
+  type ToolCompletionRequest,
 } from './types';
 import { AnthropicProvider } from './providers/anthropic';
 import { OpenAIProvider } from './providers/openai';
@@ -25,9 +26,10 @@ import { OllamaProvider } from './providers/ollama';
 import { OpenRouterProvider } from './providers/openrouter';
 import { OpenAICompatibleProvider } from './providers/openai-compatible';
 import { BedrockProvider } from './providers/bedrock';
-import { calculateCost, CostResult } from './cost-calculator';
-import { resolveModelAlias } from './model-aliases';
+import { calculateCost, type CostResult } from './cost-calculator';
+import { resolveModelAlias, stripProviderPrefix } from './model-aliases';
 import { detectProvider } from './provider-registry';
+import { ProviderCircuitBreaker } from './circuit-breaker';
 
 export interface RouterConfig {
   defaultProvider: string;
@@ -71,6 +73,7 @@ export interface StreamFallbackMeta {
 export class LLMRouter {
   private providers: Map<string, LLMProvider>;
   private config: RouterConfig;
+  private circuitBreaker = new ProviderCircuitBreaker();
 
   /**
    * Populated during streaming with fallback so callers (e.g. WebSocket)
@@ -83,12 +86,10 @@ export class LLMRouter {
     this.providers = new Map();
     this.config = {
       defaultProvider: config?.defaultProvider || process.env.DEFAULT_PROVIDER || 'anthropic',
-      defaultModel:
-        config?.defaultModel || process.env.DEFAULT_MODEL || 'claude-sonnet-4-20250514',
+      defaultModel: config?.defaultModel || process.env.DEFAULT_MODEL || 'claude-sonnet-4-20250514',
       costOptimization: {
         enabled:
-          config?.costOptimization?.enabled ??
-          process.env.ENABLE_COST_OPTIMIZATION === 'true',
+          config?.costOptimization?.enabled ?? process.env.ENABLE_COST_OPTIMIZATION === 'true',
         cheapModelFor: config?.costOptimization?.cheapModelFor || [
           'simple_queries',
           'summarization',
@@ -100,14 +101,25 @@ export class LLMRouter {
           'complex_reasoning',
           'planning',
         ],
-        cheapModel: config?.costOptimization?.cheapModel || process.env.CHEAP_MODEL || 'claude-haiku-4-20250514',
-        expensiveModel: config?.costOptimization?.expensiveModel || process.env.EXPENSIVE_MODEL || 'claude-opus-4-20250514',
+        cheapModel:
+          config?.costOptimization?.cheapModel ||
+          process.env.CHEAP_MODEL ||
+          'claude-haiku-4-20250514',
+        expensiveModel:
+          config?.costOptimization?.expensiveModel ||
+          process.env.EXPENSIVE_MODEL ||
+          'claude-opus-4-20250514',
       },
       fallback: {
         enabled: config?.fallback?.enabled ?? process.env.DISABLE_FALLBACK !== 'true',
         providers:
           config?.fallback?.providers ||
-          (process.env.FALLBACK_PROVIDERS?.split(',') ?? ['anthropic', 'openai', 'openrouter', 'google']),
+          (process.env.FALLBACK_PROVIDERS?.split(',') ?? [
+            'anthropic',
+            'openai',
+            'openrouter',
+            'google',
+          ]),
       },
     };
 
@@ -126,11 +138,16 @@ export class LLMRouter {
     let isConfigured: (name: string) => boolean;
     let getApiKey: (name: string) => string | undefined;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const bridge = require('./auth-bridge');
       isConfigured = bridge.isProviderConfigured;
       getApiKey = bridge.getProviderApiKey;
-    } catch {
+    } catch (err) {
       // Auth-bridge unavailable (e.g., test environment) — fall back to env-only
+      logger.warn(
+        'Auth-bridge unavailable, using environment variables only:',
+        err instanceof Error ? err.message : String(err)
+      );
       isConfigured = () => false;
       getApiKey = () => undefined;
     }
@@ -166,7 +183,12 @@ export class LLMRouter {
     }
 
     // AWS Bedrock (uses IAM credentials from environment / instance profile)
-    if (process.env.AWS_BEDROCK_ENABLED === 'true' || process.env.AWS_REGION) {
+    if (
+      process.env.AWS_BEDROCK_ENABLED === 'true' ||
+      process.env.AWS_REGION ||
+      isConfigured('bedrock') ||
+      (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)
+    ) {
       this.providers.set('bedrock', new BedrockProvider());
       logger.info('Initialized AWS Bedrock provider');
     }
@@ -174,60 +196,75 @@ export class LLMRouter {
     // Groq (OpenAI-compatible)
     const groqKey = process.env.GROQ_API_KEY || getApiKey('groq');
     if (groqKey) {
-      this.providers.set('groq', new OpenAICompatibleProvider({
-        name: 'groq',
-        apiKey: groqKey,
-        baseURL: 'https://api.groq.com/openai/v1',
-        defaultModel: 'llama-3.1-70b-versatile',
-      }));
+      this.providers.set(
+        'groq',
+        new OpenAICompatibleProvider({
+          name: 'groq',
+          apiKey: groqKey,
+          baseURL: 'https://api.groq.com/openai/v1',
+          defaultModel: 'llama-3.1-70b-versatile',
+        })
+      );
       logger.info('Initialized Groq provider (OpenAI-compatible)');
     }
 
     // Together AI (OpenAI-compatible)
     const togetherKey = process.env.TOGETHER_API_KEY || getApiKey('together');
     if (togetherKey) {
-      this.providers.set('together', new OpenAICompatibleProvider({
-        name: 'together',
-        apiKey: togetherKey,
-        baseURL: 'https://api.together.xyz/v1',
-        defaultModel: 'meta-llama/Llama-3.1-70B-Instruct-Turbo',
-      }));
+      this.providers.set(
+        'together',
+        new OpenAICompatibleProvider({
+          name: 'together',
+          apiKey: togetherKey,
+          baseURL: 'https://api.together.xyz/v1',
+          defaultModel: 'meta-llama/Llama-3.1-70B-Instruct-Turbo',
+        })
+      );
       logger.info('Initialized Together AI provider (OpenAI-compatible)');
     }
 
     // DeepSeek (OpenAI-compatible)
     const deepseekKey = process.env.DEEPSEEK_API_KEY || getApiKey('deepseek');
     if (deepseekKey) {
-      this.providers.set('deepseek', new OpenAICompatibleProvider({
-        name: 'deepseek',
-        apiKey: deepseekKey,
-        baseURL: 'https://api.deepseek.com/v1',
-        defaultModel: 'deepseek-chat',
-      }));
+      this.providers.set(
+        'deepseek',
+        new OpenAICompatibleProvider({
+          name: 'deepseek',
+          apiKey: deepseekKey,
+          baseURL: 'https://api.deepseek.com/v1',
+          defaultModel: 'deepseek-chat',
+        })
+      );
       logger.info('Initialized DeepSeek provider (OpenAI-compatible)');
     }
 
     // Fireworks AI (OpenAI-compatible)
     const fireworksKey = process.env.FIREWORKS_API_KEY || getApiKey('fireworks');
     if (fireworksKey) {
-      this.providers.set('fireworks', new OpenAICompatibleProvider({
-        name: 'fireworks',
-        apiKey: fireworksKey,
-        baseURL: 'https://api.fireworks.ai/inference/v1',
-        defaultModel: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
-      }));
+      this.providers.set(
+        'fireworks',
+        new OpenAICompatibleProvider({
+          name: 'fireworks',
+          apiKey: fireworksKey,
+          baseURL: 'https://api.fireworks.ai/inference/v1',
+          defaultModel: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
+        })
+      );
       logger.info('Initialized Fireworks AI provider (OpenAI-compatible)');
     }
 
     // Perplexity (OpenAI-compatible)
     const perplexityKey = process.env.PERPLEXITY_API_KEY || getApiKey('perplexity');
     if (perplexityKey) {
-      this.providers.set('perplexity', new OpenAICompatibleProvider({
-        name: 'perplexity',
-        apiKey: perplexityKey,
-        baseURL: 'https://api.perplexity.ai',
-        defaultModel: 'llama-3.1-sonar-large-128k-online',
-      }));
+      this.providers.set(
+        'perplexity',
+        new OpenAICompatibleProvider({
+          name: 'perplexity',
+          apiKey: perplexityKey,
+          baseURL: 'https://api.perplexity.ai',
+          defaultModel: 'llama-3.1-sonar-large-128k-online',
+        })
+      );
       logger.info('Initialized Perplexity provider (OpenAI-compatible)');
     }
   }
@@ -237,6 +274,14 @@ export class LLMRouter {
    */
   getAvailableProviders(): string[] {
     return [...this.providers.keys()];
+  }
+
+  /**
+   * Get the names of providers whose circuit breakers are currently OPEN
+   * (i.e. temporarily disabled due to consecutive failures).
+   */
+  getDisabledProviders(): string[] {
+    return this.circuitBreaker.getOpenCircuits();
   }
 
   /**
@@ -258,11 +303,18 @@ export class LLMRouter {
 
     const provider = this.selectProvider(request, taskType);
 
+    // Strip provider prefix after routing (APIs expect model ID without prefix)
+    if (request.model) {
+      request.model = stripProviderPrefix(request.model);
+    }
+
     // Enforce token budget
     this.enforceTokenBudget(request);
 
     if (!provider) {
-      throw new Error('No LLM provider available');
+      throw new Error(
+        'No LLM provider available. Run `nimbus login` to configure a provider, or set an API key via environment variable (e.g. ANTHROPIC_API_KEY).'
+      );
     }
 
     let response: LLMResponse;
@@ -289,10 +341,7 @@ export class LLMRouter {
    * Collects token usage from the final chunk and persists cost data
    * after the stream completes (fire-and-forget, same as route()).
    */
-  async *routeStream(
-    request: CompletionRequest,
-    taskType?: string
-  ): AsyncIterable<StreamChunk> {
+  async *routeStream(request: CompletionRequest, taskType?: string): AsyncIterable<StreamChunk> {
     // Resolve model alias before routing
     if (request.model) {
       request.model = resolveModelAlias(request.model);
@@ -306,11 +355,18 @@ export class LLMRouter {
 
     const provider = self.selectProvider(request, taskType);
 
+    // Strip provider prefix after routing (APIs expect model ID without prefix)
+    if (request.model) {
+      request.model = stripProviderPrefix(request.model);
+    }
+
     // Enforce token budget
     self.enforceTokenBudget(request);
 
     if (!provider) {
-      throw new Error('No LLM provider available');
+      throw new Error(
+        'No LLM provider available. Run `nimbus login` to configure a provider, or set an API key via environment variable (e.g. ANTHROPIC_API_KEY).'
+      );
     }
 
     // Reset fallback metadata
@@ -354,7 +410,7 @@ export class LLMRouter {
       // Estimate tokens from content length if no usage data
       const estimatedOutputTokens = Math.ceil(totalContent.length / 4);
       const estimatedInputTokens = request.messages.reduce(
-        (sum, m) => sum + Math.ceil(m.content.length / 4),
+        (sum, m) => sum + Math.ceil(getTextContent(m.content).length / 4),
         0
       );
       const model = request.model || defaultModel;
@@ -378,6 +434,123 @@ export class LLMRouter {
   }
 
   /**
+   * Route a streaming tool completion request.
+   * Text chunks are yielded incrementally; tool calls arrive on the final
+   * chunk.  Falls back to non-streaming completeWithTools when the selected
+   * provider doesn't support streamWithTools.
+   */
+  async *routeStreamWithTools(
+    request: ToolCompletionRequest,
+    taskType?: string
+  ): AsyncIterable<StreamChunk> {
+    // Resolve model alias before routing
+    if (request.model) {
+      request.model = resolveModelAlias(request.model);
+    }
+
+    const self = this as LLMRouter;
+    const defaultModel = self.config.defaultModel;
+    const provider = self.selectProvider(request, taskType);
+
+    // Strip provider prefix after routing
+    if (request.model) {
+      request.model = stripProviderPrefix(request.model);
+    }
+
+    self.enforceTokenBudget(request);
+
+    if (!provider) {
+      throw new Error(
+        'No LLM provider available. Run `nimbus login` to configure a provider, or set an API key via environment variable (e.g. ANTHROPIC_API_KEY).'
+      );
+    }
+
+    // Use native streaming-with-tools if providers support it
+    if (provider.streamWithTools && self.config.fallback.enabled) {
+      // Try primary provider first, then fallbacks
+      const fallbackProviders = self.config.fallback.providers
+        .map(name => self.providers.get(name))
+        .filter(Boolean) as LLMProvider[];
+      const allProviders = [provider, ...fallbackProviders.filter(p => p !== provider)];
+
+      for (const p of allProviders) {
+        if (!p.streamWithTools || !self.circuitBreaker.isAvailable(p.name)) {
+          continue;
+        }
+        try {
+          let lastUsage: StreamChunk['usage'] | undefined;
+          const bufferedChunks: StreamChunk[] = [];
+          for await (const chunk of p.streamWithTools(request)) {
+            bufferedChunks.push(chunk);
+            if (chunk.usage) {
+              lastUsage = chunk.usage;
+            }
+          }
+          self.circuitBreaker.recordSuccess(p.name);
+          for (const chunk of bufferedChunks) {
+            yield chunk;
+          }
+          if (lastUsage) {
+            const model = request.model || defaultModel;
+            const cost = calculateCost(
+              p.name,
+              model,
+              lastUsage.promptTokens,
+              lastUsage.completionTokens
+            );
+            self.persistUsage(lastUsage, model, p.name, cost);
+          }
+          return;
+        } catch (error) {
+          self.circuitBreaker.recordFailure(p.name);
+          logger.warn(`Provider ${p.name} failed for streamWithTools, trying fallback...`, {
+            error,
+          });
+          continue;
+        }
+      }
+      // If all providers with streamWithTools failed, fall through to non-streaming fallback below
+    } else if (provider.streamWithTools) {
+      // Fallback disabled — use provider directly
+      let lastUsage: StreamChunk['usage'] | undefined;
+      for await (const chunk of provider.streamWithTools(request)) {
+        if (chunk.usage) {
+          lastUsage = chunk.usage;
+        }
+        yield chunk;
+      }
+      if (lastUsage) {
+        const model = request.model || defaultModel;
+        const cost = calculateCost(
+          provider.name,
+          model,
+          lastUsage.promptTokens,
+          lastUsage.completionTokens
+        );
+        self.persistUsage(lastUsage, model, provider.name, cost);
+      }
+      return;
+    }
+
+    // Fallback: non-streaming completeWithTools, yield result as a single chunk
+    const response = await provider.completeWithTools(request);
+    const cost = self.computeCost(provider.name, response);
+    response.cost = cost;
+    if (response.usage) {
+      self.persistUsage(response.usage, response.model, provider.name, cost);
+    }
+
+    if (response.content) {
+      yield { content: response.content, done: false };
+    }
+    yield {
+      done: true,
+      toolCalls: response.toolCalls,
+      usage: response.usage,
+    };
+  }
+
+  /**
    * Route a tool completion request
    */
   async routeWithTools(request: ToolCompletionRequest, taskType?: string): Promise<LLMResponse> {
@@ -388,11 +561,18 @@ export class LLMRouter {
 
     const provider = this.selectProvider(request, taskType);
 
+    // Strip provider prefix after routing (APIs expect model ID without prefix)
+    if (request.model) {
+      request.model = stripProviderPrefix(request.model);
+    }
+
     // Enforce token budget
     this.enforceTokenBudget(request);
 
     if (!provider) {
-      throw new Error('No LLM provider available');
+      throw new Error(
+        'No LLM provider available. Run `nimbus login` to configure a provider, or set an API key via environment variable (e.g. ANTHROPIC_API_KEY).'
+      );
     }
 
     let response: LLMResponse;
@@ -487,19 +667,28 @@ export class LLMRouter {
           ? this.providers.get(this.getProviderForModel(cheapModel)) || this.getCheapProvider()
           : this.getCheapProvider();
         if (provider) {
-          if (!request.model) request.model = cheapModel;
-          logger.info(`Selected cheap provider ${provider.name} with model ${request.model} for task type: ${taskType}`);
+          if (!request.model) {
+            request.model = cheapModel;
+          }
+          logger.info(
+            `Selected cheap provider ${provider.name} with model ${request.model} for task type: ${taskType}`
+          );
           return provider;
         }
       }
       if (this.config.costOptimization.expensiveModelFor.includes(taskType)) {
         const expensiveModel = this.config.costOptimization.expensiveModel;
         const provider = this.getProviderForModel(expensiveModel)
-          ? this.providers.get(this.getProviderForModel(expensiveModel)) || this.getExpensiveProvider()
+          ? this.providers.get(this.getProviderForModel(expensiveModel)) ||
+            this.getExpensiveProvider()
           : this.getExpensiveProvider();
         if (provider) {
-          if (!request.model) request.model = expensiveModel;
-          logger.info(`Selected expensive provider ${provider.name} with model ${request.model} for task type: ${taskType}`);
+          if (!request.model) {
+            request.model = expensiveModel;
+          }
+          logger.info(
+            `Selected expensive provider ${provider.name} with model ${request.model} for task type: ${taskType}`
+          );
           return provider;
         }
       }
@@ -523,6 +712,53 @@ export class LLMRouter {
   }
 
   /**
+   * Check whether an error is a rate-limit (429) or server error (5xx)
+   * that should be retried with backoff before falling through.
+   */
+  private static isRetryableError(error: unknown): boolean {
+    if (error && typeof error === 'object') {
+      const errObj = error as Record<string, unknown>;
+      const status =
+        (typeof errObj.status === 'number' ? errObj.status : undefined) ??
+        (typeof errObj.statusCode === 'number' ? errObj.statusCode : undefined);
+      if (status !== undefined && (status === 429 || (status >= 500 && status < 600))) {
+        return true;
+      }
+      const msg = typeof errObj.message === 'string' ? errObj.message : '';
+      if (/rate.?limit|429|too many requests|overloaded|503/i.test(msg)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Execute an async function with retry + exponential backoff for rate limits.
+   * Retries up to `maxRetries` times with delays of 1s, 2s, 4s, ...
+   */
+  private async withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxRetries && LLMRouter.isRetryableError(error)) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+          const jitter = Math.random() * 500;
+          logger.info(
+            `Rate limited — retrying in ${Math.round(delay + jitter)}ms (attempt ${attempt + 1}/${maxRetries})`
+          );
+          await new Promise(resolve => setTimeout(resolve, delay + jitter));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
+  }
+
+  /**
    * Execute request with fallback logic
    */
   private async executeWithFallback(
@@ -530,22 +766,31 @@ export class LLMRouter {
     request: CompletionRequest
   ): Promise<LLMResponse> {
     const fallbackProviders = this.config.fallback.providers
-      .map((name) => this.providers.get(name))
+      .map(name => this.providers.get(name))
       .filter(Boolean) as LLMProvider[];
 
-    const allProviders = [primaryProvider, ...fallbackProviders.filter((p) => p !== primaryProvider)];
+    const allProviders = [primaryProvider, ...fallbackProviders.filter(p => p !== primaryProvider)];
 
     for (const provider of allProviders) {
+      if (!this.circuitBreaker.isAvailable(provider.name)) {
+        logger.info(`Skipping ${provider.name} (circuit open)`);
+        continue;
+      }
       try {
         logger.info(`Attempting request with ${provider.name}`);
-        return await provider.complete(request);
+        const result = await this.withRetry(() => provider.complete(request));
+        this.circuitBreaker.recordSuccess(provider.name);
+        return result;
       } catch (error) {
+        this.circuitBreaker.recordFailure(provider.name);
         logger.warn(`Provider ${provider.name} failed, trying fallback...`, { error });
         continue;
       }
     }
 
-    throw new Error('All LLM providers failed');
+    throw new Error(
+      'All LLM providers failed. Check your API keys and network connection, or try a different provider.'
+    );
   }
 
   /**
@@ -556,16 +801,23 @@ export class LLMRouter {
     request: ToolCompletionRequest
   ): Promise<LLMResponse> {
     const fallbackProviders = this.config.fallback.providers
-      .map((name) => this.providers.get(name))
+      .map(name => this.providers.get(name))
       .filter(Boolean) as LLMProvider[];
 
-    const allProviders = [primaryProvider, ...fallbackProviders.filter((p) => p !== primaryProvider)];
+    const allProviders = [primaryProvider, ...fallbackProviders.filter(p => p !== primaryProvider)];
 
     for (const provider of allProviders) {
+      if (!this.circuitBreaker.isAvailable(provider.name)) {
+        logger.info(`Skipping ${provider.name} for tool request (circuit open)`);
+        continue;
+      }
       try {
         logger.info(`Attempting tool request with ${provider.name}`);
-        return await provider.completeWithTools(request);
+        const result = await this.withRetry(() => provider.completeWithTools(request));
+        this.circuitBreaker.recordSuccess(provider.name);
+        return result;
       } catch (error) {
+        this.circuitBreaker.recordFailure(provider.name);
         logger.warn(`Provider ${provider.name} failed for tool request, trying fallback...`, {
           error,
         });
@@ -573,7 +825,9 @@ export class LLMRouter {
       }
     }
 
-    throw new Error('All LLM providers failed for tool request');
+    throw new Error(
+      'All LLM providers failed for tool request. Check your API keys and network connection, or try a different provider.'
+    );
   }
 
   /**
@@ -598,14 +852,19 @@ export class LLMRouter {
     const self = this as LLMRouter;
 
     const fallbackProviders = self.config.fallback.providers
-      .map((name) => self.providers.get(name))
+      .map(name => self.providers.get(name))
       .filter(Boolean) as LLMProvider[];
 
-    const allProviders = [primaryProvider, ...fallbackProviders.filter((p) => p !== primaryProvider)];
+    const allProviders = [primaryProvider, ...fallbackProviders.filter(p => p !== primaryProvider)];
 
     let failedProvider: string | undefined;
 
     for (const provider of allProviders) {
+      if (!self.circuitBreaker.isAvailable(provider.name)) {
+        logger.info(`Skipping ${provider.name} for stream (circuit open)`);
+        continue;
+      }
+
       const bufferedChunks: StreamChunk[] = [];
       let streamCompleted = false;
 
@@ -624,7 +883,9 @@ export class LLMRouter {
         // Even if there was no explicit done=true chunk we treat
         // exhausting the iterator as success.
         streamCompleted = true;
+        self.circuitBreaker.recordSuccess(provider.name);
       } catch (error) {
+        self.circuitBreaker.recordFailure(provider.name);
         const partialChunkCount = bufferedChunks.length;
         logger.warn(
           `Provider ${provider.name} failed for stream after ${partialChunkCount} chunk(s), trying fallback...`,
@@ -657,7 +918,9 @@ export class LLMRouter {
       }
     }
 
-    throw new Error('All LLM providers failed for streaming request');
+    throw new Error(
+      'All LLM providers failed for streaming request. Check your API keys and network connection, or try a different provider.'
+    );
   }
 
   /**
@@ -720,35 +983,30 @@ export class LLMRouter {
   ): void {
     try {
       // Lazy import to avoid circular dependency between llm/ and state/
-      import('../state/db').then(({ getDb }) => {
-        try {
-          const db = getDb();
-          const id = crypto.randomUUID();
-          const metadata = JSON.stringify({
-            model: model ?? null,
-            provider: provider ?? null,
-            prompt_tokens: usage.promptTokens,
-            completion_tokens: usage.completionTokens,
-          });
+      import('../state/db')
+        .then(({ getDb }) => {
+          try {
+            const db = getDb();
+            const id = crypto.randomUUID();
+            const metadata = JSON.stringify({
+              model: model ?? null,
+              provider: provider ?? null,
+              prompt_tokens: usage.promptTokens,
+              completion_tokens: usage.completionTokens,
+            });
 
-          db.run(
-            `INSERT INTO usage (id, type, quantity, unit, cost_usd, metadata)
+            db.run(
+              `INSERT INTO usage (id, type, quantity, unit, cost_usd, metadata)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              id,
-              'llm_call',
-              usage.totalTokens,
-              'tokens',
-              cost?.costUSD ?? 0,
-              metadata,
-            ]
-          );
-        } catch (err) {
-          logger.debug('Failed to persist LLM usage to SQLite', { error: err });
-        }
-      }).catch((err) => {
-        logger.debug('Failed to import state/db for usage persistence', { error: err });
-      });
+              [id, 'llm_call', usage.totalTokens, 'tokens', cost?.costUSD ?? 0, metadata]
+            );
+          } catch (err) {
+            logger.debug('Failed to persist LLM usage to SQLite', { error: err });
+          }
+        })
+        .catch(err => {
+          logger.debug('Failed to import state/db for usage persistence', { error: err });
+        });
     } catch (err) {
       logger.debug('Unexpected error in persistUsage', { error: err });
     }

@@ -90,7 +90,8 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'SOC2',
     name: 'Logging enabled',
     description: 'CloudTrail, CloudWatch, or equivalent logging must be configured.',
-    passPattern: /(?:aws_cloudtrail|aws_cloudwatch_log_group|google_logging_project_sink|azurerm_monitor_diagnostic_setting)/,
+    passPattern:
+      /(?:aws_cloudtrail|aws_cloudwatch_log_group|google_logging_project_sink|azurerm_monitor_diagnostic_setting)/,
   },
   {
     id: 'SOC2-002',
@@ -104,20 +105,23 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'SOC2',
     name: 'Encryption at rest',
     description: 'Storage resources must have encryption at rest enabled.',
-    passPattern: /(?:server_side_encryption_configuration|storage_encrypted\s*=\s*true|encryption_configuration|kms_key_id|customer_managed_key)/,
+    passPattern:
+      /(?:server_side_encryption_configuration|storage_encrypted\s*=\s*true|encryption_configuration|kms_key_id|customer_managed_key)/,
   },
   {
     id: 'SOC2-004',
     framework: 'SOC2',
     name: 'Backup configuration',
     description: 'Automated backup or snapshot policies must be configured.',
-    passPattern: /(?:backup_retention_period|aws_backup_plan|google_sql_database_instance.*backup_configuration|azurerm_backup_policy)/s,
+    passPattern:
+      /(?:backup_retention_period|aws_backup_plan|google_sql_database_instance.*backup_configuration|azurerm_backup_policy)/s,
   },
   {
     id: 'SOC2-005',
     framework: 'SOC2',
     name: 'Network security groups',
-    description: 'Network-level access controls (security groups, NACLs, firewall rules) must be present.',
+    description:
+      'Network-level access controls (security groups, NACLs, firewall rules) must be present.',
     passPattern: /(?:aws_security_group|google_compute_firewall|azurerm_network_security_group)/,
   },
 
@@ -129,14 +133,16 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'HIPAA',
     name: 'Encryption required',
     description: 'All data stores must use encryption at rest and in transit.',
-    passPattern: /(?:server_side_encryption_configuration|storage_encrypted\s*=\s*true|ssl_enforcement_enabled|require_ssl)/,
+    passPattern:
+      /(?:server_side_encryption_configuration|storage_encrypted\s*=\s*true|ssl_enforcement_enabled|require_ssl)/,
   },
   {
     id: 'HIPAA-002',
     framework: 'HIPAA',
     name: 'Audit logging',
     description: 'Comprehensive audit logging must be enabled for all access to PHI.',
-    passPattern: /(?:aws_cloudtrail|aws_cloudwatch_log_group|google_logging|azurerm_monitor_diagnostic_setting)/,
+    passPattern:
+      /(?:aws_cloudtrail|aws_cloudwatch_log_group|google_logging|azurerm_monitor_diagnostic_setting)/,
   },
   {
     id: 'HIPAA-003',
@@ -150,7 +156,8 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'HIPAA',
     name: 'PHI data handling',
     description: 'Data classification tags or labels must identify PHI resources.',
-    passPattern: /(?:tags\s*=\s*\{[^}]*(?:phi|hipaa|sensitive|classification)[^}]*\}|labels\s*=\s*\{[^}]*(?:phi|hipaa|sensitive)[^}]*\})/is,
+    passPattern:
+      /(?:tags\s*=\s*\{[^}]*(?:phi|hipaa|sensitive|classification)[^}]*\}|labels\s*=\s*\{[^}]*(?:phi|hipaa|sensitive)[^}]*\})/is,
   },
   {
     id: 'HIPAA-005',
@@ -168,14 +175,16 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'PCI',
     name: 'Network segmentation',
     description: 'Cardholder data environments must be segmented from other networks.',
-    passPattern: /(?:aws_vpc|aws_subnet|google_compute_network|google_compute_subnetwork|azurerm_virtual_network|azurerm_subnet)/,
+    passPattern:
+      /(?:aws_vpc|aws_subnet|google_compute_network|google_compute_subnetwork|azurerm_virtual_network|azurerm_subnet)/,
   },
   {
     id: 'PCI-002',
     framework: 'PCI',
     name: 'Encryption in transit',
     description: 'All cardholder data must be encrypted during transmission.',
-    passPattern: /(?:ssl_policy|ssl_certificate|tls_policy|https_only|redirect_all_requests_to.*https|listener.*protocol\s*=\s*["']HTTPS)/s,
+    passPattern:
+      /(?:ssl_policy|ssl_certificate|tls_policy|https_only|redirect_all_requests_to.*https|listener.*protocol\s*=\s*["']HTTPS)/s,
   },
   {
     id: 'PCI-003',
@@ -197,7 +206,8 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'PCI',
     name: 'WAF or firewall configured',
     description: 'Web application firewall or equivalent must protect public-facing applications.',
-    passPattern: /(?:aws_wafv2|aws_waf|google_compute_security_policy|azurerm_web_application_firewall_policy)/,
+    passPattern:
+      /(?:aws_wafv2|aws_waf|google_compute_security_policy|azurerm_web_application_firewall_policy)/,
   },
 
   // -------------------------------------------------------------------------
@@ -208,7 +218,8 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'GDPR',
     name: 'Data retention policies',
     description: 'Resources must define data retention or lifecycle policies.',
-    passPattern: /(?:lifecycle_rule|retention_in_days|expiration|ttl|data_retention|lifecycle_policy)/,
+    passPattern:
+      /(?:lifecycle_rule|retention_in_days|expiration|ttl|data_retention|lifecycle_policy)/,
   },
   {
     id: 'GDPR-002',
@@ -263,14 +274,16 @@ const CONTROL_DEFINITIONS: ControlDefinition[] = [
     framework: 'CIS',
     name: 'Encryption enabled',
     description: 'All storage and database services must use encryption.',
-    passPattern: /(?:server_side_encryption_configuration|storage_encrypted\s*=\s*true|encryption_configuration|kms_key_id)/,
+    passPattern:
+      /(?:server_side_encryption_configuration|storage_encrypted\s*=\s*true|encryption_configuration|kms_key_id)/,
   },
   {
     id: 'CIS-004',
     framework: 'CIS',
     name: 'VPC flow logs enabled',
     description: 'VPC flow logs must be enabled for network traffic monitoring.',
-    passPattern: /(?:aws_flow_log|google_compute_subnetwork.*log_config|azurerm_network_watcher_flow_log)/s,
+    passPattern:
+      /(?:aws_flow_log|google_compute_subnetwork.*log_config|azurerm_network_watcher_flow_log)/s,
   },
   {
     id: 'CIS-005',
@@ -306,7 +319,9 @@ function collectTerraformContent(dir: string): { content: string; fileCount: num
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        if (DEFAULT_EXCLUDES.has(entry.name)) continue;
+        if (DEFAULT_EXCLUDES.has(entry.name)) {
+          continue;
+        }
         walk(path.join(currentDir, entry.name));
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
@@ -333,7 +348,7 @@ function collectTerraformContent(dir: string): { content: string; fileCount: num
 function evaluateControl(
   def: ControlDefinition,
   terraformContent: string,
-  hasTerraformFiles: boolean,
+  hasTerraformFiles: boolean
 ): ComplianceControl {
   // If no Terraform files exist, skip the control
   if (!hasTerraformFiles) {
@@ -427,7 +442,7 @@ export async function checkCompliance(options: ComplianceOptions): Promise<Compl
   for (const framework of frameworks) {
     const definitions = CONTROL_DEFINITIONS.filter(d => d.framework === framework);
     const controls = definitions.map(def =>
-      evaluateControl(def, terraformContent, hasTerraformFiles),
+      evaluateControl(def, terraformContent, hasTerraformFiles)
     );
 
     const passCount = controls.filter(c => c.status === 'pass').length;
@@ -475,15 +490,11 @@ export function generateScorecard(reports: ComplianceReport[]): string {
     skip: '[SKIP]',
   };
 
-  const lines: string[] = [
-    'Compliance Scorecard',
-    '='.repeat(60),
-    '',
-  ];
+  const lines: string[] = ['Compliance Scorecard', '='.repeat(60), ''];
 
   // Overview table
   lines.push('  Framework   Score   Pass  Fail  Warn  Skip');
-  lines.push('  ' + '-'.repeat(50));
+  lines.push(`  ${'-'.repeat(50)}`);
 
   for (const report of reports) {
     const fw = report.framework.padEnd(10);
@@ -522,7 +533,7 @@ export function generateScorecard(reports: ComplianceReport[]): string {
 
   lines.push('='.repeat(60));
   lines.push(
-    `Overall: ${overallScore}% compliant (${totalPass} pass, ${totalFail} fail, ${totalWarn} warn, ${totalSkip} skip)`,
+    `Overall: ${overallScore}% compliant (${totalPass} pass, ${totalFail} fail, ${totalWarn} warn, ${totalSkip} skip)`
   );
 
   return lines.join('\n');

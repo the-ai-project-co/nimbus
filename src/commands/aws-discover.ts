@@ -6,17 +6,10 @@
  * Usage: nimbus aws discover [options]
  */
 
+import { writeFile } from 'node:fs/promises';
 import { logger } from '../utils';
 import { RestClient } from '../clients';
-import {
-  createWizard,
-  ui,
-  select,
-  multiSelect,
-  confirm,
-  type WizardStep,
-  type StepResult,
-} from '../wizard';
+import { createWizard, ui, select, multiSelect, type WizardStep, type StepResult } from '../wizard';
 
 // AWS Tools Service client
 const awsToolsUrl = process.env.AWS_TOOLS_SERVICE_URL || 'http://localhost:3009';
@@ -84,7 +77,9 @@ export interface AwsDiscoverOptions {
 /**
  * Run the AWS discover command
  */
-export async function awsDiscoverCommand(options: AwsDiscoverOptions = {}): Promise<DiscoveryInventory | null> {
+export async function awsDiscoverCommand(
+  options: AwsDiscoverOptions = {}
+): Promise<DiscoveryInventory | null> {
   logger.info('Starting AWS infrastructure discovery');
 
   // Non-interactive mode
@@ -103,7 +98,7 @@ export async function awsDiscoverCommand(options: AwsDiscoverOptions = {}): Prom
       excludeServices: options.excludeServices,
     },
     steps: createWizardSteps(),
-    onEvent: (event) => {
+    onEvent: event => {
       logger.debug('Wizard event', { type: event.type });
     },
   });
@@ -116,7 +111,11 @@ export async function awsDiscoverCommand(options: AwsDiscoverOptions = {}): Prom
 
     // Handle output options
     if (options.outputFile) {
-      await saveInventory(result.context.inventory, options.outputFile, options.outputFormat || 'json');
+      await saveInventory(
+        result.context.inventory,
+        options.outputFile,
+        options.outputFormat || 'json'
+      );
     }
 
     return result.context.inventory;
@@ -219,8 +218,9 @@ async function awsConfigStep(ctx: AwsDiscoverContext): Promise<StepResult> {
     }
 
     ui.stopSpinnerSuccess(
-      `Authenticated to account ${validateResponse.data.accountId}` +
-      (validateResponse.data.accountAlias ? ` (${validateResponse.data.accountAlias})` : '')
+      `Authenticated to account ${validateResponse.data.accountId}${
+        validateResponse.data.accountAlias ? ` (${validateResponse.data.accountAlias})` : ''
+      }`
     );
 
     ctx.awsAccountId = validateResponse.data.accountId;
@@ -269,11 +269,11 @@ async function awsConfigStep(ctx: AwsDiscoverContext): Promise<StepResult> {
           label: `${r.name} - ${r.displayName}`,
         }));
 
-        selectedRegions = await multiSelect({
+        selectedRegions = (await multiSelect({
           message: 'Select regions to scan:',
           options: regionOptions,
           required: true,
-        }) as string[];
+        })) as string[];
       }
     } catch (error) {
       ui.stopSpinnerFail('Could not fetch regions');
@@ -491,9 +491,7 @@ function displayInventorySummary(inventory: DiscoveryInventory): void {
       ),
       '',
       'By Region:',
-      ...Object.entries(inventory.byRegion || {}).map(
-        ([region, count]) => `  ${region}: ${count}`
-      ),
+      ...Object.entries(inventory.byRegion || {}).map(([region, count]) => `  ${region}: ${count}`),
     ],
     style: 'rounded',
     borderColor: 'cyan',
@@ -525,23 +523,16 @@ async function saveInventory(
       ),
       ``,
       `## By Region`,
-      ...Object.entries(inventory.byRegion || {}).map(
-        ([region, count]) => `- ${region}: ${count}`
-      ),
+      ...Object.entries(inventory.byRegion || {}).map(([region, count]) => `- ${region}: ${count}`),
     ].join('\n');
   } else {
     // Table format - CSV-like
     const headers = ['ID', 'Type', 'Region', 'Name'];
-    const rows = inventory.resources.map(r => [
-      r.id,
-      r.type,
-      r.region,
-      r.name || '',
-    ]);
+    const rows = inventory.resources.map(r => [r.id, r.type, r.region, r.name || '']);
     content = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   }
 
-  await Bun.write(outputFile, content);
+  await writeFile(outputFile, content, 'utf-8');
   ui.success(`Inventory saved to ${outputFile}`);
 }
 
@@ -618,7 +609,9 @@ async function runNonInteractive(options: AwsDiscoverOptions): Promise<Discovery
         inventory?: DiscoveryInventory;
       }>(`/api/aws/discover/${sessionId}`);
 
-      if (!statusResponse.success) continue;
+      if (!statusResponse.success) {
+        continue;
+      }
 
       const { status, progress } = statusResponse.data!;
 

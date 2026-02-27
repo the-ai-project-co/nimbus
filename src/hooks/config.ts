@@ -126,9 +126,15 @@ function unquote(value: string): string {
  * @returns Coerced value (string, number, boolean, or null)
  */
 function coerceValue(raw: string): string | number | boolean | null {
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  if (raw === 'null' || raw === '~') return null;
+  if (raw === 'true') {
+    return true;
+  }
+  if (raw === 'false') {
+    return false;
+  }
+  if (raw === 'null' || raw === '~') {
+    return null;
+  }
 
   const unquoted = unquote(raw);
   if (unquoted !== raw) {
@@ -364,9 +370,7 @@ export function loadHooksConfig(projectDir: string): HooksConfig | null {
 
   // Validate top-level structure
   if (!parsed.hooks || typeof parsed.hooks !== 'object') {
-    throw new Error(
-      `Invalid hooks config at ${configPath}: missing top-level "hooks" key`
-    );
+    throw new Error(`Invalid hooks config at ${configPath}: missing top-level "hooks" key`);
   }
 
   const hooksRaw = parsed.hooks as Record<string, unknown>;
@@ -410,9 +414,7 @@ export function loadHooksConfig(projectDir: string): HooksConfig | null {
         match: String(def.match ?? ''),
         command: String(def.command ?? ''),
         timeout:
-          def.timeout !== undefined && def.timeout !== null
-            ? Number(def.timeout)
-            : undefined,
+          def.timeout !== undefined && def.timeout !== null ? Number(def.timeout) : undefined,
       };
 
       const validationErrors = validateHookDefinition(hookDef);

@@ -13,7 +13,13 @@ export { ServiceURLs, WebSocketURLs } from './service-discovery';
 export { ToolsClient } from './tools-client';
 
 // High-level service clients
-export { LLMClient, llmClient, type ChatMessage, type StreamingChunk, type ChatOptions } from './llm-client';
+export {
+  LLMClient,
+  llmClient,
+  type ChatMessage,
+  type StreamingChunk,
+  type ChatOptions,
+} from './llm-client';
 
 export {
   TerraformClient,

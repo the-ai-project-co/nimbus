@@ -54,8 +54,10 @@ export async function applyHelmCommand(options: ApplyHelmOptions = {}): Promise<
   if (!releaseName) {
     releaseName = await input({
       message: 'Release name:',
-      validate: (value) => {
-        if (!value) return 'Release name is required';
+      validate: value => {
+        if (!value) {
+          return 'Release name is required';
+        }
         return true;
       },
     });
@@ -70,8 +72,10 @@ export async function applyHelmCommand(options: ApplyHelmOptions = {}): Promise<
     chart = await input({
       message: 'Chart (path or name):',
       defaultValue: '.',
-      validate: (value) => {
-        if (!value) return 'Chart is required';
+      validate: value => {
+        if (!value) {
+          return 'Chart is required';
+        }
         return true;
       },
     });
@@ -247,7 +251,7 @@ async function applyWithService(
   // Install or upgrade
   ui.newLine();
   ui.startSpinner({
-    message: isUpgrade ? 'Upgrading release...' : 'Installing release...'
+    message: isUpgrade ? 'Upgrading release...' : 'Installing release...',
   });
 
   let result;
@@ -283,7 +287,9 @@ async function applyWithService(
   try {
     const { trackGeneration } = await import('../../telemetry');
     trackGeneration('helm-apply', ['helm']);
-  } catch { /* telemetry failure is non-critical */ }
+  } catch {
+    /* telemetry failure is non-critical */
+  }
 
   // Display release info
   ui.newLine();
@@ -386,7 +392,12 @@ async function applyWithLocalCLI(
   // Redact sensitive values from --set flags before logging
   const redactedArgs = [...args];
   for (let i = 0; i < redactedArgs.length; i++) {
-    if ((redactedArgs[i] === '--set' || redactedArgs[i] === '--set-string' || redactedArgs[i] === '--set-file') && redactedArgs[i + 1]) {
+    if (
+      (redactedArgs[i] === '--set' ||
+        redactedArgs[i] === '--set-string' ||
+        redactedArgs[i] === '--set-file') &&
+      redactedArgs[i + 1]
+    ) {
       const raw = redactedArgs[i + 1];
       const eq = raw.indexOf('=');
       redactedArgs[i + 1] = eq >= 0 ? `${raw.slice(0, eq + 1)}<REDACTED>` : '<REDACTED>';
@@ -396,27 +407,30 @@ async function applyWithLocalCLI(
   ui.newLine();
 
   // Run helm
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const proc = spawn('helm', args, {
       stdio: 'inherit',
     });
 
-    proc.on('error', (error) => {
+    proc.on('error', error => {
       ui.error(`Failed to run helm: ${error.message}`);
       ui.info('Make sure helm is installed and in your PATH');
       process.exit(1);
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       if (code === 0) {
         ui.newLine();
         ui.success(`Helm ${isUpgrade ? 'upgrade' : 'install'} completed successfully`);
 
         // Track successful helm apply
         try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { trackGeneration } = require('../../telemetry');
           trackGeneration('helm-apply', ['helm']);
-        } catch { /* telemetry failure is non-critical */ }
+        } catch {
+          /* telemetry failure is non-critical */
+        }
 
         resolve();
       } else {

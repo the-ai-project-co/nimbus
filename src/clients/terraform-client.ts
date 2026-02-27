@@ -107,7 +107,9 @@ export class TerraformClient {
    * Initialize a Terraform working directory
    */
   async init(directory: string): Promise<TerraformInitResult> {
-    const response = await this.client.post<TerraformInitResult>('/api/terraform/init', { directory });
+    const response = await this.client.post<TerraformInitResult>('/api/terraform/init', {
+      directory,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -117,28 +119,45 @@ export class TerraformClient {
   /**
    * Generate a Terraform execution plan
    */
-  async plan(directory: string, options?: {
-    varFile?: string;
-    vars?: Record<string, string>;
-    out?: string;
-  }): Promise<TerraformPlanResult> {
-    const response = await this.client.post<TerraformPlanResult>('/api/terraform/plan', { directory, ...options });
+  async plan(
+    directory: string,
+    options?: {
+      varFile?: string;
+      vars?: Record<string, string>;
+      out?: string;
+    }
+  ): Promise<TerraformPlanResult> {
+    const response = await this.client.post<TerraformPlanResult>('/api/terraform/plan', {
+      directory,
+      ...options,
+    });
     if (response.success && response.data) {
       return response.data;
     }
-    return { success: false, output: '', hasChanges: false, error: response.error?.message || 'Unknown error' };
+    return {
+      success: false,
+      output: '',
+      hasChanges: false,
+      error: response.error?.message || 'Unknown error',
+    };
   }
 
   /**
    * Apply Terraform changes
    */
-  async apply(directory: string, options?: {
-    planFile?: string;
-    autoApprove?: boolean;
-    varFile?: string;
-    vars?: Record<string, string>;
-  }): Promise<TerraformApplyResult> {
-    const response = await this.client.post<TerraformApplyResult>('/api/terraform/apply', { directory, ...options });
+  async apply(
+    directory: string,
+    options?: {
+      planFile?: string;
+      autoApprove?: boolean;
+      varFile?: string;
+      vars?: Record<string, string>;
+    }
+  ): Promise<TerraformApplyResult> {
+    const response = await this.client.post<TerraformApplyResult>('/api/terraform/apply', {
+      directory,
+      ...options,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -149,7 +168,9 @@ export class TerraformClient {
    * Validate Terraform configuration
    */
   async validate(directory: string): Promise<TerraformValidateResult> {
-    const response = await this.client.post<TerraformValidateResult>('/api/terraform/validate', { directory });
+    const response = await this.client.post<TerraformValidateResult>('/api/terraform/validate', {
+      directory,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -159,11 +180,17 @@ export class TerraformClient {
   /**
    * Destroy Terraform-managed infrastructure
    */
-  async destroy(directory: string, options?: {
-    autoApprove?: boolean;
-    varFile?: string;
-  }): Promise<TerraformApplyResult> {
-    const response = await this.client.post<TerraformApplyResult>('/api/terraform/destroy', { directory, ...options });
+  async destroy(
+    directory: string,
+    options?: {
+      autoApprove?: boolean;
+      varFile?: string;
+    }
+  ): Promise<TerraformApplyResult> {
+    const response = await this.client.post<TerraformApplyResult>('/api/terraform/destroy', {
+      directory,
+      ...options,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -174,7 +201,10 @@ export class TerraformClient {
    * Show Terraform state
    */
   async show(directory: string): Promise<{ success: boolean; output: string }> {
-    const response = await this.client.post<{ success: boolean; output: string }>('/api/terraform/show', { directory });
+    const response = await this.client.post<{ success: boolean; output: string }>(
+      '/api/terraform/show',
+      { directory }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -184,12 +214,18 @@ export class TerraformClient {
   /**
    * Format Terraform configuration files
    */
-  async fmt(directory: string, options?: {
-    check?: boolean;
-    recursive?: boolean;
-    diff?: boolean;
-  }): Promise<TerraformFmtResult> {
-    const response = await this.client.post<TerraformFmtResult>('/api/terraform/fmt', { workingDir: directory, ...options });
+  async fmt(
+    directory: string,
+    options?: {
+      check?: boolean;
+      recursive?: boolean;
+      diff?: boolean;
+    }
+  ): Promise<TerraformFmtResult> {
+    const response = await this.client.post<TerraformFmtResult>('/api/terraform/fmt', {
+      workingDir: directory,
+      ...options,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -203,7 +239,9 @@ export class TerraformClient {
     list: async (directory: string): Promise<TerraformWorkspaceResult> => {
       const params = new URLSearchParams();
       params.set('workingDir', directory);
-      const response = await this.client.get<TerraformWorkspaceResult>(`/api/terraform/workspace/list?${params.toString()}`);
+      const response = await this.client.get<TerraformWorkspaceResult>(
+        `/api/terraform/workspace/list?${params.toString()}`
+      );
       if (response.success && response.data) {
         return response.data;
       }
@@ -211,7 +249,10 @@ export class TerraformClient {
     },
 
     select: async (name: string, directory: string): Promise<TerraformWorkspaceResult> => {
-      const response = await this.client.post<TerraformWorkspaceResult>('/api/terraform/workspace/select', { name, workingDir: directory });
+      const response = await this.client.post<TerraformWorkspaceResult>(
+        '/api/terraform/workspace/select',
+        { name, workingDir: directory }
+      );
       if (response.success && response.data) {
         return response.data;
       }
@@ -219,7 +260,10 @@ export class TerraformClient {
     },
 
     new: async (name: string, directory: string): Promise<TerraformWorkspaceResult> => {
-      const response = await this.client.post<TerraformWorkspaceResult>('/api/terraform/workspace/new', { name, workingDir: directory });
+      const response = await this.client.post<TerraformWorkspaceResult>(
+        '/api/terraform/workspace/new',
+        { name, workingDir: directory }
+      );
       if (response.success && response.data) {
         return response.data;
       }
@@ -227,7 +271,10 @@ export class TerraformClient {
     },
 
     delete: async (name: string, directory: string): Promise<TerraformWorkspaceResult> => {
-      const response = await this.client.post<TerraformWorkspaceResult>('/api/terraform/workspace/delete', { name, workingDir: directory });
+      const response = await this.client.post<TerraformWorkspaceResult>(
+        '/api/terraform/workspace/delete',
+        { name, workingDir: directory }
+      );
       if (response.success && response.data) {
         return response.data;
       }
@@ -239,7 +286,11 @@ export class TerraformClient {
    * Import existing infrastructure into Terraform state
    */
   async import(directory: string, address: string, id: string): Promise<TerraformImportResult> {
-    const response = await this.client.post<TerraformImportResult>('/api/terraform/import', { workingDir: directory, address, id });
+    const response = await this.client.post<TerraformImportResult>('/api/terraform/import', {
+      workingDir: directory,
+      address,
+      id,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -253,7 +304,9 @@ export class TerraformClient {
     list: async (directory: string): Promise<TerraformStateResult> => {
       const params = new URLSearchParams();
       params.set('workingDir', directory);
-      const response = await this.client.get<TerraformStateResult>(`/api/terraform/state/list?${params.toString()}`);
+      const response = await this.client.get<TerraformStateResult>(
+        `/api/terraform/state/list?${params.toString()}`
+      );
       if (response.success && response.data) {
         return response.data;
       }
@@ -264,15 +317,25 @@ export class TerraformClient {
       const params = new URLSearchParams();
       params.set('address', address);
       params.set('workingDir', directory);
-      const response = await this.client.get<TerraformStateResult>(`/api/terraform/state/show?${params.toString()}`);
+      const response = await this.client.get<TerraformStateResult>(
+        `/api/terraform/state/show?${params.toString()}`
+      );
       if (response.success && response.data) {
         return response.data;
       }
       return { success: false, output: '', error: response.error?.message || 'Unknown error' };
     },
 
-    mv: async (directory: string, source: string, destination: string): Promise<TerraformStateResult> => {
-      const response = await this.client.post<TerraformStateResult>('/api/terraform/state/mv', { directory, source, destination });
+    mv: async (
+      directory: string,
+      source: string,
+      destination: string
+    ): Promise<TerraformStateResult> => {
+      const response = await this.client.post<TerraformStateResult>('/api/terraform/state/mv', {
+        directory,
+        source,
+        destination,
+      });
       if (response.success && response.data) {
         return response.data;
       }
@@ -282,15 +345,23 @@ export class TerraformClient {
     pull: async (directory: string): Promise<TerraformStateResult> => {
       const params = new URLSearchParams();
       params.set('directory', directory);
-      const response = await this.client.get<TerraformStateResult>(`/api/terraform/state/pull?${params.toString()}`);
+      const response = await this.client.get<TerraformStateResult>(
+        `/api/terraform/state/pull?${params.toString()}`
+      );
       if (response.success && response.data) {
         return response.data;
       }
       return { success: false, output: '', error: response.error?.message || 'Unknown error' };
     },
 
-    push: async (directory: string, options?: { stateFile?: string; force?: boolean }): Promise<TerraformStateResult> => {
-      const response = await this.client.post<TerraformStateResult>('/api/terraform/state/push', { directory, ...options });
+    push: async (
+      directory: string,
+      options?: { stateFile?: string; force?: boolean }
+    ): Promise<TerraformStateResult> => {
+      const response = await this.client.post<TerraformStateResult>('/api/terraform/state/push', {
+        directory,
+        ...options,
+      });
       if (response.success && response.data) {
         return response.data;
       }
@@ -302,7 +373,10 @@ export class TerraformClient {
    * Taint a resource, marking it for recreation on next apply
    */
   async taint(directory: string, address: string): Promise<TerraformTaintResult> {
-    const response = await this.client.post<TerraformTaintResult>('/api/terraform/taint', { directory, address });
+    const response = await this.client.post<TerraformTaintResult>('/api/terraform/taint', {
+      directory,
+      address,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -313,7 +387,10 @@ export class TerraformClient {
    * Untaint a resource, removing the taint mark
    */
   async untaint(directory: string, address: string): Promise<TerraformTaintResult> {
-    const response = await this.client.post<TerraformTaintResult>('/api/terraform/untaint', { directory, address });
+    const response = await this.client.post<TerraformTaintResult>('/api/terraform/untaint', {
+      directory,
+      address,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -323,11 +400,18 @@ export class TerraformClient {
   /**
    * Generate a resource dependency graph in DOT format
    */
-  async graph(directory: string, options?: { type?: 'plan' | 'apply' }): Promise<TerraformGraphResult> {
+  async graph(
+    directory: string,
+    options?: { type?: 'plan' | 'apply' }
+  ): Promise<TerraformGraphResult> {
     const params = new URLSearchParams();
     params.set('directory', directory);
-    if (options?.type) params.set('type', options.type);
-    const response = await this.client.get<TerraformGraphResult>(`/api/terraform/graph?${params.toString()}`);
+    if (options?.type) {
+      params.set('type', options.type);
+    }
+    const response = await this.client.get<TerraformGraphResult>(
+      `/api/terraform/graph?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -338,7 +422,10 @@ export class TerraformClient {
    * Force unlock a locked state
    */
   async forceUnlock(directory: string, lockId: string): Promise<TerraformForceUnlockResult> {
-    const response = await this.client.post<TerraformForceUnlockResult>('/api/terraform/force-unlock', { directory, lockId });
+    const response = await this.client.post<TerraformForceUnlockResult>(
+      '/api/terraform/force-unlock',
+      { directory, lockId }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -348,8 +435,14 @@ export class TerraformClient {
   /**
    * Refresh Terraform state against real infrastructure
    */
-  async refresh(directory: string, options?: { varFile?: string }): Promise<TerraformRefreshResult> {
-    const response = await this.client.post<TerraformRefreshResult>('/api/terraform/refresh', { directory, ...options });
+  async refresh(
+    directory: string,
+    options?: { varFile?: string }
+  ): Promise<TerraformRefreshResult> {
+    const response = await this.client.post<TerraformRefreshResult>('/api/terraform/refresh', {
+      directory,
+      ...options,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -362,7 +455,9 @@ export class TerraformClient {
   async output(directory: string, name?: string): Promise<TerraformOutputResult> {
     const params = new URLSearchParams();
     params.set('workingDir', directory);
-    if (name) params.set('name', name);
+    if (name) {
+      params.set('name', name);
+    }
     const query = params.toString() ? `?${params.toString()}` : '';
     const response = await this.client.get<TerraformOutputResult>(`/api/terraform/output${query}`);
     if (response.success && response.data) {

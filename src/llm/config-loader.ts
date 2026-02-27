@@ -16,10 +16,11 @@ import type { RouterConfig } from './router';
  * Returns a Partial<RouterConfig> that can be passed to LLMRouter constructor
  */
 export function loadLLMConfig(): Partial<RouterConfig> {
-  const configPath = process.env.NIMBUS_CONFIG_PATH || path.join(os.homedir(), '.nimbus', 'config.yaml');
+  const configPath =
+    process.env.NIMBUS_CONFIG_PATH || path.join(os.homedir(), '.nimbus', 'config.yaml');
 
   if (!fs.existsSync(configPath)) {
-    logger.info('No config file found at ' + configPath + ', using defaults');
+    logger.info(`No config file found at ${configPath}, using defaults`);
     return {};
   }
 
@@ -68,10 +69,10 @@ export function loadLLMConfig(): Partial<RouterConfig> {
       };
     }
 
-    logger.info('Loaded LLM config from ' + configPath);
+    logger.info(`Loaded LLM config from ${configPath}`);
     return config;
   } catch (error: any) {
-    logger.warn('Failed to load LLM config from ' + configPath + ': ' + error.message);
+    logger.warn(`Failed to load LLM config from ${configPath}: ${error.message}`);
     return {};
   }
 }
@@ -84,13 +85,17 @@ function parseSimpleYaml(content: string): Record<string, any> {
   const result: Record<string, any> = {};
   const lines = content.split('\n');
   // Stack tracks: indent level, the parent object, and the last key set on that object
-  const stack: { indent: number; obj: Record<string, any>; lastKey?: string }[] = [{ indent: -1, obj: result }];
+  const stack: { indent: number; obj: Record<string, any>; lastKey?: string }[] = [
+    { indent: -1, obj: result },
+  ];
 
   for (const rawLine of lines) {
     // Skip comments and empty lines
     const commentIdx = rawLine.indexOf('#');
     const line = commentIdx >= 0 ? rawLine.slice(0, commentIdx) : rawLine;
-    if (line.trim() === '') continue;
+    if (line.trim() === '') {
+      continue;
+    }
 
     const indent = line.length - line.trimStart().length;
     const trimmed = line.trim();
@@ -124,7 +129,9 @@ function parseSimpleYaml(content: string): Record<string, any> {
 
     // Handle key: value pairs
     const colonIdx = trimmed.indexOf(':');
-    if (colonIdx === -1) continue;
+    if (colonIdx === -1) {
+      continue;
+    }
 
     const key = trimmed.slice(0, colonIdx).trim();
     const rawValue = trimmed.slice(colonIdx + 1).trim();
@@ -156,25 +163,38 @@ function parseSimpleYaml(content: string): Record<string, any> {
  */
 function parseYamlValue(value: string): any {
   // Remove surrounding quotes
-  if ((value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))) {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
     return value.slice(1, -1);
   }
 
   // Boolean
-  if (value === 'true') return true;
-  if (value === 'false') return false;
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
 
   // Null
-  if (value === 'null' || value === '~') return null;
+  if (value === 'null' || value === '~') {
+    return null;
+  }
 
   // Number
   const num = Number(value);
-  if (!isNaN(num) && value !== '') return num;
+  if (!isNaN(num) && value !== '') {
+    return num;
+  }
 
   // Inline list [a, b, c]
   if (value.startsWith('[') && value.endsWith(']')) {
-    return value.slice(1, -1).split(',').map(v => parseYamlValue(v.trim()));
+    return value
+      .slice(1, -1)
+      .split(',')
+      .map(v => parseYamlValue(v.trim()));
   }
 
   return value;

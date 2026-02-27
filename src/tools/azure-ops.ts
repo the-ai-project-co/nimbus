@@ -431,7 +431,7 @@ export class AzureOperations {
         return { success: false, error: `Azure API error: ${response.status} - ${errorText}` };
       }
 
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
       const roleAssignments = (data.value || []).map((ra: any) => ({
         id: ra.id,
         name: ra.name,
@@ -461,10 +461,7 @@ export class AzureOperations {
   /**
    * List virtual networks, optionally filtered by resource group
    */
-  async listVNets(
-    subscriptionId?: string,
-    resourceGroup?: string
-  ): Promise<AzureOperationResult> {
+  async listVNets(subscriptionId?: string, resourceGroup?: string): Promise<AzureOperationResult> {
     try {
       const subId = subscriptionId || this.subscriptionId;
       if (!subId) {
@@ -528,9 +525,7 @@ export class AzureOperations {
           networkSecurityGroup: subnet.networkSecurityGroup
             ? { id: subnet.networkSecurityGroup.id }
             : undefined,
-          routeTable: subnet.routeTable
-            ? { id: subnet.routeTable.id }
-            : undefined,
+          routeTable: subnet.routeTable ? { id: subnet.routeTable.id } : undefined,
           serviceEndpoints: subnet.serviceEndpoints?.map((se: any) => ({
             service: se.service,
             locations: se.locations,

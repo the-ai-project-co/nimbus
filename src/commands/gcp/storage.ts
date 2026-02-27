@@ -207,10 +207,7 @@ async function removeObject(path: string, options: GcpCommandOptions): Promise<v
 /**
  * Create a bucket
  */
-async function makeBucket(
-  bucketName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function makeBucket(bucketName: string, options: GcpCommandOptions): Promise<void> {
   const gsutilArgs = ['mb'];
   if (options.project) {
     gsutilArgs.push('-p', options.project);
@@ -235,10 +232,7 @@ async function makeBucket(
 /**
  * Remove a bucket (requires safety approval)
  */
-async function removeBucket(
-  bucketName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function removeBucket(bucketName: string, options: GcpCommandOptions): Promise<void> {
   const bucket = bucketName.startsWith('gs://') ? bucketName : `gs://${bucketName}`;
 
   // Run safety checks

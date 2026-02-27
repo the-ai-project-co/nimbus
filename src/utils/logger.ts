@@ -40,17 +40,31 @@ const SENSITIVE_KEYS = new Set([
 const REDACTED = '[REDACTED]';
 
 function sanitize(value: unknown, seen = new WeakSet()): unknown {
-  if (value === null || value === undefined) return value;
-  if (typeof value === 'bigint') return value.toString();
-  if (typeof value !== 'object') return value;
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (typeof value !== 'object') {
+    return value;
+  }
 
   const obj = value as Record<string, unknown>;
-  if (seen.has(obj)) return '[Circular]';
+  if (seen.has(obj)) {
+    return '[Circular]';
+  }
   seen.add(obj);
 
-  if (obj instanceof Date) return obj.toISOString();
-  if (obj instanceof Map) return sanitize(Object.fromEntries(obj), seen);
-  if (obj instanceof Set) return sanitize([...obj], seen);
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  if (obj instanceof Map) {
+    return sanitize(Object.fromEntries(obj), seen);
+  }
+  if (obj instanceof Set) {
+    return sanitize([...obj], seen);
+  }
 
   if (Array.isArray(obj)) {
     return obj.map(item => sanitize(item, seen));
@@ -69,12 +83,12 @@ function sanitize(value: unknown, seen = new WeakSet()): unknown {
 
 // Patterns to redact in error messages/stacks (connection strings, URLs with creds, etc.)
 const SENSITIVE_PATTERNS = [
-  /(?<=:\/\/[^:]+:)[^@]+(?=@)/g,       // URL password: protocol://user:PASSWORD@host
-  /(?<=password[=:])\s*\S+/gi,          // password=VALUE or password: VALUE
-  /(?<=secret[=:])\s*\S+/gi,            // secret=VALUE or secret: VALUE
-  /(?<=token[=:])\s*\S+/gi,             // token=VALUE or token: VALUE
-  /(?<=apikey[=:])\s*\S+/gi,            // apiKey=VALUE or apikey: VALUE
-  /(?<=authorization[=:])\s*\S+/gi,     // authorization=VALUE
+  /(?<=:\/\/[^:]+:)[^@]+(?=@)/g, // URL password: protocol://user:PASSWORD@host
+  /(?<=password[=:])\s*\S+/gi, // password=VALUE or password: VALUE
+  /(?<=secret[=:])\s*\S+/gi, // secret=VALUE or secret: VALUE
+  /(?<=token[=:])\s*\S+/gi, // token=VALUE or token: VALUE
+  /(?<=apikey[=:])\s*\S+/gi, // apiKey=VALUE or apikey: VALUE
+  /(?<=authorization[=:])\s*\S+/gi, // authorization=VALUE
 ];
 
 function sanitizeString(str: string): string {
@@ -151,9 +165,7 @@ class Logger {
 }
 
 // Export singleton instance
-export const logger = new Logger(
-  (process.env.LOG_LEVEL as LogLevel) || 'info'
-);
+export const logger = new Logger((process.env.LOG_LEVEL as LogLevel) || 'info');
 
 // Export Logger class for testing
 export { Logger };

@@ -29,9 +29,15 @@ function formatTimestamp(timestamp: string): string {
  * Format duration in ms to human readable
  */
 function formatDuration(duration?: number): string {
-  if (!duration) return '-';
-  if (duration < 1000) return `${duration}ms`;
-  if (duration < 60000) return `${(duration / 1000).toFixed(1)}s`;
+  if (!duration) {
+    return '-';
+  }
+  if (duration < 1000) {
+    return `${duration}ms`;
+  }
+  if (duration < 60000) {
+    return `${(duration / 1000).toFixed(1)}s`;
+  }
   return `${(duration / 60000).toFixed(1)}m`;
 }
 
@@ -82,14 +88,15 @@ export async function historyCommand(options: HistoryOptions = {}): Promise<void
       { key: 'status', header: 'Status' },
       { key: 'duration', header: 'Duration' },
     ],
-    data: entries.map((entry) => ({
+    data: entries.map(entry => ({
       timestamp: formatTimestamp(entry.timestamp),
       command: `${entry.command} ${entry.args.join(' ')}`.substring(0, 40),
-      status: entry.status === 'success'
-        ? ui.color('success', 'green')
-        : entry.status === 'failure'
-        ? ui.color('failure', 'red')
-        : ui.color('pending', 'yellow'),
+      status:
+        entry.status === 'success'
+          ? ui.color('success', 'green')
+          : entry.status === 'failure'
+            ? ui.color('failure', 'red')
+            : ui.color('pending', 'yellow'),
       duration: formatDuration(entry.duration),
     })),
   });

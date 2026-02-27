@@ -55,10 +55,18 @@ export class HelmClient {
     allNamespaces?: boolean;
   }): Promise<{ success: boolean; releases: HelmRelease[]; error?: string }> {
     const params = new URLSearchParams();
-    if (options?.namespace) params.set('namespace', options.namespace);
-    if (options?.allNamespaces) params.set('all-namespaces', 'true');
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
+    if (options?.allNamespaces) {
+      params.set('all-namespaces', 'true');
+    }
 
-    const response = await this.client.get<{ success: boolean; releases: HelmRelease[]; error?: string }>(`/api/helm/list?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      releases: HelmRelease[];
+      error?: string;
+    }>(`/api/helm/list?${params.toString()}`);
     if (response.success && response.data) {
       return response.data;
     }
@@ -92,9 +100,17 @@ export class HelmClient {
     }
     return {
       success: false,
-      release: { name: '', namespace: '', revision: 0, status: '', chart: '', appVersion: '', updated: '' },
+      release: {
+        name: '',
+        namespace: '',
+        revision: 0,
+        status: '',
+        chart: '',
+        appVersion: '',
+        updated: '',
+      },
       output: '',
-      error: response.error?.message || 'Unknown error'
+      error: response.error?.message || 'Unknown error',
     };
   }
 
@@ -125,9 +141,17 @@ export class HelmClient {
     }
     return {
       success: false,
-      release: { name: '', namespace: '', revision: 0, status: '', chart: '', appVersion: '', updated: '' },
+      release: {
+        name: '',
+        namespace: '',
+        revision: 0,
+        status: '',
+        chart: '',
+        appVersion: '',
+        updated: '',
+      },
       output: '',
-      error: response.error?.message || 'Unknown error'
+      error: response.error?.message || 'Unknown error',
     };
   }
 
@@ -142,7 +166,10 @@ export class HelmClient {
       dryRun?: boolean;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/helm/uninstall', { releaseName, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/helm/uninstall',
+      { releaseName, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -161,7 +188,10 @@ export class HelmClient {
       dryRun?: boolean;
     }
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/helm/rollback', { releaseName, revision, ...options });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/helm/rollback',
+      { releaseName, revision, ...options }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -177,9 +207,13 @@ export class HelmClient {
   ): Promise<{ success: boolean; history: any[]; error?: string }> {
     const params = new URLSearchParams();
     params.set('release', releaseName);
-    if (options?.namespace) params.set('namespace', options.namespace);
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
 
-    const response = await this.client.get<{ success: boolean; history: any[]; error?: string }>(`/api/helm/history?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; history: any[]; error?: string }>(
+      `/api/helm/history?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -195,9 +229,15 @@ export class HelmClient {
   ): Promise<{ success: boolean; charts: HelmChart[]; error?: string }> {
     const params = new URLSearchParams();
     params.set('keyword', keyword);
-    if (options?.repo) params.set('repo', options.repo);
+    if (options?.repo) {
+      params.set('repo', options.repo);
+    }
 
-    const response = await this.client.get<{ success: boolean; charts: HelmChart[]; error?: string }>(`/api/helm/search?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      charts: HelmChart[];
+      error?: string;
+    }>(`/api/helm/search?${params.toString()}`);
     if (response.success && response.data) {
       return response.data;
     }
@@ -211,7 +251,10 @@ export class HelmClient {
     name: string,
     url: string
   ): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/helm/repo/add', { name, url });
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/helm/repo/add',
+      { name, url }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -222,7 +265,10 @@ export class HelmClient {
    * Update Helm repositories
    */
   async repoUpdate(): Promise<{ success: boolean; output: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output: string; error?: string }>('/api/helm/repo/update', {});
+    const response = await this.client.post<{ success: boolean; output: string; error?: string }>(
+      '/api/helm/repo/update',
+      {}
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -241,10 +287,16 @@ export class HelmClient {
   ): Promise<{ success: boolean; output: string; error?: string }> {
     const params = new URLSearchParams();
     params.set('chart', chart);
-    if (options?.subcommand) params.set('subcommand', options.subcommand);
-    if (options?.version) params.set('version', options.version);
+    if (options?.subcommand) {
+      params.set('subcommand', options.subcommand);
+    }
+    if (options?.version) {
+      params.set('version', options.version);
+    }
 
-    const response = await this.client.get<{ success: boolean; output: string; error?: string }>(`/api/helm/show?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; output: string; error?: string }>(
+      `/api/helm/show?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -262,10 +314,13 @@ export class HelmClient {
       namespace?: string;
     }
   ): Promise<{ success: boolean; data?: any; error?: string }> {
-    const response = await this.client.post<{ success: boolean; data?: any; error?: string }>('/api/helm/lint', {
-      chartPath,
-      ...options,
-    });
+    const response = await this.client.post<{ success: boolean; data?: any; error?: string }>(
+      '/api/helm/lint',
+      {
+        chartPath,
+        ...options,
+      }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -281,9 +336,15 @@ export class HelmClient {
   ): Promise<{ success: boolean; release?: HelmRelease; error?: string }> {
     const params = new URLSearchParams();
     params.set('release', releaseName);
-    if (options?.namespace) params.set('namespace', options.namespace);
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
 
-    const response = await this.client.get<{ success: boolean; release?: HelmRelease; error?: string }>(`/api/helm/status?${params.toString()}`);
+    const response = await this.client.get<{
+      success: boolean;
+      release?: HelmRelease;
+      error?: string;
+    }>(`/api/helm/status?${params.toString()}`);
     if (response.success && response.data) {
       return response.data;
     }
@@ -299,9 +360,13 @@ export class HelmClient {
   ): Promise<{ success: boolean; values: string; error?: string }> {
     const params = new URLSearchParams();
     params.set('chart', chart);
-    if (options?.version) params.set('version', options.version);
+    if (options?.version) {
+      params.set('version', options.version);
+    }
 
-    const response = await this.client.get<{ success: boolean; values: string; error?: string }>(`/api/helm/show/values?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; values: string; error?: string }>(
+      `/api/helm/show/values?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -322,7 +387,11 @@ export class HelmClient {
       version?: string;
     }
   ): Promise<{ success: boolean; manifests?: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; manifests?: string; error?: string }>('/api/helm/template', {
+    const response = await this.client.post<{
+      success: boolean;
+      manifests?: string;
+      error?: string;
+    }>('/api/helm/template', {
       name: releaseName,
       chart,
       ...options,
@@ -345,10 +414,13 @@ export class HelmClient {
       dependencyUpdate?: boolean;
     }
   ): Promise<{ success: boolean; output?: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output?: string; error?: string }>('/api/helm/package', {
-      chartPath,
-      ...options,
-    });
+    const response = await this.client.post<{ success: boolean; output?: string; error?: string }>(
+      '/api/helm/package',
+      {
+        chartPath,
+        ...options,
+      }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -361,9 +433,12 @@ export class HelmClient {
   async dependencyUpdate(
     chartPath: string
   ): Promise<{ success: boolean; output?: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output?: string; error?: string }>('/api/helm/dependency/update', {
-      chartPath,
-    });
+    const response = await this.client.post<{ success: boolean; output?: string; error?: string }>(
+      '/api/helm/dependency/update',
+      {
+        chartPath,
+      }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -376,9 +451,12 @@ export class HelmClient {
   async dependencyBuild(
     chartPath: string
   ): Promise<{ success: boolean; output?: string; error?: string }> {
-    const response = await this.client.post<{ success: boolean; output?: string; error?: string }>('/api/helm/dependency/build', {
-      chartPath,
-    });
+    const response = await this.client.post<{ success: boolean; output?: string; error?: string }>(
+      '/api/helm/dependency/build',
+      {
+        chartPath,
+      }
+    );
     if (response.success && response.data) {
       return response.data;
     }
@@ -394,10 +472,16 @@ export class HelmClient {
   ): Promise<{ success: boolean; status?: any; error?: string }> {
     const params = new URLSearchParams();
     params.set('name', releaseName);
-    if (options?.namespace) params.set('namespace', options.namespace);
-    if (options?.revision !== undefined) params.set('revision', options.revision.toString());
+    if (options?.namespace) {
+      params.set('namespace', options.namespace);
+    }
+    if (options?.revision !== undefined) {
+      params.set('revision', options.revision.toString());
+    }
 
-    const response = await this.client.get<{ success: boolean; status?: any; error?: string }>(`/api/helm/status?${params.toString()}`);
+    const response = await this.client.get<{ success: boolean; status?: any; error?: string }>(
+      `/api/helm/status?${params.toString()}`
+    );
     if (response.success && response.data) {
       return response.data;
     }

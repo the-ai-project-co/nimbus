@@ -25,8 +25,8 @@
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { initApp } from '../app';
-import { runAgentLoop } from '../agent/loop';
-import { defaultToolRegistry } from '../tools/schemas/types';
+import { runAgentLoop, type ToolCallInfo } from '../agent/loop';
+import { defaultToolRegistry, type ToolResult } from '../tools/schemas/types';
 import { standardTools } from '../tools/schemas/standard';
 import { devopsTools } from '../tools/schemas/devops';
 import { SessionManager } from '../sessions/manager';
@@ -36,8 +36,6 @@ import { ContextManager } from '../agent/context-manager';
 import { getOpenAPISpec } from './openapi-spec';
 import { createAuthMiddleware } from './serve-auth';
 import type { LLMMessage } from '../llm/types';
-import type { ToolCallInfo } from '../agent/loop';
-import type { ToolResult } from '../tools/schemas/types';
 import type { AgentMode } from '../agent/system-prompt';
 
 // ---------------------------------------------------------------------------
@@ -63,7 +61,9 @@ export interface ServeOptions {
  * Idempotent -- skips tools that are already registered.
  */
 function ensureToolsRegistered(): void {
-  if (defaultToolRegistry.size > 0) return;
+  if (defaultToolRegistry.size > 0) {
+    return;
+  }
   for (const tool of [...standardTools, ...devopsTools]) {
     try {
       defaultToolRegistry.register(tool);
@@ -103,7 +103,7 @@ function createAgentSSEStream(
   model: string | undefined,
   router: any,
   contextManager: ContextManager,
-  sessionManager: SessionManager,
+  sessionManager: SessionManager
 ): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -137,21 +137,17 @@ function createAgentSSEStream(
             send('tool_end', {
               id: toolCall.id,
               name: toolCall.name,
-              output: typeof toolResult.output === 'string'
-                ? toolResult.output.slice(0, 5000)
-                : toolResult.output,
+              output:
+                typeof toolResult.output === 'string'
+                  ? toolResult.output.slice(0, 5000)
+                  : toolResult.output,
               isError: toolResult.isError,
             });
           },
         });
 
         // Persist conversation
-        saveConversation(
-          sessionId,
-          userMessage.slice(0, 100),
-          result.messages,
-          model,
-        );
+        saveConversation(sessionId, userMessage.slice(0, 100), result.messages, model);
 
         // Update session stats
         sessionManager.updateSession(sessionId, {
@@ -182,7 +178,7 @@ function sseResponse(stream: ReadableStream<Uint8Array>): Response {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     },
   });
@@ -216,14 +212,13 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   // Build Elysia app
   // ------------------------------------------------------------------
 
-  const app = new Elysia()
-    .use(
-      cors({
-        origin: true,
-        methods: ['GET', 'POST', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
-      }),
-    );
+  const app = new Elysia().use(
+    cors({
+      origin: true,
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    })
+  );
 
   // Optional HTTP Basic Auth
   if (options.auth) {
@@ -268,10 +263,10 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   app.get('/api/session/:id', ({ params }: { params: { id: string } }) => {
     const session = sessionManager.get(params.id);
     if (!session) {
-      return new Response(
-        JSON.stringify({ error: 'Session not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: 'Session not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const conversation = getConversation(params.id);
@@ -285,9 +280,8 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   // POST /api/chat -- SSE streaming chat
   // ------------------------------------------------------------------
 
-  app.post('/api/chat', async ({ body }: {
-    body: { message: string; sessionId?: string; model?: string; mode?: string };
-  }) => {
+  app.post('/api/chat', async ctx => {
+    const body = ctx.body as { message: string; sessionId?: string; model?: string; mode?: string };
     const mode = parseMode(body.mode);
 
     // Get or create session
@@ -315,7 +309,7 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
       body.model,
       router,
       contextManager,
-      sessionManager,
+      sessionManager
     );
 
     return sseResponse(stream);
@@ -325,9 +319,8 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   // POST /api/run -- Non-interactive single prompt
   // ------------------------------------------------------------------
 
-  app.post('/api/run', async ({ body }: {
-    body: { prompt: string; model?: string; mode?: string };
-  }) => {
+  app.post('/api/run', async ctx => {
+    const body = ctx.body as { prompt: string; model?: string; mode?: string };
     const mode = parseMode(body.mode);
 
     const session = sessionManager.create({
@@ -345,18 +338,11 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
       });
 
       // Persist conversation and mark session complete
-      saveConversation(
-        session.id,
-        body.prompt.slice(0, 100),
-        result.messages,
-        body.model,
-      );
+      saveConversation(session.id, body.prompt.slice(0, 100), result.messages, body.model);
       sessionManager.complete(session.id);
 
       // Extract final assistant message
-      const lastAssistant = [...result.messages]
-        .reverse()
-        .find((m) => m.role === 'assistant');
+      const lastAssistant = [...result.messages].reverse().find(m => m.role === 'assistant');
 
       return {
         sessionId: session.id,
@@ -368,10 +354,10 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       sessionManager.complete(session.id);
-      return new Response(
-        JSON.stringify({ error: msg }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
   });
 
@@ -379,16 +365,15 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   // POST /api/session/:id -- Continue existing session (SSE)
   // ------------------------------------------------------------------
 
-  app.post('/api/session/:id', async ({ params, body }: {
-    params: { id: string };
-    body: { message: string; model?: string };
-  }) => {
+  app.post('/api/session/:id', async ctx => {
+    const params = ctx.params as { id: string };
+    const body = ctx.body as { message: string; model?: string };
     const session = sessionManager.get(params.id);
     if (!session) {
-      return new Response(
-        JSON.stringify({ error: 'Session not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: 'Session not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const existing = getConversation(params.id);
@@ -403,7 +388,7 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
       body.model ?? session.model,
       router,
       contextManager,
-      sessionManager,
+      sessionManager
     );
 
     return sseResponse(stream);
@@ -413,19 +398,18 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   // POST /api/share -- Share a session
   // ------------------------------------------------------------------
 
-  app.post('/api/share', ({ body }: {
-    body: { sessionId: string; isLive?: boolean; ttlDays?: number };
-  }) => {
+  app.post('/api/share', ctx => {
+    const body = ctx.body as { sessionId: string; isLive?: boolean; ttlDays?: number };
     const shared = shareSession(body.sessionId, {
       isLive: body.isLive,
       ttlDays: body.ttlDays,
     });
 
     if (!shared) {
-      return new Response(
-        JSON.stringify({ error: 'Session not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: 'Session not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     return {
@@ -443,10 +427,10 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   app.get('/api/share/:id', ({ params }: { params: { id: string } }) => {
     const shared = getSharedSession(params.id);
     if (!shared) {
-      return new Response(
-        JSON.stringify({ error: 'Shared session not found or expired' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: 'Shared session not found or expired' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
     return shared;
   });

@@ -606,7 +606,7 @@ export class KubernetesOperations {
     });
 
     // Wait briefly for the "Forwarding from..." confirmation or an error
-    const result = await new Promise<PortForwardResult>((resolve) => {
+    const result = await new Promise<PortForwardResult>(resolve => {
       let stderr = '';
 
       const timeout = setTimeout(() => {
@@ -644,7 +644,7 @@ export class KubernetesOperations {
         stderr += data.toString();
       });
 
-      proc.on('error', (err) => {
+      proc.on('error', err => {
         clearTimeout(timeout);
         resolve({
           success: false,
@@ -656,7 +656,7 @@ export class KubernetesOperations {
         });
       });
 
-      proc.on('close', (code) => {
+      proc.on('close', code => {
         if (code !== 0) {
           clearTimeout(timeout);
           resolve({

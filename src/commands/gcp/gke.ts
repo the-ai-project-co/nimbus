@@ -140,11 +140,9 @@ async function listClusters(options: GcpCommandOptions): Promise<void> {
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(25) +
-          'Location'.padEnd(20) +
-          'Node Count'.padEnd(12) +
-          'Status'.padEnd(12) +
-          'Version',
+        `${
+          'Name'.padEnd(25) + 'Location'.padEnd(20) + 'Node Count'.padEnd(12) + 'Status'.padEnd(12)
+        }Version`,
         'cyan'
       )
     );
@@ -181,10 +179,7 @@ async function listClusters(options: GcpCommandOptions): Promise<void> {
 /**
  * Describe a specific cluster
  */
-async function describeCluster(
-  clusterName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function describeCluster(clusterName: string, options: GcpCommandOptions): Promise<void> {
   ui.header(`Cluster: ${clusterName}`);
   ui.newLine();
 
@@ -238,10 +233,7 @@ async function describeCluster(
 /**
  * Get cluster credentials for kubectl
  */
-async function getCredentials(
-  clusterName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function getCredentials(clusterName: string, options: GcpCommandOptions): Promise<void> {
   const gcloudArgs = ['container', 'clusters', 'get-credentials', clusterName];
   if (options.project) {
     gcloudArgs.push(`--project=${options.project}`);
@@ -269,21 +261,11 @@ async function getCredentials(
 /**
  * List node pools in a cluster
  */
-async function listNodePools(
-  clusterName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function listNodePools(clusterName: string, options: GcpCommandOptions): Promise<void> {
   ui.header(`Node Pools in ${clusterName}`);
   ui.newLine();
 
-  const gcloudArgs = [
-    'container',
-    'node-pools',
-    'list',
-    '--cluster',
-    clusterName,
-    '--format=json',
-  ];
+  const gcloudArgs = ['container', 'node-pools', 'list', '--cluster', clusterName, '--format=json'];
   if (options.project) {
     gcloudArgs.push(`--project=${options.project}`);
   }
@@ -311,10 +293,7 @@ async function listNodePools(
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(25) +
-          'Machine Type'.padEnd(20) +
-          'Node Count'.padEnd(12) +
-          'Version',
+        `${'Name'.padEnd(25) + 'Machine Type'.padEnd(20) + 'Node Count'.padEnd(12)}Version`,
         'cyan'
       )
     );
@@ -326,9 +305,7 @@ async function listNodePools(
       const nodeCount = String(pool.initialNodeCount || 0);
       const version = pool.version || '';
 
-      ui.print(
-        `${name.padEnd(25)}${machineType.padEnd(20)}${nodeCount.padEnd(12)}${version}`
-      );
+      ui.print(`${name.padEnd(25)}${machineType.padEnd(20)}${nodeCount.padEnd(12)}${version}`);
     }
   } catch (error: unknown) {
     ui.stopSpinnerFail('Failed to fetch node pools');
@@ -401,10 +378,7 @@ async function resizeCluster(
 /**
  * Delete a cluster (requires safety approval)
  */
-async function deleteCluster(
-  clusterName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function deleteCluster(clusterName: string, options: GcpCommandOptions): Promise<void> {
   // Run safety checks
   const safetyResult = await runGkeSafetyChecks('delete', clusterName, options);
 

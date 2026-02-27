@@ -11,6 +11,7 @@
  *   nimbus web --ui-url https://app.example.com/nimbus   # custom Web UI URL
  */
 
+import { spawn } from 'node:child_process';
 import { serveCommand } from './serve';
 
 export interface WebOptions {
@@ -29,14 +30,15 @@ export interface WebOptions {
  */
 async function openBrowser(url: string): Promise<void> {
   const { platform } = process;
-  const cmd = platform === 'darwin'
-    ? ['open', url]
-    : platform === 'win32'
-      ? ['cmd', '/c', 'start', url]
-      : ['xdg-open', url];
+  const cmd =
+    platform === 'darwin'
+      ? ['open', url]
+      : platform === 'win32'
+        ? ['cmd', '/c', 'start', url]
+        : ['xdg-open', url];
 
-  const proc = Bun.spawn(cmd, { stdout: 'ignore', stderr: 'ignore' });
-  await proc.exited;
+  const proc = spawn(cmd[0], cmd.slice(1), { stdio: 'ignore', detached: true });
+  proc.unref();
 }
 
 /**

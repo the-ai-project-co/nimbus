@@ -60,7 +60,9 @@ export class TerraformParser {
     while (pos < stripped.length) {
       // Find next occurrence of the word "resource" at a word boundary
       const idx = stripped.indexOf(resourceKeyword, pos);
-      if (idx === -1) break;
+      if (idx === -1) {
+        break;
+      }
 
       // Make sure it is a standalone keyword (not part of another word)
       const before = idx > 0 ? stripped[idx - 1] : '\n';
@@ -132,7 +134,9 @@ export class TerraformParser {
       // Multi-line comment /* ... */
       if (content[i] === '/' && content[i + 1] === '*') {
         const end = content.indexOf('*/', i + 2);
-        if (end === -1) break;
+        if (end === -1) {
+          break;
+        }
         // Preserve newlines
         const chunk = content.substring(i, end + 2);
         result += chunk.replace(/[^\n]/g, ' ');
@@ -143,8 +147,10 @@ export class TerraformParser {
       // Single-line comments: # or //
       if (content[i] === '#' || (content[i] === '/' && content[i + 1] === '/')) {
         const nl = content.indexOf('\n', i);
-        if (nl === -1) break;
-        result += ' '.repeat(nl - i) + '\n';
+        if (nl === -1) {
+          break;
+        }
+        result += `${' '.repeat(nl - i)}\n`;
         i = nl + 1;
         continue;
       }
@@ -162,7 +168,9 @@ export class TerraformParser {
    * Returns the inner content (without the outer braces), or null on failure.
    */
   private extractBlock(content: string, start: number): string | null {
-    if (content[start] !== '{') return null;
+    if (content[start] !== '{') {
+      return null;
+    }
     let depth = 0;
     let inString = false;
 
@@ -172,8 +180,12 @@ export class TerraformParser {
         inString = !inString;
         continue;
       }
-      if (inString) continue;
-      if (ch === '{') depth++;
+      if (inString) {
+        continue;
+      }
+      if (ch === '{') {
+        depth++;
+      }
       if (ch === '}') {
         depth--;
         if (depth === 0) {
@@ -226,7 +238,12 @@ export class TerraformParser {
       if (/=\s*$/.test(beforeBrace.substring(Math.max(0, beforeBrace.length - 10)))) {
         continue;
       }
-      const innerBody = this.extractBlock(body, nestedMatch.index + blockName.length + body.substring(nestedMatch.index + blockName.length).indexOf('{'));
+      const innerBody = this.extractBlock(
+        body,
+        nestedMatch.index +
+          blockName.length +
+          body.substring(nestedMatch.index + blockName.length).indexOf('{')
+      );
       if (innerBody) {
         const innerAttrs = this.parseAttributes(innerBody);
         for (const [k, v] of Object.entries(innerAttrs)) {
@@ -242,9 +259,15 @@ export class TerraformParser {
    * Detect the cloud provider from the Terraform resource type prefix.
    */
   private detectProvider(type: string): 'aws' | 'gcp' | 'azure' | 'unknown' {
-    if (type.startsWith('aws_')) return 'aws';
-    if (type.startsWith('google_')) return 'gcp';
-    if (type.startsWith('azurerm_')) return 'azure';
+    if (type.startsWith('aws_')) {
+      return 'aws';
+    }
+    if (type.startsWith('google_')) {
+      return 'gcp';
+    }
+    if (type.startsWith('azurerm_')) {
+      return 'azure';
+    }
     return 'unknown';
   }
 }

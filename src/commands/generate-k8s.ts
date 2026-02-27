@@ -155,7 +155,7 @@ export async function generateK8sCommand(options: GenerateK8sOptions = {}): Prom
       memoryLimit: options.memoryLimit,
     },
     steps: createWizardSteps(),
-    onEvent: (event) => {
+    onEvent: event => {
       logger.debug('Wizard event', { type: event.type });
     },
   });
@@ -213,7 +213,7 @@ function createWizardSteps(): WizardStep<K8sWizardContext>[] {
       id: 'replicas',
       title: 'Replica Configuration',
       description: 'Configure replicas and scaling options',
-      condition: (ctx) => !['daemonset', 'job'].includes(ctx.workloadType || ''),
+      condition: ctx => !['daemonset', 'job'].includes(ctx.workloadType || ''),
       execute: replicaConfigStep,
     },
 
@@ -222,7 +222,7 @@ function createWizardSteps(): WizardStep<K8sWizardContext>[] {
       id: 'job-config',
       title: 'Job Configuration',
       description: 'Configure job-specific settings',
-      condition: (ctx) => ['job', 'cronjob'].includes(ctx.workloadType || ''),
+      condition: ctx => ['job', 'cronjob'].includes(ctx.workloadType || ''),
       execute: jobConfigStep,
     },
 
@@ -255,7 +255,7 @@ function createWizardSteps(): WizardStep<K8sWizardContext>[] {
       id: 'health-checks',
       title: 'Health Checks',
       description: 'Configure liveness and readiness probes',
-      condition: (ctx) => !['job', 'cronjob'].includes(ctx.workloadType || ''),
+      condition: ctx => !['job', 'cronjob'].includes(ctx.workloadType || ''),
       execute: healthChecksStep,
     },
 
@@ -331,8 +331,10 @@ async function basicConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const name = await input({
     message: 'Application name:',
     defaultValue: ctx.name || 'my-app',
-    validate: (value) => {
-      if (!value) return 'Name is required';
+    validate: value => {
+      if (!value) {
+        return 'Name is required';
+      }
       if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value)) {
         return 'Name must be lowercase alphanumeric with dashes only';
       }
@@ -349,8 +351,10 @@ async function basicConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const namespace = await input({
     message: 'Namespace:',
     defaultValue: ctx.namespace || 'default',
-    validate: (value) => {
-      if (!value) return 'Namespace is required';
+    validate: value => {
+      if (!value) {
+        return 'Namespace is required';
+      }
       if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value)) {
         return 'Namespace must be lowercase alphanumeric with dashes only';
       }
@@ -367,8 +371,10 @@ async function basicConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const image = await input({
     message: 'Container image (e.g., nginx:latest, myregistry/myapp):',
     defaultValue: ctx.image || '',
-    validate: (value) => {
-      if (!value) return 'Image is required';
+    validate: value => {
+      if (!value) {
+        return 'Image is required';
+      }
       return true;
     },
   });
@@ -400,9 +406,11 @@ async function replicaConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const replicas = await input({
     message: 'Number of replicas:',
     defaultValue: String(ctx.replicas || 2),
-    validate: (value) => {
+    validate: value => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1) return 'Must be a positive number';
+      if (isNaN(num) || num < 1) {
+        return 'Must be a positive number';
+      }
       return true;
     },
   });
@@ -413,10 +421,12 @@ async function replicaConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
 
   // Ask about HPA
   ui.newLine();
-  const includeHpa = ctx.includeHpa ?? await confirm({
-    message: 'Include Horizontal Pod Autoscaler (HPA)?',
-    defaultValue: false,
-  });
+  const includeHpa =
+    ctx.includeHpa ??
+    (await confirm({
+      message: 'Include Horizontal Pod Autoscaler (HPA)?',
+      defaultValue: false,
+    }));
 
   let minReplicas: number | undefined;
   let maxReplicas: number | undefined;
@@ -427,9 +437,11 @@ async function replicaConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
     const min = await input({
       message: 'Minimum replicas:',
       defaultValue: String(ctx.minReplicas || Math.max(1, parseInt(replicas, 10) - 1)),
-      validate: (value) => {
+      validate: value => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num < 1) return 'Must be a positive number';
+        if (isNaN(num) || num < 1) {
+          return 'Must be a positive number';
+        }
         return true;
       },
     });
@@ -438,9 +450,11 @@ async function replicaConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
     const max = await input({
       message: 'Maximum replicas:',
       defaultValue: String(ctx.maxReplicas || parseInt(replicas, 10) * 2),
-      validate: (value) => {
+      validate: value => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num < minReplicas!) return `Must be >= ${minReplicas}`;
+        if (isNaN(num) || num < minReplicas!) {
+          return `Must be >= ${minReplicas}`;
+        }
         return true;
       },
     });
@@ -449,9 +463,11 @@ async function replicaConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
     const cpu = await input({
       message: 'Target CPU utilization (%):',
       defaultValue: String(ctx.targetCPUUtilization || 70),
-      validate: (value) => {
+      validate: value => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num < 1 || num > 100) return 'Must be between 1 and 100';
+        if (isNaN(num) || num < 1 || num > 100) {
+          return 'Must be between 1 and 100';
+        }
         return true;
       },
     });
@@ -480,11 +496,15 @@ async function jobConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
     const scheduleInput = await input({
       message: 'Cron schedule (e.g., "*/5 * * * *" for every 5 minutes):',
       defaultValue: ctx.schedule || '0 * * * *',
-      validate: (value) => {
-        if (!value) return 'Schedule is required for CronJob';
+      validate: value => {
+        if (!value) {
+          return 'Schedule is required for CronJob';
+        }
         // Basic cron validation (5 fields)
         const parts = value.trim().split(/\s+/);
-        if (parts.length !== 5) return 'Schedule must have 5 fields (min hour day month weekday)';
+        if (parts.length !== 5) {
+          return 'Schedule must have 5 fields (min hour day month weekday)';
+        }
         return true;
       },
     });
@@ -496,9 +516,11 @@ async function jobConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const backoffInput = await input({
     message: 'Backoff limit (retries on failure):',
     defaultValue: String(ctx.backoffLimit || 6),
-    validate: (value) => {
+    validate: value => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 0) return 'Must be a non-negative number';
+      if (isNaN(num) || num < 0) {
+        return 'Must be a non-negative number';
+      }
       return true;
     },
   });
@@ -509,9 +531,11 @@ async function jobConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const completionsInput = await input({
     message: 'Number of completions (total successful pods):',
     defaultValue: String(ctx.completions || 1),
-    validate: (value) => {
+    validate: value => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1) return 'Must be a positive number';
+      if (isNaN(num) || num < 1) {
+        return 'Must be a positive number';
+      }
       return true;
     },
   });
@@ -522,9 +546,11 @@ async function jobConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const parallelismInput = await input({
     message: 'Parallelism (concurrent pods):',
     defaultValue: String(ctx.parallelism || 1),
-    validate: (value) => {
+    validate: value => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1) return 'Must be a positive number';
+      if (isNaN(num) || num < 1) {
+        return 'Must be a positive number';
+      }
       return true;
     },
   });
@@ -549,9 +575,11 @@ async function serviceConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   const portInput = await input({
     message: 'Container port:',
     defaultValue: String(ctx.containerPort || 8080),
-    validate: (value) => {
+    validate: value => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1 || num > 65535) return 'Must be between 1 and 65535';
+      if (isNaN(num) || num < 1 || num > 65535) {
+        return 'Must be between 1 and 65535';
+      }
       return true;
     },
   });
@@ -576,34 +604,37 @@ async function serviceConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
 
     if (includeService) {
       ui.newLine();
-      serviceType = await select<K8sServiceType>({
-        message: 'Service type:',
-        options: [
-          {
-            value: 'ClusterIP',
-            label: 'ClusterIP',
-            description: 'Internal cluster access only (default)',
-          },
-          {
-            value: 'NodePort',
-            label: 'NodePort',
-            description: 'Expose on each node\'s IP at a static port',
-          },
-          {
-            value: 'LoadBalancer',
-            label: 'LoadBalancer',
-            description: 'External load balancer (cloud provider)',
-          },
-        ],
-        defaultValue: ctx.serviceType || 'ClusterIP',
-      }) || 'ClusterIP';
+      serviceType =
+        (await select<K8sServiceType>({
+          message: 'Service type:',
+          options: [
+            {
+              value: 'ClusterIP',
+              label: 'ClusterIP',
+              description: 'Internal cluster access only (default)',
+            },
+            {
+              value: 'NodePort',
+              label: 'NodePort',
+              description: "Expose on each node's IP at a static port",
+            },
+            {
+              value: 'LoadBalancer',
+              label: 'LoadBalancer',
+              description: 'External load balancer (cloud provider)',
+            },
+          ],
+          defaultValue: ctx.serviceType || 'ClusterIP',
+        })) || 'ClusterIP';
 
       const servicePortInput = await input({
         message: 'Service port:',
         defaultValue: String(ctx.servicePort || containerPort),
-        validate: (value) => {
+        validate: value => {
           const num = parseInt(value, 10);
-          if (isNaN(num) || num < 1 || num > 65535) return 'Must be between 1 and 65535';
+          if (isNaN(num) || num < 1 || num > 65535) {
+            return 'Must be between 1 and 65535';
+          }
           return true;
         },
       });
@@ -699,11 +730,11 @@ async function additionalResourcesStep(ctx: K8sWizardContext): Promise<StepResul
     });
   }
 
-  const selectedResources = await multiSelect({
+  const selectedResources = (await multiSelect({
     message: 'Select additional resources to generate:',
     options: resourceOptions,
     required: false,
-  }) as string[];
+  })) as string[];
 
   const includeConfigMap = selectedResources.includes('configmap') || ctx.includeConfigMap;
   const includeSecret = selectedResources.includes('secret') || ctx.includeSecret;
@@ -825,10 +856,7 @@ async function outputConfigStep(ctx: K8sWizardContext): Promise<StepResult> {
   });
 
   ui.newLine();
-  const outputPath = await pathInput(
-    'Output directory:',
-    ctx.outputPath || `./${ctx.name}-k8s`
-  );
+  const outputPath = await pathInput('Output directory:', ctx.outputPath || `./${ctx.name}-k8s`);
 
   if (!outputPath) {
     return { success: false, error: 'Output path is required' };
@@ -963,7 +991,9 @@ function buildGenerationRequest(ctx: K8sWizardContext): Record<string, unknown> 
 /**
  * Generate manifests locally when service is unavailable
  */
-function generateManifestsLocally(ctx: K8sWizardContext): Array<{ name: string; content: string; path: string }> {
+function generateManifestsLocally(
+  ctx: K8sWizardContext
+): Array<{ name: string; content: string; path: string }> {
   const files: Array<{ name: string; content: string; path: string }> = [];
   const labels: Record<string, string> = {
     'app.kubernetes.io/name': ctx.name || 'unnamed',
@@ -1044,19 +1074,22 @@ function generateWorkloadManifest(ctx: K8sWizardContext, labels: Record<string, 
 
   // Build container spec
   const containerSpec: Record<string, unknown> = {
-    name: name,
+    name,
     image: `${image}:${imageTag || 'latest'}`,
     ports: containerPort ? [{ containerPort }] : undefined,
-    resources: (ctx.cpuRequest || ctx.memoryRequest) ? {
-      requests: {
-        ...(ctx.cpuRequest && { cpu: ctx.cpuRequest }),
-        ...(ctx.memoryRequest && { memory: ctx.memoryRequest }),
-      },
-      limits: {
-        ...(ctx.cpuLimit && { cpu: ctx.cpuLimit }),
-        ...(ctx.memoryLimit && { memory: ctx.memoryLimit }),
-      },
-    } : undefined,
+    resources:
+      ctx.cpuRequest || ctx.memoryRequest
+        ? {
+            requests: {
+              ...(ctx.cpuRequest && { cpu: ctx.cpuRequest }),
+              ...(ctx.memoryRequest && { memory: ctx.memoryRequest }),
+            },
+            limits: {
+              ...(ctx.cpuLimit && { cpu: ctx.cpuLimit }),
+              ...(ctx.memoryLimit && { memory: ctx.memoryLimit }),
+            },
+          }
+        : undefined,
   };
 
   // Add probes if configured
@@ -1392,10 +1425,14 @@ function toYaml(obj: Record<string, unknown>, indent = 0): string {
   const spaces = '  '.repeat(indent);
 
   for (const [key, value] of Object.entries(obj)) {
-    if (value === undefined || value === null) continue;
+    if (value === undefined || value === null) {
+      continue;
+    }
 
     if (Array.isArray(value)) {
-      if (value.length === 0) continue;
+      if (value.length === 0) {
+        continue;
+      }
       lines.push(`${spaces}${key}:`);
       for (const item of value) {
         if (typeof item === 'object' && item !== null) {
@@ -1412,7 +1449,10 @@ function toYaml(obj: Record<string, unknown>, indent = 0): string {
     } else if (typeof value === 'object') {
       lines.push(`${spaces}${key}:`);
       lines.push(toYaml(value as Record<string, unknown>, indent + 1));
-    } else if (typeof value === 'string' && (value.includes(':') || value.includes('#') || value.includes('\n'))) {
+    } else if (
+      typeof value === 'string' &&
+      (value.includes(':') || value.includes('#') || value.includes('\n'))
+    ) {
       lines.push(`${spaces}${key}: "${value}"`);
     } else {
       lines.push(`${spaces}${key}: ${value}`);

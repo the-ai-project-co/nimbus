@@ -12,12 +12,11 @@
  */
 
 import { runAgentLoop } from '../agent/loop';
-import { createPermissionState, checkPermission, approveForSession } from '../agent/permissions';
+import { createPermissionState, checkPermission } from '../agent/permissions';
 import { defaultToolRegistry } from '../tools/schemas/types';
 import { standardTools } from '../tools/schemas/standard';
 import { devopsTools } from '../tools/schemas/devops';
 import type { AgentMode } from '../agent/system-prompt';
-import type { ToolDefinition, ToolResult } from '../tools/schemas/types';
 import type { LLMRouter } from '../llm/router';
 
 /** Options parsed from command-line arguments */
@@ -114,10 +113,7 @@ export function parseRunArgs(args: string[]): RunOptions {
 /**
  * Execute a non-interactive run.
  */
-export async function executeRun(
-  router: LLMRouter,
-  options: RunOptions,
-): Promise<RunResult> {
+export async function executeRun(router: LLMRouter, options: RunOptions): Promise<RunResult> {
   // Get prompt from stdin if requested
   let prompt = options.prompt;
   if (options.stdin && !prompt) {
@@ -140,7 +136,11 @@ export async function executeRun(
   if (registry.size === 0) {
     // Register all built-in tools
     for (const tool of [...standardTools, ...devopsTools]) {
-      try { registry.register(tool); } catch { /* skip duplicates */ }
+      try {
+        registry.register(tool);
+      } catch {
+        /* skip duplicates */
+      }
     }
   }
 
@@ -159,14 +159,14 @@ export async function executeRun(
     model: options.model,
     cwd: process.cwd(),
 
-    onText: (text) => {
+    onText: text => {
       outputParts.push(text);
       if (options.format === 'text') {
         process.stdout.write(text);
       }
     },
 
-    onToolCallStart: (toolCall) => {
+    onToolCallStart: toolCall => {
       if (options.format === 'text') {
         process.stderr.write(`\n[Tool: ${toolCall.name}]\n`);
       }
@@ -225,8 +225,8 @@ export async function executeRun(
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
 
-  return new Promise((resolve) => {
-    process.stdin.on('data', (chunk) => chunks.push(chunk));
+  return new Promise(resolve => {
+    process.stdin.on('data', chunk => chunks.push(Buffer.from(chunk)));
     process.stdin.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8').trim()));
 
     // If stdin is a TTY (no pipe), resolve immediately

@@ -2,7 +2,7 @@
  * Tests for Multi-Session Manager
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { Database } from 'bun:sqlite';
+import { Database } from '../compat/sqlite';
 import { SessionManager } from '../sessions/manager';
 import type { SessionEvent } from '../sessions/types';
 
@@ -64,7 +64,7 @@ describe('SessionManager', () => {
     });
 
     it('should filter by status', () => {
-      const s1 = manager.create({ name: 'Active' });
+      const _s1 = manager.create({ name: 'Active' });
       const s2 = manager.create({ name: 'Completed' });
       manager.complete(s2.id);
 

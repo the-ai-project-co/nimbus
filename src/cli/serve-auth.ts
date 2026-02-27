@@ -43,7 +43,7 @@ const PUBLIC_PATHS = new Set(['/api/health', '/api/openapi.json']);
  *          missing or invalid, or `undefined` to let the request through.
  */
 export function createAuthMiddleware(
-  options: ServeAuthOptions,
+  options: ServeAuthOptions
 ): (ctx: { request: Request; set: any }) => { error: string } | undefined {
   const expectedToken = btoa(`${options.username}:${options.password}`);
 

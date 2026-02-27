@@ -80,11 +80,15 @@ export class IntentParser {
       try {
         const llmResult = await this.parseWithLLM(input);
         if (llmResult) {
-          logger.debug(`Using LLM-classified intent: ${llmResult.type} (confidence: ${llmResult.confidence})`);
+          logger.debug(
+            `Using LLM-classified intent: ${llmResult.type} (confidence: ${llmResult.confidence})`
+          );
           return llmResult;
         }
       } catch (error) {
-        logger.debug(`LLM intent parsing failed, falling back to heuristics: ${(error as Error).message}`);
+        logger.debug(
+          `LLM intent parsing failed, falling back to heuristics: ${(error as Error).message}`
+        );
       }
     }
 
@@ -122,7 +126,10 @@ export class IntentParser {
     }
 
     // Strip markdown code fences if present
-    const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const jsonStr = content
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/, '')
+      .trim();
 
     const parsed: unknown = JSON.parse(jsonStr);
 
@@ -210,7 +217,9 @@ export class IntentParser {
   private extractEntities(match: RegExpMatchArray, pattern: NLUPattern): IntentEntity[] {
     const entities: IntentEntity[] = [];
 
-    if (!pattern.entities) return entities;
+    if (!pattern.entities) {
+      return entities;
+    }
 
     for (const entityConfig of pattern.entities) {
       try {
@@ -245,27 +254,39 @@ export class IntentParser {
    */
   private matchByKeywords(input: string): ConversationalIntent | null {
     const generateKeywords = [
-      'create', 'generate', 'build', 'setup', 'deploy', 'provision',
-      'deployment', 'pod', 'statefulset', 'daemonset', 'cronjob', 'ingress',
-      'helm', 'chart', 'manifest',
+      'create',
+      'generate',
+      'build',
+      'setup',
+      'deploy',
+      'provision',
+      'deployment',
+      'pod',
+      'statefulset',
+      'daemonset',
+      'cronjob',
+      'ingress',
+      'helm',
+      'chart',
+      'manifest',
     ];
     const modifyKeywords = ['change', 'modify', 'update', 'edit', 'adjust', 'alter'];
     const explainKeywords = ['explain', 'what', 'why', 'how', 'tell me about', 'describe'];
     const helpKeywords = ['help', 'assist', 'guide', 'support'];
 
-    if (generateKeywords.some((kw) => input.includes(kw))) {
+    if (generateKeywords.some(kw => input.includes(kw))) {
       return { type: 'generate', confidence: 0.6, entities: this.extractKeywordEntities(input) };
     }
 
-    if (modifyKeywords.some((kw) => input.includes(kw))) {
+    if (modifyKeywords.some(kw => input.includes(kw))) {
       return { type: 'modify', confidence: 0.6, entities: this.extractKeywordEntities(input) };
     }
 
-    if (explainKeywords.some((kw) => input.includes(kw))) {
+    if (explainKeywords.some(kw => input.includes(kw))) {
       return { type: 'explain', confidence: 0.6, entities: this.extractKeywordEntities(input) };
     }
 
-    if (helpKeywords.some((kw) => input.includes(kw))) {
+    if (helpKeywords.some(kw => input.includes(kw))) {
       return { type: 'help', confidence: 0.7, entities: [] };
     }
 
@@ -292,7 +313,16 @@ export class IntentParser {
     }
 
     // K8s workload type extraction
-    const k8sWorkloads = ['deployment', 'pod', 'service', 'ingress', 'namespace', 'statefulset', 'daemonset', 'cronjob'];
+    const k8sWorkloads = [
+      'deployment',
+      'pod',
+      'service',
+      'ingress',
+      'namespace',
+      'statefulset',
+      'daemonset',
+      'cronjob',
+    ];
     let foundK8sWorkload = false;
     for (const workload of k8sWorkloads) {
       if (input.includes(workload)) {
@@ -316,7 +346,7 @@ export class IntentParser {
     }
 
     if (foundHelm) {
-      const existingGenType = entities.find((e) => e.type === 'generation_type');
+      const existingGenType = entities.find(e => e.type === 'generation_type');
       if (existingGenType) {
         existingGenType.value = 'helm';
       } else {
@@ -325,22 +355,39 @@ export class IntentParser {
     }
 
     // Component extraction (cloud infrastructure)
-    const components = ['vpc', 'eks', 'kubernetes', 'k8s', 'rds', 'database', 's3', 'storage', 'bucket'];
+    const components = [
+      'vpc',
+      'eks',
+      'kubernetes',
+      'k8s',
+      'rds',
+      'database',
+      's3',
+      'storage',
+      'bucket',
+    ];
     for (const component of components) {
       if (input.includes(component)) {
-        if (foundK8sWorkload && (component === 'kubernetes' || component === 'k8s')) continue;
+        if (foundK8sWorkload && (component === 'kubernetes' || component === 'k8s')) {
+          continue;
+        }
 
         let normalizedComponent = component;
-        const genTypeEntity = entities.find((e) => e.type === 'generation_type');
-        const isK8sGeneration = genTypeEntity && (genTypeEntity.value === 'kubernetes' || genTypeEntity.value === 'helm');
+        const genTypeEntity = entities.find(e => e.type === 'generation_type');
+        const isK8sGeneration =
+          genTypeEntity && (genTypeEntity.value === 'kubernetes' || genTypeEntity.value === 'helm');
 
         if (component === 'k8s' || component === 'kubernetes') {
           normalizedComponent = isK8sGeneration ? 'kubernetes' : 'eks';
         }
-        if (component === 'database') normalizedComponent = 'rds';
-        if (component === 'storage' || component === 'bucket') normalizedComponent = 's3';
+        if (component === 'database') {
+          normalizedComponent = 'rds';
+        }
+        if (component === 'storage' || component === 'bucket') {
+          normalizedComponent = 's3';
+        }
 
-        if (!entities.some((e) => e.type === 'component' && e.value === normalizedComponent)) {
+        if (!entities.some(e => e.type === 'component' && e.value === normalizedComponent)) {
           entities.push({ type: 'component', value: normalizedComponent, confidence: 0.8 });
         }
       }
@@ -351,15 +398,20 @@ export class IntentParser {
     for (const env of environments) {
       if (input.includes(env)) {
         let normalizedEnv = env;
-        if (env === 'dev') normalizedEnv = 'development';
-        if (env === 'prod') normalizedEnv = 'production';
+        if (env === 'dev') {
+          normalizedEnv = 'development';
+        }
+        if (env === 'prod') {
+          normalizedEnv = 'production';
+        }
         entities.push({ type: 'environment', value: normalizedEnv, confidence: 0.85 });
         break;
       }
     }
 
     // Region extraction
-    const regionPattern = /\b(us-east-1|us-west-2|eu-west-1|eu-central-1|ap-southeast-1|ap-northeast-1)\b/;
+    const regionPattern =
+      /\b(us-east-1|us-west-2|eu-west-1|eu-central-1|ap-southeast-1|ap-northeast-1)\b/;
     const regionMatch = input.match(regionPattern);
     if (regionMatch) {
       entities.push({ type: 'region', value: regionMatch[0], confidence: 0.95 });
@@ -381,74 +433,82 @@ export class IntentParser {
       },
       // Generate Kubernetes resource patterns
       {
-        pattern: /(?:create|generate|build|deploy)\s+(?:a|an)?\s*(deployment|pod|service|statefulset|daemonset|cronjob|ingress)/i,
+        pattern:
+          /(?:create|generate|build|deploy)\s+(?:a|an)?\s*(deployment|pod|service|statefulset|daemonset|cronjob|ingress)/i,
         intent: 'generate',
         entities: [
-          { type: 'component', extractor: (match) => match[1].toLowerCase() },
+          { type: 'component', extractor: match => match[1].toLowerCase() },
           { type: 'generation_type', extractor: () => 'kubernetes' },
         ],
       },
       // Generate infrastructure patterns
       {
-        pattern: /(?:create|generate|build|setup)\s+(?:a|an)?\s*(vpc|eks|rds|s3|kubernetes|k8s)(?:\s+on|\s+in)?\s+(aws|gcp|azure)?/i,
+        pattern:
+          /(?:create|generate|build|setup)\s+(?:a|an)?\s*(vpc|eks|rds|s3|kubernetes|k8s)(?:\s+on|\s+in)?\s+(aws|gcp|azure)?/i,
         intent: 'generate',
         entities: [
           {
             type: 'component',
-            extractor: (match) => {
+            extractor: match => {
               const c = match[1].toLowerCase();
               return c === 'k8s' || c === 'kubernetes' ? 'eks' : c;
             },
           },
-          { type: 'provider', extractor: (match) => match[2]?.toLowerCase() || 'aws' },
+          { type: 'provider', extractor: match => match[2]?.toLowerCase() || 'aws' },
         ],
       },
       {
-        pattern: /(?:create|generate|build|setup)\s+(?:a|an)?\s*(production|staging|development)\s+environment/i,
+        pattern:
+          /(?:create|generate|build|setup)\s+(?:a|an)?\s*(production|staging|development)\s+environment/i,
         intent: 'generate',
-        entities: [{ type: 'environment', extractor: (match) => match[1].toLowerCase() }],
+        entities: [{ type: 'environment', extractor: match => match[1].toLowerCase() }],
       },
       {
         pattern: /(?:i need|i want|can you create)\s+(?:a|an)?\s*(vpc|eks|rds|s3)/i,
         intent: 'generate',
-        entities: [{ type: 'component', extractor: (match) => match[1].toLowerCase() }],
+        entities: [{ type: 'component', extractor: match => match[1].toLowerCase() }],
       },
       {
         pattern: /deploy\s+(?:a|an)?\s*(.+?)\s+(?:on|to|in)\s+(aws|gcp|azure)/i,
         intent: 'generate',
         entities: [
-          { type: 'component', extractor: (match) => match[1].toLowerCase().trim() },
-          { type: 'provider', extractor: (match) => match[2].toLowerCase() },
+          { type: 'component', extractor: match => match[1].toLowerCase().trim() },
+          { type: 'provider', extractor: match => match[2].toLowerCase() },
         ],
       },
       // Modify patterns
       {
         pattern: /(?:change|modify|update|edit)\s+(?:the|my)?\s*(vpc|eks|rds|s3)/i,
         intent: 'modify',
-        entities: [{ type: 'component', extractor: (match) => match[1].toLowerCase() }],
+        entities: [{ type: 'component', extractor: match => match[1].toLowerCase() }],
       },
       {
-        pattern: /(?:add|enable|disable|remove)\s+(.+?)\s+(?:to|from|for|in)\s+(?:the|my)?\s*(vpc|eks|rds|s3)/i,
+        pattern:
+          /(?:add|enable|disable|remove)\s+(.+?)\s+(?:to|from|for|in)\s+(?:the|my)?\s*(vpc|eks|rds|s3)/i,
         intent: 'modify',
         entities: [
-          { type: 'action', extractor: (match) => match[1].toLowerCase() },
-          { type: 'component', extractor: (match) => match[2].toLowerCase() },
+          { type: 'action', extractor: match => match[1].toLowerCase() },
+          { type: 'component', extractor: match => match[2].toLowerCase() },
         ],
       },
       // Explain patterns
       {
-        pattern: /(?:what|explain|describe|tell me about)\s+(?:is|are)?\s*(?:a|an|the)?\s*(vpc|eks|rds|s3|terraform|kubernetes|helm|deployment|statefulset|ingress)/i,
+        pattern:
+          /(?:what|explain|describe|tell me about)\s+(?:is|are)?\s*(?:a|an|the)?\s*(vpc|eks|rds|s3|terraform|kubernetes|helm|deployment|statefulset|ingress)/i,
         intent: 'explain',
-        entities: [{ type: 'topic', extractor: (match) => match[1].toLowerCase() }],
+        entities: [{ type: 'topic', extractor: match => match[1].toLowerCase() }],
       },
       {
         pattern: /(?:why|how)\s+(?:do|does|should|would)\s+(?:i|we)?\s*(.+)/i,
         intent: 'explain',
-        entities: [{ type: 'question', extractor: (match) => match[1].toLowerCase() }],
+        entities: [{ type: 'question', extractor: match => match[1].toLowerCase() }],
       },
       // Help patterns
       { pattern: /(?:help|assist|guide|support|how to)/i, intent: 'help' },
-      { pattern: /(?:what can you do|what are your capabilities|show me what you can do)/i, intent: 'help' },
+      {
+        pattern: /(?:what can you do|what are your capabilities|show me what you can do)/i,
+        intent: 'help',
+      },
     ];
   }
 }

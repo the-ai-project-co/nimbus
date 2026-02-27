@@ -128,11 +128,12 @@ async function listVms(options: AzureCommandOptions): Promise<void> {
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(25) +
+        `${
+          'Name'.padEnd(25) +
           'Resource Group'.padEnd(25) +
           'Location'.padEnd(15) +
-          'VM Size'.padEnd(20) +
-          'Status',
+          'VM Size'.padEnd(20)
+        }Status`,
         'cyan'
       )
     );
@@ -169,10 +170,7 @@ async function listVms(options: AzureCommandOptions): Promise<void> {
 /**
  * Show VM details
  */
-async function showVm(
-  vmName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function showVm(vmName: string, options: AzureCommandOptions): Promise<void> {
   ui.header(`VM: ${vmName}`);
   ui.newLine();
 
@@ -181,7 +179,17 @@ async function showVm(
     return;
   }
 
-  const azArgs = ['vm', 'show', '-n', vmName, '-g', options.resourceGroup, '-o', 'json', '--show-details'];
+  const azArgs = [
+    'vm',
+    'show',
+    '-n',
+    vmName,
+    '-g',
+    options.resourceGroup,
+    '-o',
+    'json',
+    '--show-details',
+  ];
   if (options.subscription) {
     azArgs.push('--subscription', options.subscription);
   }
@@ -237,10 +245,7 @@ async function showVm(
 /**
  * Start a VM
  */
-async function startVm(
-  vmName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function startVm(vmName: string, options: AzureCommandOptions): Promise<void> {
   if (!options.resourceGroup) {
     ui.error('Resource group required (use -g)');
     return;
@@ -266,10 +271,7 @@ async function startVm(
 /**
  * Stop a VM
  */
-async function stopVm(
-  vmName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function stopVm(vmName: string, options: AzureCommandOptions): Promise<void> {
   if (!options.resourceGroup) {
     ui.error('Resource group required (use -g)');
     return;
@@ -295,10 +297,7 @@ async function stopVm(
 /**
  * Delete a VM (requires safety approval)
  */
-async function deleteVm(
-  vmName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function deleteVm(vmName: string, options: AzureCommandOptions): Promise<void> {
   if (!options.resourceGroup) {
     ui.error('Resource group required (use -g)');
     return;

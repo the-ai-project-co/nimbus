@@ -8,8 +8,8 @@
  * For more accurate, real-time pricing, install Infracost.
  */
 
-import { TerraformParser, type TerraformResource } from './parsers/terraform';
-import { getResourcePrice, type PricingResult } from './pricing';
+import { TerraformParser } from './parsers/terraform';
+import { getResourcePrice } from './pricing';
 import type { CostEstimate, CostResource } from './index';
 
 export class CostEstimator {

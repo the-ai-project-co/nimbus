@@ -65,16 +65,17 @@ export async function askCommand(question: string, options: AskOptions = {}): Pr
         // Read relevant files from directory
         const files = await fs.readdir(options.context);
         const relevantExtensions = ['.tf', '.yaml', '.yml', '.json', '.ts', '.js', '.py', '.go'];
-        const relevantFiles = files.filter(f =>
-          relevantExtensions.some(ext => f.endsWith(ext))
-        ).slice(0, 5); // Limit to 5 files
+        const relevantFiles = files
+          .filter(f => relevantExtensions.some(ext => f.endsWith(ext)))
+          .slice(0, 5); // Limit to 5 files
 
         for (const file of relevantFiles) {
           try {
             const filePath = path.join(options.context, file);
             const content = await fs.readFile(filePath, 'utf-8');
             // Limit content size
-            const truncated = content.length > 2000 ? content.slice(0, 2000) + '\n... (truncated)' : content;
+            const truncated =
+              content.length > 2000 ? `${content.slice(0, 2000)}\n... (truncated)` : content;
             context += `File: ${file}\n\`\`\`\n${truncated}\n\`\`\`\n\n`;
           } catch {
             // Skip unreadable files
@@ -143,13 +144,18 @@ export async function askCommand(question: string, options: AskOptions = {}): Pr
 
     // JSON output mode
     if (options.json) {
-      console.log(JSON.stringify({
-        question,
-        answer: response,
-        context: context ? true : false,
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            question,
+            answer: response,
+            context: context ? true : false,
+          },
+          null,
+          2
+        )
+      );
     }
-
   } catch (error: any) {
     ui.stopSpinnerFail('Failed');
     ui.error(error.message);

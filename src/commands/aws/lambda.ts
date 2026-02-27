@@ -137,7 +137,7 @@ async function invokeFunction(
   ui.startSpinner({ message: 'Invoking function...' });
 
   try {
-    const { execFile, execFileSync } = await import('child_process');
+    const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const fs = await import('fs/promises');
     const os = await import('os');
@@ -150,10 +150,14 @@ async function invokeFunction(
 
     // Invoke Lambda
     const args = [
-      'lambda', 'invoke',
-      '--function-name', functionName,
-      '--payload', `file://${tempFile}`,
-      '--cli-binary-format', 'raw-in-base64-out',
+      'lambda',
+      'invoke',
+      '--function-name',
+      functionName,
+      '--payload',
+      `file://${tempFile}`,
+      '--cli-binary-format',
+      'raw-in-base64-out',
     ];
 
     if (options.profile) {
@@ -216,12 +220,17 @@ async function getFunctionLogs(functionName: string, options: AwsCommandOptions)
 
     // Fetch recent log streams
     const args = [
-      'logs', 'describe-log-streams',
-      '--log-group-name', logGroupName,
-      '--order-by', 'LastEventTime',
+      'logs',
+      'describe-log-streams',
+      '--log-group-name',
+      logGroupName,
+      '--order-by',
+      'LastEventTime',
       '--descending',
-      '--limit', '1',
-      '--output', 'json',
+      '--limit',
+      '1',
+      '--output',
+      'json',
     ];
 
     if (options.profile) {
@@ -244,11 +253,16 @@ async function getFunctionLogs(functionName: string, options: AwsCommandOptions)
 
     // Fetch log events
     const logArgs = [
-      'logs', 'get-log-events',
-      '--log-group-name', logGroupName,
-      '--log-stream-name', latestStream,
-      '--limit', '50',
-      '--output', 'json',
+      'logs',
+      'get-log-events',
+      '--log-group-name',
+      logGroupName,
+      '--log-stream-name',
+      latestStream,
+      '--limit',
+      '50',
+      '--output',
+      'json',
     ];
 
     if (options.profile) {
@@ -322,20 +336,24 @@ function displayFunctionTable(functions: LambdaFunction[]): void {
   ]);
 
   // Print header
-  const headerRow = headers.map((h, i) => {
-    const maxWidth = Math.max(h.length, ...rows.map(r => r[i].length));
-    return h.padEnd(maxWidth);
-  }).join('  ');
+  const headerRow = headers
+    .map((h, i) => {
+      const maxWidth = Math.max(h.length, ...rows.map(r => r[i].length));
+      return h.padEnd(maxWidth);
+    })
+    .join('  ');
 
   ui.print(ui.bold(headerRow));
   ui.print('-'.repeat(headerRow.length));
 
   // Print rows
   for (const row of rows) {
-    const formattedRow = row.map((cell, i) => {
-      const maxWidth = Math.max(headers[i].length, ...rows.map(r => r[i].length));
-      return cell.padEnd(maxWidth);
-    }).join('  ');
+    const formattedRow = row
+      .map((cell, i) => {
+        const maxWidth = Math.max(headers[i].length, ...rows.map(r => r[i].length));
+        return cell.padEnd(maxWidth);
+      })
+      .join('  ');
 
     ui.print(formattedRow);
   }
@@ -345,7 +363,9 @@ function displayFunctionTable(functions: LambdaFunction[]): void {
  * Format bytes to human readable
  */
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) {
+    return '0 B';
+  }
 
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];

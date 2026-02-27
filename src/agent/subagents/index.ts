@@ -93,10 +93,10 @@ export function createSubagent(type: SubagentType): Subagent {
  * // => null
  * ```
  */
-export function parseAgentMention(
-  input: string,
-): { agent: SubagentType; prompt: string } | null {
+export function parseAgentMention(input: string): { agent: SubagentType; prompt: string } | null {
   const match = input.match(/^@(explore|infra|security|cost|general)\s+(.+)$/s);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   return { agent: match[1] as SubagentType, prompt: match[2] };
 }

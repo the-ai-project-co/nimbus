@@ -53,25 +53,19 @@ describe('detectProjectType()', () => {
   });
 
   test('detects Go (go.mod)', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'go.mod'),
-      'module example.com/myapp\n\ngo 1.21\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'go.mod'), 'module example.com/myapp\n\ngo 1.21\n');
     expect(detectProjectType(tmpDir)).toBe('go');
   });
 
   test('detects Python (pyproject.toml)', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'pyproject.toml'),
-      '[project]\nname = "myapp"\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'pyproject.toml'), '[project]\nname = "myapp"\n');
     expect(detectProjectType(tmpDir)).toBe('python');
   });
 
   test('detects Rust (Cargo.toml)', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'Cargo.toml'),
-      '[package]\nname = "myapp"\nversion = "0.1.0"\n',
+      '[package]\nname = "myapp"\nversion = "0.1.0"\n'
     );
     expect(detectProjectType(tmpDir)).toBe('rust');
   });
@@ -79,7 +73,7 @@ describe('detectProjectType()', () => {
   test('detects Java (pom.xml)', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'pom.xml'),
-      '<project><modelVersion>4.0.0</modelVersion></project>',
+      '<project><modelVersion>4.0.0</modelVersion></project>'
     );
     expect(detectProjectType(tmpDir)).toBe('java');
   });
@@ -105,10 +99,7 @@ describe('detectInfrastructure()', () => {
   });
 
   test('detects Terraform (.tf files)', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'main.tf'),
-      'provider "aws" {\n  region = "us-east-1"\n}\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'main.tf'), 'provider "aws" {\n  region = "us-east-1"\n}\n');
 
     const infra = detectInfrastructure(tmpDir);
     expect(infra).toContain('terraform');
@@ -117,12 +108,7 @@ describe('detectInfrastructure()', () => {
   test('detects Kubernetes (manifest with kind: Deployment)', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'deployment.yaml'),
-      [
-        'apiVersion: apps/v1',
-        'kind: Deployment',
-        'metadata:',
-        '  name: web',
-      ].join('\n'),
+      ['apiVersion: apps/v1', 'kind: Deployment', 'metadata:', '  name: web'].join('\n')
     );
 
     const infra = detectInfrastructure(tmpDir);
@@ -132,7 +118,7 @@ describe('detectInfrastructure()', () => {
   test('detects Helm (Chart.yaml)', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'Chart.yaml'),
-      'apiVersion: v2\nname: my-chart\nversion: 0.1.0\n',
+      'apiVersion: v2\nname: my-chart\nversion: 0.1.0\n'
     );
 
     const infra = detectInfrastructure(tmpDir);
@@ -140,10 +126,7 @@ describe('detectInfrastructure()', () => {
   });
 
   test('detects Docker (Dockerfile)', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'Dockerfile'),
-      'FROM node:20-alpine\nWORKDIR /app\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'Dockerfile'), 'FROM node:20-alpine\nWORKDIR /app\n');
 
     const infra = detectInfrastructure(tmpDir);
     expect(infra).toContain('docker');
@@ -152,10 +135,7 @@ describe('detectInfrastructure()', () => {
   test('detects CI/CD (.github/workflows/)', () => {
     const workflowsDir = path.join(tmpDir, '.github', 'workflows');
     fs.mkdirSync(workflowsDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(workflowsDir, 'ci.yml'),
-      'name: CI\non: push\n',
-    );
+    fs.writeFileSync(path.join(workflowsDir, 'ci.yml'), 'name: CI\non: push\n');
 
     const infra = detectInfrastructure(tmpDir);
     expect(infra).toContain('cicd');
@@ -185,7 +165,7 @@ describe('detectCloudProviders()', () => {
   test('detects AWS (provider "aws" in .tf)', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'providers.tf'),
-      'provider "aws" {\n  region = "us-east-1"\n}\n',
+      'provider "aws" {\n  region = "us-east-1"\n}\n'
     );
 
     const providers = detectCloudProviders(tmpDir);
@@ -195,7 +175,7 @@ describe('detectCloudProviders()', () => {
   test('detects GCP (provider "google" in .tf)', () => {
     fs.writeFileSync(
       path.join(tmpDir, 'providers.tf'),
-      'provider "google" {\n  project = "my-project"\n}\n',
+      'provider "google" {\n  project = "my-project"\n}\n'
     );
 
     const providers = detectCloudProviders(tmpDir);
@@ -203,10 +183,7 @@ describe('detectCloudProviders()', () => {
   });
 
   test('detects Azure (provider "azurerm" in .tf)', () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'providers.tf'),
-      'provider "azurerm" {\n  features {}\n}\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'providers.tf'), 'provider "azurerm" {\n  features {}\n}\n');
 
     const providers = detectCloudProviders(tmpDir);
     expect(providers).toContain('azure');
@@ -264,10 +241,7 @@ describe('detectProject()', () => {
     // Bun lock file
     fs.writeFileSync(path.join(tmpDir, 'bun.lock'), '');
     // Terraform
-    fs.writeFileSync(
-      path.join(tmpDir, 'main.tf'),
-      'provider "aws" {\n  region = "us-east-1"\n}\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'main.tf'), 'provider "aws" {\n  region = "us-east-1"\n}\n');
     // Docker
     fs.writeFileSync(path.join(tmpDir, 'Dockerfile'), 'FROM node:20\n');
     // Git
@@ -300,7 +274,7 @@ describe('generateNimbusMd()', () => {
         hasGit: true,
         packageManager: 'bun',
       },
-      '/tmp/my-cool-app',
+      '/tmp/my-cool-app'
     );
 
     expect(md).toContain('# my-cool-app');
@@ -316,7 +290,7 @@ describe('generateNimbusMd()', () => {
         hasGit: true,
         packageManager: 'npm',
       },
-      '/tmp/infra-project',
+      '/tmp/infra-project'
     );
 
     expect(md).toContain('## Infrastructure');
@@ -336,7 +310,7 @@ describe('generateNimbusMd()', () => {
         cloudProviders: [],
         hasGit: false,
       },
-      '/tmp/test-project',
+      '/tmp/test-project'
     );
 
     expect(md).toContain('## Safety Rules');
@@ -354,7 +328,7 @@ describe('generateNimbusMd()', () => {
         hasGit: true,
         packageManager: 'bun',
       },
-      '/tmp/bun-app',
+      '/tmp/bun-app'
     );
 
     expect(md).toContain('**Package Manager:** bun');
@@ -418,9 +392,7 @@ describe('runInit()', () => {
     expect(fs.existsSync(path.join(tmpDir, 'NIMBUS.md'))).toBe(true);
 
     // Second init should throw
-    await expect(runInit({ cwd: tmpDir, quiet: true })).rejects.toThrow(
-      'NIMBUS.md already exists',
-    );
+    await expect(runInit({ cwd: tmpDir, quiet: true })).rejects.toThrow('NIMBUS.md already exists');
   });
 
   test('overwrites with --force', async () => {
@@ -444,21 +416,14 @@ describe('runInit()', () => {
 
     expect(fs.existsSync(path.join(tmpDir, '.nimbus', 'hooks'))).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, '.nimbus', 'agents'))).toBe(true);
-    expect(
-      fs.existsSync(path.join(tmpDir, '.nimbus', 'hooks', 'pre-commit.ts')),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(tmpDir, '.nimbus', 'agents', 'default.yaml')),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, '.nimbus', 'hooks', 'pre-commit.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, '.nimbus', 'agents', 'default.yaml'))).toBe(true);
   });
 
   test('returns correct detection results', async () => {
     // Add some extra markers
     fs.writeFileSync(path.join(tmpDir, 'bun.lock'), '');
-    fs.writeFileSync(
-      path.join(tmpDir, 'main.tf'),
-      'provider "aws" {\n  region = "us-east-1"\n}\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'main.tf'), 'provider "aws" {\n  region = "us-east-1"\n}\n');
 
     const result = await runInit({ cwd: tmpDir, quiet: true });
 

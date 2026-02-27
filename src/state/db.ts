@@ -6,7 +6,7 @@
  * variant is available for tests.
  */
 
-import { Database } from 'bun:sqlite';
+import { Database } from '../compat/sqlite';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';

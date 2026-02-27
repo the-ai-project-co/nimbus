@@ -6,10 +6,7 @@
 import { ui } from '../../wizard/ui';
 import { auditClient } from '../../clients/enterprise-client';
 import * as fs from 'node:fs';
-import type {
-  AuditListOptions,
-  AuditExportCommandOptions,
-} from '../../types';
+import type { AuditListOptions, AuditExportCommandOptions } from '../../types';
 
 /**
  * Get current team ID from config or environment
@@ -185,7 +182,8 @@ export async function auditExportCommand(options: AuditExportCommandOptions): Pr
     }
 
     const format = options.format || 'json';
-    const output = options.output || `audit-logs-${new Date().toISOString().split('T')[0]}.${format}`;
+    const output =
+      options.output || `audit-logs-${new Date().toISOString().split('T')[0]}.${format}`;
 
     ui.startSpinner({ message: `Exporting audit logs to ${output}...` });
     const content = await auditClient.exportLogs(format, {

@@ -62,7 +62,10 @@ async function templateListCommand(options: TemplateCommandOptions = {}): Promis
 /**
  * Get a specific template by ID
  */
-async function templateGetCommand(id: string, options: TemplateCommandOptions = {}): Promise<void> {
+async function templateGetCommand(
+  id: string,
+  _options: TemplateCommandOptions = {}
+): Promise<void> {
   ui.header(`Template: ${id}`);
   ui.startSpinner({ message: 'Fetching template...' });
 
@@ -89,7 +92,13 @@ async function templateGetCommand(id: string, options: TemplateCommandOptions = 
 
       if (template.content) {
         ui.newLine();
-        ui.box({ title: 'Content', content: typeof template.content === 'string' ? template.content : JSON.stringify(template.content, null, 2) });
+        ui.box({
+          title: 'Content',
+          content:
+            typeof template.content === 'string'
+              ? template.content
+              : JSON.stringify(template.content, null, 2),
+        });
       }
     } else {
       ui.stopSpinnerFail('Template not found');
@@ -216,6 +225,8 @@ export async function templateCommand(subcommand: string, args: string[]): Promi
       break;
     default:
       ui.error(`Unknown template subcommand: ${subcommand || '(none)'}`);
-      ui.info('Available commands: list, get <id>, save --name <name> [--file <path>], delete <id>');
+      ui.info(
+        'Available commands: list, get <id>, save --name <name> [--file <path>], delete <id>'
+      );
   }
 }

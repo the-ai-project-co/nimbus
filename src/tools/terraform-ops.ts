@@ -83,7 +83,9 @@ export class TerraformOperations {
 
     if (options) {
       for (const [key, value] of Object.entries(options)) {
-        if (value === undefined || value === null) continue;
+        if (value === undefined || value === null) {
+          continue;
+        }
 
         if (key === 'var' && typeof value === 'object') {
           for (const [varName, varValue] of Object.entries(value)) {
@@ -117,7 +119,10 @@ export class TerraformOperations {
   /**
    * Execute terraform command
    */
-  private async execute(args: string[], options?: { timeout?: number }): Promise<{ stdout: string; stderr: string }> {
+  private async execute(
+    args: string[],
+    options?: { timeout?: number }
+  ): Promise<{ stdout: string; stderr: string }> {
     const command = `${this.terraformPath} ${args.join(' ')}`;
     logger.info(`Executing: ${command} in ${this.workingDir}`);
 
@@ -164,7 +169,9 @@ export class TerraformOperations {
   /**
    * Create execution plan
    */
-  async plan(options: TerraformPlanOptions = {}): Promise<{ success: boolean; output: string; hasChanges: boolean }> {
+  async plan(
+    options: TerraformPlanOptions = {}
+  ): Promise<{ success: boolean; output: string; hasChanges: boolean }> {
     logger.info(`Terraform plan in ${this.workingDir}`);
 
     const args = this.buildArgs(['plan', '-no-color', '-detailed-exitcode'], {
@@ -215,7 +222,9 @@ export class TerraformOperations {
   /**
    * Destroy infrastructure
    */
-  async destroy(options: TerraformDestroyOptions = {}): Promise<{ success: boolean; output: string }> {
+  async destroy(
+    options: TerraformDestroyOptions = {}
+  ): Promise<{ success: boolean; output: string }> {
     logger.info(`Terraform destroy in ${this.workingDir}`);
 
     const args = this.buildArgs(['destroy', '-no-color'], {
@@ -331,7 +340,11 @@ export class TerraformOperations {
   /**
    * Format configuration files
    */
-  async fmt(options?: { check?: boolean; recursive?: boolean; diff?: boolean }): Promise<{ success: boolean; output: string; formatted?: string[] }> {
+  async fmt(options?: {
+    check?: boolean;
+    recursive?: boolean;
+    diff?: boolean;
+  }): Promise<{ success: boolean; output: string; formatted?: string[] }> {
     logger.info(`Terraform fmt in ${this.workingDir}`);
 
     const args = ['fmt', '-no-color'];
@@ -366,14 +379,48 @@ export class TerraformOperations {
    * Run tflint and/or checkov linting
    */
   async lint(options?: { tflint?: boolean; checkov?: boolean }): Promise<{
-    tflint?: { available: boolean; success: boolean; issues: Array<{ rule: string; severity: string; message: string; file?: string; line?: number }> };
-    checkov?: { available: boolean; success: boolean; passed: number; failed: number; skipped: number; checks: Array<{ id: string; name: string; result: string; file?: string }> };
+    tflint?: {
+      available: boolean;
+      success: boolean;
+      issues: Array<{
+        rule: string;
+        severity: string;
+        message: string;
+        file?: string;
+        line?: number;
+      }>;
+    };
+    checkov?: {
+      available: boolean;
+      success: boolean;
+      passed: number;
+      failed: number;
+      skipped: number;
+      checks: Array<{ id: string; name: string; result: string; file?: string }>;
+    };
   }> {
     const runTflint = options?.tflint !== false;
     const runCheckov = options?.checkov !== false;
     const result: {
-      tflint?: { available: boolean; success: boolean; issues: Array<{ rule: string; severity: string; message: string; file?: string; line?: number }> };
-      checkov?: { available: boolean; success: boolean; passed: number; failed: number; skipped: number; checks: Array<{ id: string; name: string; result: string; file?: string }> };
+      tflint?: {
+        available: boolean;
+        success: boolean;
+        issues: Array<{
+          rule: string;
+          severity: string;
+          message: string;
+          file?: string;
+          line?: number;
+        }>;
+      };
+      checkov?: {
+        available: boolean;
+        success: boolean;
+        passed: number;
+        failed: number;
+        skipped: number;
+        checks: Array<{ id: string; name: string; result: string; file?: string }>;
+      };
     } = {};
 
     if (runTflint) {
@@ -398,7 +445,11 @@ export class TerraformOperations {
           issues,
         };
       } catch (err: any) {
-        if (err.code === 'ENOENT' || err.message?.includes('ENOENT') || err.message?.includes('not found')) {
+        if (
+          err.code === 'ENOENT' ||
+          err.message?.includes('ENOENT') ||
+          err.message?.includes('not found')
+        ) {
           result.tflint = { available: false, success: false, issues: [] };
         } else {
           try {
@@ -436,7 +487,12 @@ export class TerraformOperations {
         const parsed = JSON.parse(checkovResult.stdout || '{}');
         const summary = parsed.summary || {};
         const checks = (parsed.results?.passed_checks || [])
-          .map((c: any) => ({ id: c.check_id, name: c.check_name || c.name, result: 'passed', file: c.file_path }))
+          .map((c: any) => ({
+            id: c.check_id,
+            name: c.check_name || c.name,
+            result: 'passed',
+            file: c.file_path,
+          }))
           .concat(
             (parsed.results?.failed_checks || []).map((c: any) => ({
               id: c.check_id,
@@ -455,14 +511,30 @@ export class TerraformOperations {
           checks,
         };
       } catch (err: any) {
-        if (err.code === 'ENOENT' || err.message?.includes('ENOENT') || err.message?.includes('not found')) {
-          result.checkov = { available: false, success: false, passed: 0, failed: 0, skipped: 0, checks: [] };
+        if (
+          err.code === 'ENOENT' ||
+          err.message?.includes('ENOENT') ||
+          err.message?.includes('not found')
+        ) {
+          result.checkov = {
+            available: false,
+            success: false,
+            passed: 0,
+            failed: 0,
+            skipped: 0,
+            checks: [],
+          };
         } else {
           try {
             const parsed = JSON.parse(err.stdout || '{}');
             const summary = parsed.summary || {};
             const checks = (parsed.results?.passed_checks || [])
-              .map((c: any) => ({ id: c.check_id, name: c.check_name || c.name, result: 'passed', file: c.file_path }))
+              .map((c: any) => ({
+                id: c.check_id,
+                name: c.check_name || c.name,
+                result: 'passed',
+                file: c.file_path,
+              }))
               .concat(
                 (parsed.results?.failed_checks || []).map((c: any) => ({
                   id: c.check_id,
@@ -596,7 +668,11 @@ export class TerraformOperations {
   /**
    * Import existing resource
    */
-  async import(address: string, id: string, options?: { varFile?: string }): Promise<{ success: boolean; output: string }> {
+  async import(
+    address: string,
+    id: string,
+    options?: { varFile?: string }
+  ): Promise<{ success: boolean; output: string }> {
     logger.info(`Terraform import ${address} ${id} in ${this.workingDir}`);
 
     const args = this.buildArgs(['import', '-no-color'], {
@@ -669,7 +745,10 @@ export class TerraformOperations {
   /**
    * Move a resource in state
    */
-  async stateMove(source: string, destination: string): Promise<{ success: boolean; output: string }> {
+  async stateMove(
+    source: string,
+    destination: string
+  ): Promise<{ success: boolean; output: string }> {
     logger.info(`Terraform state mv ${source} ${destination} in ${this.workingDir}`);
 
     const result = await this.execute(['state', 'mv', source, destination]);
@@ -713,7 +792,10 @@ export class TerraformOperations {
   /**
    * Push local state to remote
    */
-  async statePush(stateFile?: string, force?: boolean): Promise<{ success: boolean; output: string }> {
+  async statePush(
+    stateFile?: string,
+    force?: boolean
+  ): Promise<{ success: boolean; output: string }> {
     logger.info(`Terraform state push in ${this.workingDir}`);
 
     const args = ['state', 'push'];
@@ -736,7 +818,9 @@ export class TerraformOperations {
     fromProvider: string,
     toProvider: string
   ): Promise<{ success: boolean; output: string }> {
-    logger.info(`Terraform state replace-provider ${fromProvider} ${toProvider} in ${this.workingDir}`);
+    logger.info(
+      `Terraform state replace-provider ${fromProvider} ${toProvider} in ${this.workingDir}`
+    );
 
     const result = await this.execute([
       'state',

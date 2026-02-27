@@ -38,7 +38,7 @@ export class WebSocketClient {
           resolve();
         };
 
-        this.ws.onmessage = (event) => {
+        this.ws.onmessage = event => {
           try {
             const data = JSON.parse(event.data);
             this.messageHandlers.forEach(handler => handler(data));
@@ -47,7 +47,7 @@ export class WebSocketClient {
           }
         };
 
-        this.ws.onerror = (event) => {
+        this.ws.onerror = event => {
           logger.error('WebSocket error', event);
           this.errorHandlers.forEach(handler => handler(event));
           reject(event);
@@ -58,7 +58,10 @@ export class WebSocketClient {
           this.closeHandlers.forEach(handler => handler());
 
           // Auto-reconnect
-          if (this.options.reconnect && this.reconnectAttempts < this.options.maxReconnectAttempts) {
+          if (
+            this.options.reconnect &&
+            this.reconnectAttempts < this.options.maxReconnectAttempts
+          ) {
             this.reconnectAttempts++;
             logger.info(
               `Attempting to reconnect (${this.reconnectAttempts}/${this.options.maxReconnectAttempts})...`

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test';
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getTestDb } from '../state/db';
 import {
   saveOperation,
@@ -27,12 +27,7 @@ import {
   deleteConversation,
 } from '../state/messages';
 import { setConfig, getConfig, getAllConfig } from '../state/config';
-import {
-  saveArtifact,
-  getArtifact,
-  listArtifacts,
-  deleteArtifact,
-} from '../state/artifacts';
+import { saveArtifact, getArtifact, listArtifacts, deleteArtifact } from '../state/artifacts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -103,9 +98,36 @@ describe('operations CRUD', () => {
   });
 
   it('listOperations returns all saved operations ordered by timestamp desc', () => {
-    saveOperation({ id: 'op-a', timestamp: new Date('2025-01-01'), type: 'generate', command: 'cmd1', status: 'success' }, db);
-    saveOperation({ id: 'op-b', timestamp: new Date('2025-01-03'), type: 'generate', command: 'cmd2', status: 'success' }, db);
-    saveOperation({ id: 'op-c', timestamp: new Date('2025-01-02'), type: 'generate', command: 'cmd3', status: 'success' }, db);
+    saveOperation(
+      {
+        id: 'op-a',
+        timestamp: new Date('2025-01-01'),
+        type: 'generate',
+        command: 'cmd1',
+        status: 'success',
+      },
+      db
+    );
+    saveOperation(
+      {
+        id: 'op-b',
+        timestamp: new Date('2025-01-03'),
+        type: 'generate',
+        command: 'cmd2',
+        status: 'success',
+      },
+      db
+    );
+    saveOperation(
+      {
+        id: 'op-c',
+        timestamp: new Date('2025-01-02'),
+        type: 'generate',
+        command: 'cmd3',
+        status: 'success',
+      },
+      db
+    );
 
     const ops = listOperations(10, 0, db);
     expect(ops.length).toBe(3);
@@ -115,8 +137,14 @@ describe('operations CRUD', () => {
   });
 
   it('listOperationsByType filters correctly', () => {
-    saveOperation({ id: 'op-gen', timestamp: new Date(), type: 'generate', command: 'g', status: 'success' }, db);
-    saveOperation({ id: 'op-chat', timestamp: new Date(), type: 'chat', command: 'c', status: 'success' }, db);
+    saveOperation(
+      { id: 'op-gen', timestamp: new Date(), type: 'generate', command: 'g', status: 'success' },
+      db
+    );
+    saveOperation(
+      { id: 'op-chat', timestamp: new Date(), type: 'chat', command: 'c', status: 'success' },
+      db
+    );
 
     const generated = listOperationsByType('generate', 10, 0, db);
     const chats = listOperationsByType('chat', 10, 0, db);
@@ -229,7 +257,16 @@ describe('config store', () => {
 
 describe('artifacts CRUD', () => {
   it('saves and retrieves an artifact by id', () => {
-    saveArtifact('art-001', null, 'main.tf', 'terraform', 'resource "aws_vpc" "main" {}', 'hcl', undefined, db);
+    saveArtifact(
+      'art-001',
+      null,
+      'main.tf',
+      'terraform',
+      'resource "aws_vpc" "main" {}',
+      'hcl',
+      undefined,
+      db
+    );
 
     const record = getArtifact('art-001', db);
     expect(record).not.toBeNull();
@@ -246,7 +283,16 @@ describe('artifacts CRUD', () => {
 
   it('upserts on duplicate artifact id', () => {
     saveArtifact('art-002', null, 'file.tf', 'terraform', 'original', undefined, undefined, db);
-    saveArtifact('art-002', null, 'file.tf', 'terraform', 'updated content', undefined, undefined, db);
+    saveArtifact(
+      'art-002',
+      null,
+      'file.tf',
+      'terraform',
+      'updated content',
+      undefined,
+      undefined,
+      db
+    );
 
     const record = getArtifact('art-002', db);
     expect(record!.content).toBe('updated content');

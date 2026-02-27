@@ -5,7 +5,7 @@
  * getLatestCheckpoint, listCheckpoints, and deleteCheckpoints.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape returned by checkpoint queries. */
@@ -36,7 +36,7 @@ export function saveCheckpoint(
   operationId: string,
   step: number,
   state: Record<string, unknown>,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`

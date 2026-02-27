@@ -36,7 +36,10 @@ export interface PlanResult {
 /**
  * Action symbols for display
  */
-const ACTION_SYMBOLS: Record<string, { symbol: string; color: 'green' | 'yellow' | 'red' | 'blue' | 'cyan' }> = {
+const ACTION_SYMBOLS: Record<
+  string,
+  { symbol: string; color: 'green' | 'yellow' | 'red' | 'blue' | 'cyan' }
+> = {
   create: { symbol: '+', color: 'green' },
   add: { symbol: '+', color: 'green' },
   apply: { symbol: '~', color: 'cyan' },
@@ -120,7 +123,9 @@ function displayResources(resources: ResourceChange[]): void {
 
   for (const action of order) {
     const items = grouped[action];
-    if (!items || items.length === 0) continue;
+    if (!items || items.length === 0) {
+      continue;
+    }
 
     for (const item of items) {
       const symbol = formatAction(item.action);
@@ -136,7 +141,9 @@ function displayResources(resources: ResourceChange[]): void {
 
   // Display any remaining actions not in order
   for (const [action, items] of Object.entries(grouped)) {
-    if (order.includes(action)) continue;
+    if (order.includes(action)) {
+      continue;
+    }
 
     for (const item of items) {
       const symbol = formatAction(item.action);
@@ -201,7 +208,7 @@ function displayK8sPlan(plan: PlanResult, detailed: boolean): void {
       ui.print(`  ${ui.color(`${plan.changes.change} resource(s) will be updated`, 'yellow')}`);
     }
     ui.newLine();
-    ui.info('Note: Kubernetes apply is idempotent - unchanged resources won\'t be modified');
+    ui.info("Note: Kubernetes apply is idempotent - unchanged resources won't be modified");
   }
 
   if (plan.resources && plan.resources.length > 0) {

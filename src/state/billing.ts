@@ -6,7 +6,7 @@
  * that operate against the unified Nimbus database.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape returned by subscription queries. */
@@ -56,7 +56,7 @@ export function createSubscription(
   status: string = 'active',
   currentPeriodStart?: string,
   currentPeriodEnd?: string,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -64,14 +64,7 @@ export function createSubscription(
     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `);
 
-  stmt.run(
-    id,
-    teamId,
-    plan,
-    status,
-    currentPeriodStart || null,
-    currentPeriodEnd || null,
-  );
+  stmt.run(id, teamId, plan, status, currentPeriodStart || null, currentPeriodEnd || null);
 }
 
 /**
@@ -109,7 +102,7 @@ export function updateSubscription(
     currentPeriodStart?: string;
     currentPeriodEnd?: string;
   },
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -127,7 +120,7 @@ export function updateSubscription(
     updates.status || null,
     updates.currentPeriodStart || null,
     updates.currentPeriodEnd || null,
-    teamId,
+    teamId
   );
 }
 
@@ -147,7 +140,7 @@ export function recordUsage(
   teamId?: string,
   userId?: string,
   metadata?: any,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -163,7 +156,7 @@ export function recordUsage(
     quantity,
     unit,
     costUsd ?? 0,
-    metadata ? JSON.stringify(metadata) : null,
+    metadata ? JSON.stringify(metadata) : null
   );
 }
 
@@ -176,7 +169,7 @@ export function getUsage(
   until?: Date,
   limit: number = 100,
   offset: number = 0,
-  db?: Database,
+  db?: Database
 ): UsageRecord[] {
   const d = db || getDb();
   const untilDate = until || new Date();
@@ -195,7 +188,7 @@ export function getUsage(
     since.toISOString(),
     untilDate.toISOString(),
     limit,
-    offset,
+    offset
   ) as any[];
 
   return rows.map(row => ({
@@ -218,7 +211,7 @@ export function getUsageSummary(
   teamId: string,
   since: Date,
   until?: Date,
-  db?: Database,
+  db?: Database
 ): UsageSummary[] {
   const d = db || getDb();
   const untilDate = until || new Date();
@@ -236,11 +229,7 @@ export function getUsageSummary(
     GROUP BY type
   `);
 
-  const rows: any[] = stmt.all(
-    teamId,
-    since.toISOString(),
-    untilDate.toISOString(),
-  ) as any[];
+  const rows: any[] = stmt.all(teamId, since.toISOString(), untilDate.toISOString()) as any[];
 
   return rows.map(row => ({
     type: row.type,

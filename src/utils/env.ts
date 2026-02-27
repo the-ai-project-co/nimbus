@@ -6,11 +6,9 @@ export function getEnv(key: string, defaultValue?: string): string {
     if (defaultValue !== undefined) {
       return defaultValue;
     }
-    throw new ConfigurationError(
-      `Environment variable ${key} is required but not set`,
-      'nimbus',
-      { key }
-    );
+    throw new ConfigurationError(`Environment variable ${key} is required but not set`, 'nimbus', {
+      key,
+    });
   }
   return value;
 }
@@ -25,19 +23,16 @@ export function getEnvNumber(key: string, defaultValue?: number): number {
     if (defaultValue !== undefined) {
       return defaultValue;
     }
-    throw new ConfigurationError(
-      `Environment variable ${key} is required but not set`,
-      'nimbus',
-      { key }
-    );
+    throw new ConfigurationError(`Environment variable ${key} is required but not set`, 'nimbus', {
+      key,
+    });
   }
   const parsed = parseInt(value, 10);
   if (isNaN(parsed)) {
-    throw new ConfigurationError(
-      `Environment variable ${key} must be a valid number`,
-      'nimbus',
-      { key, value }
-    );
+    throw new ConfigurationError(`Environment variable ${key} must be a valid number`, 'nimbus', {
+      key,
+      value,
+    });
   }
   return parsed;
 }

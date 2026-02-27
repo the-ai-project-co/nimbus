@@ -108,7 +108,7 @@ export class LLMClient {
           yield chunk;
         } else if (!done) {
           // Wait for more messages
-          await new Promise<void>((resolve) => {
+          await new Promise<void>(resolve => {
             resolveWaiting = resolve;
           });
         }
@@ -135,10 +135,7 @@ export class LLMClient {
     history: ChatMessage[] = [],
     options: ChatOptions = {}
   ): AsyncGenerator<StreamingChunk> {
-    const messages: ChatMessage[] = [
-      ...history,
-      { role: 'user', content: userMessage },
-    ];
+    const messages: ChatMessage[] = [...history, { role: 'user', content: userMessage }];
 
     yield* this.streamChat(messages, options);
   }

@@ -5,17 +5,12 @@
  */
 
 import type {
-  SelectConfig,
   SelectOption,
-  ConfirmConfig,
-  InputConfig,
   ProgressConfig,
   SpinnerConfig,
   TableConfig,
   BoxConfig,
-  BoxStyle,
   DiffConfig,
-  DiffLine,
 } from './types';
 
 // ANSI color codes
@@ -164,7 +159,7 @@ export class WizardUI {
    * Print a line to stdout
    */
   print(text: string = ''): void {
-    process.stdout.write(text + '\n');
+    process.stdout.write(`${text}\n`);
   }
 
   /**
@@ -224,9 +219,7 @@ export class WizardUI {
     const width = config.width || this.terminalWidth - 4;
     const innerWidth = width - 2;
 
-    const lines = Array.isArray(config.content)
-      ? config.content
-      : config.content.split('\n');
+    const lines = Array.isArray(config.content) ? config.content : config.content.split('\n');
 
     // Top border
     let topBorder = chars.topLeft + chars.horizontal.repeat(innerWidth) + chars.topRight;
@@ -246,34 +239,51 @@ export class WizardUI {
     // Padding top
     for (let i = 0; i < padding; i++) {
       this.print(
-        (config.borderColor ? this.color(chars.vertical, config.borderColor as any) : chars.vertical) +
-        ' '.repeat(innerWidth) +
-        (config.borderColor ? this.color(chars.vertical, config.borderColor as any) : chars.vertical)
+        (config.borderColor
+          ? this.color(chars.vertical, config.borderColor as any)
+          : chars.vertical) +
+          ' '.repeat(innerWidth) +
+          (config.borderColor
+            ? this.color(chars.vertical, config.borderColor as any)
+            : chars.vertical)
       );
     }
 
     // Content
     for (const line of lines) {
-      const paddedLine = ' '.repeat(padding) + line + ' '.repeat(Math.max(0, innerWidth - padding * 2 - line.length));
+      const paddedLine =
+        ' '.repeat(padding) +
+        line +
+        ' '.repeat(Math.max(0, innerWidth - padding * 2 - line.length));
       this.print(
-        (config.borderColor ? this.color(chars.vertical, config.borderColor as any) : chars.vertical) +
-        paddedLine.substring(0, innerWidth) +
-        (config.borderColor ? this.color(chars.vertical, config.borderColor as any) : chars.vertical)
+        (config.borderColor
+          ? this.color(chars.vertical, config.borderColor as any)
+          : chars.vertical) +
+          paddedLine.substring(0, innerWidth) +
+          (config.borderColor
+            ? this.color(chars.vertical, config.borderColor as any)
+            : chars.vertical)
       );
     }
 
     // Padding bottom
     for (let i = 0; i < padding; i++) {
       this.print(
-        (config.borderColor ? this.color(chars.vertical, config.borderColor as any) : chars.vertical) +
-        ' '.repeat(innerWidth) +
-        (config.borderColor ? this.color(chars.vertical, config.borderColor as any) : chars.vertical)
+        (config.borderColor
+          ? this.color(chars.vertical, config.borderColor as any)
+          : chars.vertical) +
+          ' '.repeat(innerWidth) +
+          (config.borderColor
+            ? this.color(chars.vertical, config.borderColor as any)
+            : chars.vertical)
       );
     }
 
     // Bottom border
     const bottomBorder = chars.bottomLeft + chars.horizontal.repeat(innerWidth) + chars.bottomRight;
-    this.print(config.borderColor ? this.color(bottomBorder, config.borderColor as any) : bottomBorder);
+    this.print(
+      config.borderColor ? this.color(bottomBorder, config.borderColor as any) : bottomBorder
+    );
   }
 
   /**
@@ -296,7 +306,7 @@ export class WizardUI {
    * Draw a table
    */
   table(config: TableConfig): void {
-    const chars = boxChars.single;
+    const _chars = boxChars.single;
     const colWidths: number[] = [];
 
     // Calculate column widths
@@ -323,9 +333,9 @@ export class WizardUI {
       this.print(this.bold(config.title));
     }
 
-    this.print('┌─' + colWidths.map(w => '─'.repeat(w)).join('─┬─') + '─┐');
-    this.print('│ ' + headerRow + ' │');
-    this.print('├─' + separator + '─┤');
+    this.print(`┌─${colWidths.map(w => '─'.repeat(w)).join('─┬─')}─┐`);
+    this.print(`│ ${headerRow} │`);
+    this.print(`├─${separator}─┤`);
 
     // Draw rows
     for (let i = 0; i < config.data.length; i++) {
@@ -340,10 +350,10 @@ export class WizardUI {
       });
 
       const prefix = config.showRowNumbers ? `${(i + 1).toString().padStart(3)}. ` : '';
-      this.print('│ ' + prefix + cells.join(' │ ') + ' │');
+      this.print(`│ ${prefix}${cells.join(' │ ')} │`);
     }
 
-    this.print('└─' + colWidths.map(w => '─'.repeat(w)).join('─┴─') + '─┘');
+    this.print(`└─${colWidths.map(w => '─'.repeat(w)).join('─┴─')}─┘`);
   }
 
   // ==================== Progress ====================
@@ -357,13 +367,9 @@ export class WizardUI {
     const filled = Math.round((current / total) * barWidth);
     const empty = barWidth - filled;
 
-    const bar =
-      this.color('█'.repeat(filled), 'green') +
-      this.dim('░'.repeat(empty));
+    const bar = this.color('█'.repeat(filled), 'green') + this.dim('░'.repeat(empty));
 
-    const status = config.showPercentage
-      ? ` ${percentage}%`
-      : ` ${current}/${total}`;
+    const status = config.showPercentage ? ` ${percentage}%` : ` ${current}/${total}`;
 
     this.clearLine();
     this.write(`  ${config.message} ${bar}${status}`);
@@ -450,28 +456,28 @@ export class WizardUI {
     // Header
     this.print(
       chars.topLeft +
-      chars.horizontal.repeat(halfWidth) +
-      chars.teeTop +
-      chars.horizontal.repeat(halfWidth) +
-      chars.topRight
+        chars.horizontal.repeat(halfWidth) +
+        chars.teeTop +
+        chars.horizontal.repeat(halfWidth) +
+        chars.topRight
     );
 
     const leftHeader = ' CURRENT CODE'.padEnd(halfWidth);
     const rightHeader = ' SUGGESTED IMPROVEMENTS'.padEnd(halfWidth);
     this.print(
       chars.vertical +
-      this.color(leftHeader, 'yellow') +
-      chars.vertical +
-      this.color(rightHeader, 'green') +
-      chars.vertical
+        this.color(leftHeader, 'yellow') +
+        chars.vertical +
+        this.color(rightHeader, 'green') +
+        chars.vertical
     );
 
     this.print(
       chars.teeLeft +
-      chars.horizontal.repeat(halfWidth) +
-      chars.cross +
-      chars.horizontal.repeat(halfWidth) +
-      chars.teeRight
+        chars.horizontal.repeat(halfWidth) +
+        chars.cross +
+        chars.horizontal.repeat(halfWidth) +
+        chars.teeRight
     );
 
     // Content
@@ -482,20 +488,20 @@ export class WizardUI {
 
       this.print(
         chars.vertical +
-        (isDifferent ? this.color(leftLine, 'red') : leftLine) +
-        chars.vertical +
-        (isDifferent ? this.color(rightLine, 'green') : rightLine) +
-        chars.vertical
+          (isDifferent ? this.color(leftLine, 'red') : leftLine) +
+          chars.vertical +
+          (isDifferent ? this.color(rightLine, 'green') : rightLine) +
+          chars.vertical
       );
     }
 
     // Footer
     this.print(
       chars.bottomLeft +
-      chars.horizontal.repeat(halfWidth) +
-      chars.teeBottom +
-      chars.horizontal.repeat(halfWidth) +
-      chars.bottomRight
+        chars.horizontal.repeat(halfWidth) +
+        chars.teeBottom +
+        chars.horizontal.repeat(halfWidth) +
+        chars.bottomRight
     );
   }
 
@@ -514,7 +520,7 @@ export class WizardUI {
       let line = `  ${prefix} ${icon} ${opt.label}`;
 
       if (opt.disabled) {
-        line = this.dim(line + ` (${opt.disabledReason || 'unavailable'})`);
+        line = this.dim(`${line} (${opt.disabledReason || 'unavailable'})`);
       } else if (isSelected) {
         line = this.color(line, 'cyan');
       }

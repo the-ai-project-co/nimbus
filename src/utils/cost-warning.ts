@@ -19,9 +19,7 @@ export async function showDestructionCostWarning(directory: string): Promise<voi
     const estimate = await CostEstimator.estimateDirectory(directory);
 
     if (estimate.totalMonthlyCost > 0) {
-      ui.warning(
-        `Estimated monthly cost impact: -$${estimate.totalMonthlyCost.toFixed(2)}/month`
-      );
+      ui.warning(`Estimated monthly cost impact: -$${estimate.totalMonthlyCost.toFixed(2)}/month`);
     }
   } catch {
     // Best-effort — silently skip if estimation fails

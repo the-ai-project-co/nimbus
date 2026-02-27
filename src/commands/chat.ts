@@ -28,6 +28,8 @@ export interface ChatOptions {
   verbosity?: 'minimal' | 'normal' | 'detailed';
   /** UI mode (defaults to 'ink' for rich TUI, 'readline' for simple) */
   ui?: 'ink' | 'readline';
+  /** Resume the most recent chat session */
+  continue?: boolean;
 }
 
 /**
@@ -47,7 +49,11 @@ export async function chatCommand(options: ChatOptions = {}): Promise<void> {
       const path = await import('node:path');
       const nimbusPath = path.default.join(process.cwd(), 'NIMBUS.md');
       if (!fs.default.existsSync(nimbusPath)) {
-        ui.print(ui.dim('Tip: No NIMBUS.md found. Run `nimbus init` to set up project context for better results.'));
+        ui.print(
+          ui.dim(
+            'Tip: No NIMBUS.md found. Run `nimbus init` to set up project context for better results.'
+          )
+        );
         ui.newLine();
       }
     } catch {
@@ -74,23 +80,56 @@ export async function chatCommand(options: ChatOptions = {}): Promise<void> {
     // Pre-flight is non-critical — let it fail later with a real error
   }
 
-  // Default to Ink TUI, fall back to readline if unavailable or explicitly requested
-  if (options.ui !== 'readline') {
+  // Resolve --continue: look up the most recent session ID
+  let resumeSessionId: string | undefined;
+  if (options.continue) {
+    try {
+      const { SessionManager } = await import('../sessions/manager');
+      const sessionManager = SessionManager.getInstance();
+      const recent = sessionManager.list();
+      if (recent.length > 0) {
+        resumeSessionId = recent[0].id;
+      } else {
+        ui.print(ui.dim('No previous session found. Starting a new session.'));
+        ui.newLine();
+      }
+    } catch {
+      // Session lookup is non-critical — fall through to a fresh session
+    }
+  }
+
+  // Default to Ink TUI, fall back to readline if unavailable or explicitly requested.
+  // If stdin is not a TTY (piped input), skip Ink and use readline mode.
+  if (options.ui !== 'readline' && process.stdin.isTTY) {
     try {
       const { startInkChat } = await import('../ui/ink/index');
       await startInkChat({
         model: options.model,
         systemPrompt: options.systemPrompt,
         showTokenCount: options.showTokenCount,
+        resumeSessionId,
       });
       return;
     } catch {
-      // Fall through to readline chat
+      // Ink TUI unavailable (compiled binary without React/Ink) — fall back to readline
+      ui.print(
+        ui.dim(
+          'Using readline mode (same features, simpler UI). For the rich TUI, run: bun src/nimbus.ts'
+        )
+      );
+      ui.newLine();
     }
+  } else if (!process.stdin.isTTY && options.ui !== 'readline') {
+    // Piped stdin detected — inform user
+    ui.print(ui.dim('Non-interactive terminal detected, using readline mode.'));
+    ui.newLine();
   }
 
   const startTime = Date.now();
-  const entry = historyManager.addEntry('chat', [], { model: options.model, persona: options.persona });
+  const entry = historyManager.addEntry('chat', [], {
+    model: options.model,
+    persona: options.persona,
+  });
 
   try {
     // Get default model from auth store if not specified
@@ -142,12 +181,29 @@ export async function chatCommand(options: ChatOptions = {}): Promise<void> {
       model: options.model,
       systemPrompt: options.systemPrompt || getPersonaSystemPrompt(persona, verbosity),
       showTokenCount: options.showTokenCount ?? false,
+      resumeSessionId,
     };
 
     await startChat(chatOptions);
     historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
   } catch (error: any) {
-    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, {
+      error: error.message,
+    });
+
+    // Detect auth/API key errors and suggest re-onboarding
+    const errMsg = error.message || String(error);
+    if (/auth|api.?key|unauthorized|forbidden|401|403|invalid.*key/i.test(errMsg)) {
+      ui.newLine();
+      ui.error('LLM authentication failed. Your API key may be invalid or expired.');
+      ui.newLine();
+      ui.print('To reconfigure:');
+      ui.print(`  ${ui.bold('nimbus login')}  — re-run the setup wizard`);
+      ui.print(`  ${ui.bold('export ANTHROPIC_API_KEY=sk-ant-...')}  — set a new key`);
+      ui.newLine();
+      return;
+    }
+
     throw error;
   }
 }
@@ -161,8 +217,8 @@ export async function chatCommand(options: ChatOptions = {}): Promise<void> {
 async function sendSingleMessage(
   message: string,
   options: ChatOptions,
-  persona: 'professional' | 'assistant' | 'expert',
-  verbosity: 'minimal' | 'normal' | 'detailed',
+  _persona: 'professional' | 'assistant' | 'expert',
+  _verbosity: 'minimal' | 'normal' | 'detailed'
 ): Promise<void> {
   const { getAppContext } = await import('../app');
   const { runAgentLoop } = await import('../agent/loop');
@@ -184,12 +240,12 @@ async function sendSingleMessage(
       model: options.model,
       cwd: process.cwd(),
 
-      onText: (text) => {
+      onText: text => {
         process.stdout.write(text);
         outputParts.push(text);
       },
 
-      onToolCallStart: (toolCall) => {
+      onToolCallStart: toolCall => {
         process.stderr.write(`\n[Tool: ${toolCall.name}]\n`);
       },
 
@@ -223,7 +279,7 @@ async function sendSingleMessage(
  */
 function getPersonaSystemPrompt(
   persona: 'professional' | 'assistant' | 'expert',
-  verbosity: 'minimal' | 'normal' | 'detailed',
+  verbosity: 'minimal' | 'normal' | 'detailed'
 ): string {
   // Base identity shared across all personas
   const baseIdentity = `You are Nimbus, an AI-powered cloud engineering assistant. You help users with:
@@ -256,4 +312,3 @@ function getPersonaSystemPrompt(
     verbosityInstructions[verbosity],
   ].join('\n');
 }
-

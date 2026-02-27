@@ -6,7 +6,13 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Scanner, ScanResult, ScanOptions, PackageManagerInfo, ConfidenceLevel } from './types';
+import type {
+  Scanner,
+  ScanResult,
+  ScanOptions,
+  PackageManagerInfo,
+  ConfidenceLevel,
+} from './types';
 
 interface PackageManagerPattern {
   name: string;

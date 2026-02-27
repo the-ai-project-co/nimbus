@@ -92,10 +92,14 @@ export function getLanguageForFile(filePath: string): LanguageConfig | undefined
   for (const config of LANGUAGE_CONFIGS) {
     for (const ext of config.extensions) {
       if (ext.startsWith('.')) {
-        if (lowerPath.endsWith(ext)) return config;
+        if (lowerPath.endsWith(ext)) {
+          return config;
+        }
       } else {
         // Match exact filename (e.g., Dockerfile)
-        if (baseName === ext || baseName.toLowerCase() === ext.toLowerCase()) return config;
+        if (baseName === ext || baseName.toLowerCase() === ext.toLowerCase()) {
+          return config;
+        }
       }
     }
   }

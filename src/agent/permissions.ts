@@ -68,9 +68,9 @@ export interface PermissionConfig {
 
 /** @internal */
 const BLOCKED_BASH_PATTERNS: readonly RegExp[] = [
-  /rm\s+(-[a-zA-Z]*)?r[a-zA-Z]*f[a-zA-Z]*\s+\//,   // rm -rf /
-  /rm\s+(-[a-zA-Z]*)?f[a-zA-Z]*r[a-zA-Z]*\s+\//,   // rm -fr /
-  /rm\s+-[a-zA-Z]*\s+\/\s*$/,                        // rm -* / (root)
+  /rm\s+(-[a-zA-Z]*)?r[a-zA-Z]*f[a-zA-Z]*\s+\//, // rm -rf /
+  /rm\s+(-[a-zA-Z]*)?f[a-zA-Z]*r[a-zA-Z]*\s+\//, // rm -fr /
+  /rm\s+-[a-zA-Z]*\s+\/\s*$/, // rm -* / (root)
   /DROP\s+DATABASE/i,
   /DROP\s+TABLE/i,
   /TRUNCATE\s+TABLE/i,
@@ -80,7 +80,7 @@ const BLOCKED_BASH_PATTERNS: readonly RegExp[] = [
   />\s*\/dev\/sd[a-z]/,
   /chmod\s+-R\s+777\s+\//,
   /chown\s+-R.*\s+\//,
-  /:(){ :\|:& };:/,                                   // fork bomb
+  /:(){ :\|:& };:/, // fork bomb
 ];
 
 // ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ const ALWAYS_ASK_BASH_PATTERNS: readonly RegExp[] = [
   /terraform\s+destroy/,
   /terraform\s+apply/,
   /helm\s+uninstall/,
-  /curl.*\|\s*(bash|sh)/,                             // pipe to shell
+  /curl.*\|\s*(bash|sh)/, // pipe to shell
   /wget.*\|\s*(bash|sh)/,
 ];
 
@@ -182,7 +182,7 @@ export function checkPermission(
   tool: ToolDefinition,
   input: unknown,
   sessionState: PermissionSessionState,
-  config?: PermissionConfig,
+  config?: PermissionConfig
 ): PermissionDecision {
   // 1. Check user overrides first
   if (config?.toolOverrides?.[tool.name]) {
@@ -234,7 +234,7 @@ export function checkPermission(
  */
 export function approveForSession(
   tool: ToolDefinition,
-  sessionState: PermissionSessionState,
+  sessionState: PermissionSessionState
 ): void {
   sessionState.approvedTools.add(tool.name);
 }
@@ -254,7 +254,7 @@ export function approveForSession(
 export function approveActionForSession(
   toolName: string,
   action: string,
-  sessionState: PermissionSessionState,
+  sessionState: PermissionSessionState
 ): void {
   sessionState.approvedActions.add(`${toolName}:${action}`);
 }
@@ -272,7 +272,7 @@ export function approveActionForSession(
 function tierToDecision(
   tier: PermissionTier,
   tool: ToolDefinition,
-  sessionState: PermissionSessionState,
+  sessionState: PermissionSessionState
 ): PermissionDecision {
   switch (tier) {
     case 'auto_allow':
@@ -295,32 +295,42 @@ function tierToDecision(
 function checkBashPermission(
   command: string,
   sessionState: PermissionSessionState,
-  config?: PermissionConfig,
+  config?: PermissionConfig
 ): PermissionDecision {
   const trimmed = command.trim();
 
   // --- Tier 4: blocked ---
   for (const pattern of BLOCKED_BASH_PATTERNS) {
-    if (pattern.test(trimmed)) return 'block';
+    if (pattern.test(trimmed)) {
+      return 'block';
+    }
   }
   if (config?.blockedBashPatterns) {
     for (const glob of config.blockedBashPatterns) {
-      if (new RegExp(globToRegex(glob)).test(trimmed)) return 'block';
+      if (new RegExp(globToRegex(glob)).test(trimmed)) {
+        return 'block';
+      }
     }
   }
 
   // --- Tier 3: always ask ---
   for (const pattern of ALWAYS_ASK_BASH_PATTERNS) {
-    if (pattern.test(trimmed)) return 'ask';
+    if (pattern.test(trimmed)) {
+      return 'ask';
+    }
   }
 
   // --- Tier 1: auto allow ---
   for (const pattern of AUTO_ALLOW_BASH_PATTERNS) {
-    if (pattern.test(trimmed)) return 'allow';
+    if (pattern.test(trimmed)) {
+      return 'allow';
+    }
   }
   if (config?.autoAllowBashPatterns) {
     for (const glob of config.autoAllowBashPatterns) {
-      if (new RegExp(globToRegex(glob)).test(trimmed)) return 'allow';
+      if (new RegExp(globToRegex(glob)).test(trimmed)) {
+        return 'allow';
+      }
     }
   }
 
@@ -340,7 +350,7 @@ function checkBashPermission(
 function checkKubectlPermission(
   input: { action?: string; namespace?: string },
   sessionState: PermissionSessionState,
-  config?: PermissionConfig,
+  config?: PermissionConfig
 ): PermissionDecision {
   const protectedNs: ReadonlySet<string> = config?.protectedNamespaces
     ? new Set(config.protectedNamespaces)
@@ -384,7 +394,7 @@ function checkKubectlPermission(
  */
 function checkTerraformPermission(
   input: { action?: string },
-  sessionState: PermissionSessionState,
+  sessionState: PermissionSessionState
 ): PermissionDecision {
   const readOnlyActions: ReadonlySet<string> = new Set([
     'validate',
@@ -419,7 +429,7 @@ function checkTerraformPermission(
  */
 function checkHelmPermission(
   input: { action?: string },
-  _sessionState: PermissionSessionState,
+  _sessionState: PermissionSessionState
 ): PermissionDecision {
   const readOnlyActions: ReadonlySet<string> = new Set([
     'list',
@@ -451,6 +461,6 @@ function checkHelmPermission(
 function globToRegex(glob: string): string {
   return glob
     .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape regex special chars
-    .replace(/\*/g, '.*')                   // * -> .*
-    .replace(/\?/g, '.');                   // ? -> .
+    .replace(/\*/g, '.*') // * -> .*
+    .replace(/\?/g, '.'); // ? -> .
 }

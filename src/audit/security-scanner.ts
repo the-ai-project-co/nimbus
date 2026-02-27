@@ -110,8 +110,7 @@ const DETECTION_RULES: DetectionRule[] = [
       'if the file is committed to version control.',
     recommendation:
       'Use environment variables or a secrets manager instead of embedding passwords in code.',
-    pattern:
-      /(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]{4,}['"]/i,
+    pattern: /(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]{4,}['"]/i,
   },
   {
     id: 'SEC-003',
@@ -119,10 +118,8 @@ const DETECTION_RULES: DetectionRule[] = [
     title: 'Hardcoded bearer or authorization token',
     description:
       'An authorization header or bearer token is hardcoded, allowing credential theft from source.',
-    recommendation:
-      'Inject tokens at runtime via environment variables or a credential helper.',
-    pattern:
-      /(?:bearer\s+[A-Za-z0-9\-._~+/]+=*|authorization['"]\s*:\s*['"][^'"]{10,}['"])/i,
+    recommendation: 'Inject tokens at runtime via environment variables or a credential helper.',
+    pattern: /(?:bearer\s+[A-Za-z0-9\-._~+/]+=*|authorization['"]\s*:\s*['"][^'"]{10,}['"])/i,
   },
   {
     id: 'SEC-004',
@@ -163,8 +160,7 @@ const DETECTION_RULES: DetectionRule[] = [
     description:
       'An S3 bucket is configured with a public ACL (public-read or public-read-write). ' +
       'This makes the bucket contents accessible to anyone on the internet.',
-    recommendation:
-      'Set acl to "private" and use bucket policies for fine-grained access control.',
+    recommendation: 'Set acl to "private" and use bucket policies for fine-grained access control.',
     pattern: /acl\s*=\s*["']public-read(?:-write)?["']/,
     fileExtensions: ['.tf', '.tf.json'],
   },
@@ -175,7 +171,8 @@ const DETECTION_RULES: DetectionRule[] = [
     description:
       'An aws_s3_bucket resource was found without an accompanying server_side_encryption_configuration block.',
     recommendation: 'Add a server_side_encryption_configuration block with AES256 or aws:kms.',
-    pattern: /resource\s+["']aws_s3_bucket["']\s+["'][^"']+["']\s*\{(?:(?!server_side_encryption_configuration)[^}])*\}/s,
+    pattern:
+      /resource\s+["']aws_s3_bucket["']\s+["'][^"']+["']\s*\{(?:(?!server_side_encryption_configuration)[^}])*\}/s,
     fileExtensions: ['.tf'],
   },
   {
@@ -185,7 +182,8 @@ const DETECTION_RULES: DetectionRule[] = [
     description:
       'An aws_db_instance resource does not have storage_encrypted = true, leaving data at rest unencrypted.',
     recommendation: 'Set storage_encrypted = true on all RDS instances.',
-    pattern: /resource\s+["']aws_db_instance["']\s+["'][^"']+["']\s*\{(?:(?!storage_encrypted\s*=\s*true)[^}])*\}/s,
+    pattern:
+      /resource\s+["']aws_db_instance["']\s+["'][^"']+["']\s*\{(?:(?!storage_encrypted\s*=\s*true)[^}])*\}/s,
     fileExtensions: ['.tf'],
   },
   {
@@ -237,7 +235,18 @@ const DETECTION_RULES: DetectionRule[] = [
       'plain HTTP is vulnerable to interception.',
     recommendation: 'Use https:// to encrypt data in transit.',
     pattern: /["']http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0|::1)[^'"]+["']/,
-    fileExtensions: ['.ts', '.js', '.json', '.yml', '.yaml', '.tf', '.env', '.cfg', '.conf', '.toml'],
+    fileExtensions: [
+      '.ts',
+      '.js',
+      '.json',
+      '.yml',
+      '.yaml',
+      '.tf',
+      '.env',
+      '.cfg',
+      '.conf',
+      '.toml',
+    ],
   },
 
   // -- Disabled TLS verification --
@@ -249,7 +258,8 @@ const DETECTION_RULES: DetectionRule[] = [
       'TLS/SSL certificate verification is being disabled, making connections vulnerable ' +
       'to man-in-the-middle attacks.',
     recommendation: 'Do not disable certificate verification in production environments.',
-    pattern: /(?:rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0|verify\s*=\s*False|InsecureSkipVerify\s*:\s*true)/i,
+    pattern:
+      /(?:rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0|verify\s*=\s*False|InsecureSkipVerify\s*:\s*true)/i,
   },
 ];
 
@@ -258,17 +268,51 @@ const DETECTION_RULES: DetectionRule[] = [
 // ---------------------------------------------------------------------------
 
 const TEXT_EXTENSIONS = new Set([
-  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-  '.json', '.yaml', '.yml', '.toml', '.cfg', '.conf', '.ini',
-  '.tf', '.tfvars', '.hcl',
-  '.sh', '.bash', '.zsh',
-  '.py', '.rb', '.go', '.java', '.rs', '.c', '.cpp', '.h',
-  '.md', '.txt', '.csv',
-  '.sql', '.graphql', '.gql',
-  '.env', '.env.example', '.env.local',
-  '.xml', '.html', '.css', '.scss', '.less',
-  '.dockerfile', '.dockerignore',
-  '.gitignore', '.npmignore',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.cfg',
+  '.conf',
+  '.ini',
+  '.tf',
+  '.tfvars',
+  '.hcl',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.py',
+  '.rb',
+  '.go',
+  '.java',
+  '.rs',
+  '.c',
+  '.cpp',
+  '.h',
+  '.md',
+  '.txt',
+  '.csv',
+  '.sql',
+  '.graphql',
+  '.gql',
+  '.env',
+  '.env.example',
+  '.env.local',
+  '.xml',
+  '.html',
+  '.css',
+  '.scss',
+  '.less',
+  '.dockerfile',
+  '.dockerignore',
+  '.gitignore',
+  '.npmignore',
   '.tf.json',
 ]);
 
@@ -285,18 +329,30 @@ const BINARY_NAMES = new Set([
 // Helpers
 // ---------------------------------------------------------------------------
 
-const DEFAULT_EXCLUDES = ['node_modules', '.git', 'dist', 'coverage', '.next', 'build', '__pycache__'];
+const DEFAULT_EXCLUDES = [
+  'node_modules',
+  '.git',
+  'dist',
+  'coverage',
+  '.next',
+  'build',
+  '__pycache__',
+];
 
 /**
  * Determine whether a file should be scanned based on its extension and name.
  */
 function isTextFile(filePath: string): boolean {
   const basename = path.basename(filePath);
-  if (BINARY_NAMES.has(basename)) return false;
+  if (BINARY_NAMES.has(basename)) {
+    return false;
+  }
 
   // Files without an extension (e.g. Dockerfile, Makefile) are treated as text
   const ext = path.extname(filePath).toLowerCase();
-  if (ext === '') return true;
+  if (ext === '') {
+    return true;
+  }
 
   return TEXT_EXTENSIONS.has(ext);
 }
@@ -305,7 +361,9 @@ function isTextFile(filePath: string): boolean {
  * Check whether a file matches the user-provided glob patterns (simple suffix matching).
  */
 function matchesPatterns(filePath: string, patterns: string[]): boolean {
-  if (patterns.length === 0) return true;
+  if (patterns.length === 0) {
+    return true;
+  }
   const basename = path.basename(filePath);
   const ext = path.extname(filePath).toLowerCase();
 
@@ -323,7 +381,9 @@ function matchesPatterns(filePath: string, patterns: string[]): boolean {
  * Check whether a detection rule applies to a given file extension.
  */
 function ruleAppliesToFile(rule: DetectionRule, filePath: string): boolean {
-  if (!rule.fileExtensions) return true;
+  if (!rule.fileExtensions) {
+    return true;
+  }
   const ext = path.extname(filePath).toLowerCase();
   return rule.fileExtensions.includes(ext);
 }
@@ -336,9 +396,11 @@ function collectFiles(
   exclude: Set<string>,
   patterns: string[],
   maxFiles: number,
-  collected: string[] = [],
+  collected: string[] = []
 ): string[] {
-  if (collected.length >= maxFiles) return collected;
+  if (collected.length >= maxFiles) {
+    return collected;
+  }
 
   let entries: fs.Dirent[];
   try {
@@ -349,10 +411,14 @@ function collectFiles(
   }
 
   for (const entry of entries) {
-    if (collected.length >= maxFiles) break;
+    if (collected.length >= maxFiles) {
+      break;
+    }
 
     if (entry.isDirectory()) {
-      if (exclude.has(entry.name)) continue;
+      if (exclude.has(entry.name)) {
+        continue;
+      }
       collectFiles(path.join(dir, entry.name), exclude, patterns, maxFiles, collected);
     } else if (entry.isFile()) {
       const fullPath = path.join(dir, entry.name);
@@ -403,7 +469,9 @@ export async function scanSecurity(options: ScanOptions): Promise<ScanResult> {
     const relativePath = path.relative(options.dir, filePath);
 
     for (const rule of DETECTION_RULES) {
-      if (!ruleAppliesToFile(rule, filePath)) continue;
+      if (!ruleAppliesToFile(rule, filePath)) {
+        continue;
+      }
 
       // For multiline patterns (dotAll flag), match against the whole file
       if (rule.pattern.flags.includes('s')) {
@@ -440,7 +508,9 @@ export async function scanSecurity(options: ScanOptions): Promise<ScanResult> {
   // Sort by severity (CRITICAL first), then by file path
   findings.sort((a, b) => {
     const severityDiff = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
-    if (severityDiff !== 0) return severityDiff;
+    if (severityDiff !== 0) {
+      return severityDiff;
+    }
     return (a.file ?? '').localeCompare(b.file ?? '');
   });
 
@@ -492,7 +562,9 @@ export function formatFindings(findings: SecurityFinding[]): string {
 
   for (const severity of ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as Severity[]) {
     const group = grouped[severity];
-    if (group.length === 0) continue;
+    if (group.length === 0) {
+      continue;
+    }
 
     lines.push(`--- ${severity} (${group.length}) ---`);
     lines.push('');
@@ -517,7 +589,7 @@ export function formatFindings(findings: SecurityFinding[]): string {
 
   lines.push('='.repeat(60));
   lines.push(
-    `Summary: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low`,
+    `Summary: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low`
   );
 
   return lines.join('\n');

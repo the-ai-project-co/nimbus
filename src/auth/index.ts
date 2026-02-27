@@ -22,7 +22,8 @@ export type {
 } from './types';
 
 // Store
-export { AuthStore, authStore } from './store';
+import { AuthStore, authStore } from './store';
+export { AuthStore, authStore };
 
 // Providers
 export {
@@ -50,7 +51,6 @@ export { requiresAuth, isAuthenticated, getAuthMessage } from './guard';
 export { SSODeviceFlow, validateSSOToken } from './sso';
 
 // Helper to get auth store instance
-import { AuthStore as AuthStoreClass, authStore as authStoreInstance } from './store';
-export function getAuthStore(): AuthStoreClass {
-  return authStoreInstance;
+export function getAuthStore(): AuthStore {
+  return authStore;
 }

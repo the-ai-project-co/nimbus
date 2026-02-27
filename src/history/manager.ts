@@ -140,16 +140,24 @@ export class HistoryManager {
    * Returns the entries array on success, or null on any failure
    * so the caller can fall back to local storage.
    */
-  private async loadFromStateService(
-    options: HistoryQueryOptions
-  ): Promise<HistoryEntry[] | null> {
+  private async loadFromStateService(options: HistoryQueryOptions): Promise<HistoryEntry[] | null> {
     try {
       const params = new URLSearchParams();
-      if (options.limit !== undefined) params.set('limit', String(options.limit));
-      if (options.since) params.set('since', options.since);
-      if (options.until) params.set('until', options.until);
-      if (options.command) params.set('command', options.command);
-      if (options.status) params.set('status', options.status);
+      if (options.limit !== undefined) {
+        params.set('limit', String(options.limit));
+      }
+      if (options.since) {
+        params.set('since', options.since);
+      }
+      if (options.until) {
+        params.set('until', options.until);
+      }
+      if (options.command) {
+        params.set('command', options.command);
+      }
+      if (options.status) {
+        params.set('status', options.status);
+      }
 
       const queryString = params.toString();
       const url = `${this.stateServiceUrl}/api/state/history${queryString ? `?${queryString}` : ''}`;
@@ -159,7 +167,7 @@ export class HistoryManager {
         return null;
       }
 
-      const body = await response.json() as { success?: boolean; data?: HistoryEntry[] };
+      const body = (await response.json()) as { success?: boolean; data?: HistoryEntry[] };
       if (body.success && Array.isArray(body.data)) {
         return body.data;
       }
@@ -209,7 +217,7 @@ export class HistoryManager {
   ): HistoryEntry | null {
     const historyFile = this.load();
 
-    const entryIndex = historyFile.entries.findIndex((e) => e.id === id);
+    const entryIndex = historyFile.entries.findIndex(e => e.id === id);
     if (entryIndex === -1) {
       return null;
     }
@@ -253,26 +261,26 @@ export class HistoryManager {
 
     // Filter by command
     if (options.command) {
-      entries = entries.filter((e) =>
+      entries = entries.filter(e =>
         e.command.toLowerCase().includes(options.command!.toLowerCase())
       );
     }
 
     // Filter by status
     if (options.status) {
-      entries = entries.filter((e) => e.status === options.status);
+      entries = entries.filter(e => e.status === options.status);
     }
 
     // Filter by since date
     if (options.since) {
       const sinceDate = new Date(options.since);
-      entries = entries.filter((e) => new Date(e.timestamp) >= sinceDate);
+      entries = entries.filter(e => new Date(e.timestamp) >= sinceDate);
     }
 
     // Filter by until date
     if (options.until) {
       const untilDate = new Date(options.until);
-      entries = entries.filter((e) => new Date(e.timestamp) <= untilDate);
+      entries = entries.filter(e => new Date(e.timestamp) <= untilDate);
     }
 
     // Apply limit
@@ -288,7 +296,7 @@ export class HistoryManager {
    */
   getEntry(id: string): HistoryEntry | null {
     const historyFile = this.load();
-    return historyFile.entries.find((e) => e.id === id) || null;
+    return historyFile.entries.find(e => e.id === id) || null;
   }
 
   /**

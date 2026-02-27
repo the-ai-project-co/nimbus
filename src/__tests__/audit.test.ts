@@ -11,10 +11,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-import { scanSecurity, formatFindings } from '../audit/security-scanner';
-import type { ScanOptions, SecurityFinding } from '../audit/security-scanner';
-import { checkCompliance, generateScorecard } from '../audit/compliance-checker';
-import type { Framework } from '../audit/compliance-checker';
+import { scanSecurity, formatFindings, type SecurityFinding } from '../audit/security-scanner';
+import { checkCompliance, generateScorecard, type Framework } from '../audit/compliance-checker';
 import { CostTracker } from '../audit/cost-tracker';
 import { ActivityLog } from '../audit/activity-log';
 
@@ -48,60 +46,48 @@ describe('Security Scanner', () => {
   // ---- scanSecurity() ----
 
   test('scanSecurity() finds hardcoded API keys', async () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'config.ts'),
-      'const API_KEY = "sk-1234567890abcdef";\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'config.ts'), 'const API_KEY = "sk-1234567890abcdef";\n');
 
     const result = await scanSecurity({ dir: tmpDir });
 
     expect(result.findings.length).toBeGreaterThanOrEqual(1);
-    const finding = result.findings.find((f) => f.id.startsWith('SEC-001'));
+    const finding = result.findings.find(f => f.id.startsWith('SEC-001'));
     expect(finding).toBeDefined();
     expect(finding!.severity).toBe('CRITICAL');
     expect(finding!.title).toContain('API key');
   });
 
   test('scanSecurity() finds hardcoded passwords', async () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'db.ts'),
-      'const password = "supersecret123";\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'db.ts'), 'const password = "supersecret123";\n');
 
     const result = await scanSecurity({ dir: tmpDir });
 
     expect(result.findings.length).toBeGreaterThanOrEqual(1);
-    const finding = result.findings.find((f) => f.id.startsWith('SEC-002'));
+    const finding = result.findings.find(f => f.id.startsWith('SEC-002'));
     expect(finding).toBeDefined();
     expect(finding!.severity).toBe('CRITICAL');
     expect(finding!.title).toContain('password');
   });
 
   test('scanSecurity() finds open security groups (0.0.0.0/0 in .tf files)', async () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'main.tf'),
-      'cidr_blocks = ["0.0.0.0/0"]\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'main.tf'), 'cidr_blocks = ["0.0.0.0/0"]\n');
 
     const result = await scanSecurity({ dir: tmpDir });
 
     expect(result.findings.length).toBeGreaterThanOrEqual(1);
-    const finding = result.findings.find((f) => f.id.startsWith('TF-001'));
+    const finding = result.findings.find(f => f.id.startsWith('TF-001'));
     expect(finding).toBeDefined();
     expect(finding!.severity).toBe('HIGH');
     expect(finding!.title).toContain('Open security group');
   });
 
   test('scanSecurity() finds public S3 buckets', async () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 's3.tf'),
-      'acl = "public-read"\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 's3.tf'), 'acl = "public-read"\n');
 
     const result = await scanSecurity({ dir: tmpDir });
 
     expect(result.findings.length).toBeGreaterThanOrEqual(1);
-    const finding = result.findings.find((f) => f.id.startsWith('TF-002'));
+    const finding = result.findings.find(f => f.id.startsWith('TF-002'));
     expect(finding).toBeDefined();
     expect(finding!.severity).toBe('HIGH');
     expect(finding!.title).toContain('Public S3 bucket');
@@ -116,7 +102,7 @@ describe('Security Scanner', () => {
         'export function greet(name: string): string {',
         '  return `Hello, ${name}`;',
         '}',
-      ].join('\n'),
+      ].join('\n')
     );
 
     const result = await scanSecurity({ dir: tmpDir });
@@ -130,7 +116,7 @@ describe('Security Scanner', () => {
     fs.mkdirSync(nodeModulesDir, { recursive: true });
     fs.writeFileSync(
       path.join(nodeModulesDir, 'index.ts'),
-      'const API_KEY = "sk-should-be-ignored-abcde";\n',
+      'const API_KEY = "sk-should-be-ignored-abcde";\n'
     );
 
     // Also put a clean file in the root so scannedFiles > 0 in root but
@@ -203,16 +189,13 @@ describe('Compliance Checker', () => {
 
   test('checkCompliance() returns reports for all requested frameworks', async () => {
     // Create a minimal .tf file so controls are evaluated (not skipped)
-    fs.writeFileSync(
-      path.join(tmpDir, 'main.tf'),
-      'provider "aws" {\n  region = "us-east-1"\n}\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'main.tf'), 'provider "aws" {\n  region = "us-east-1"\n}\n');
 
     const frameworks: Framework[] = ['SOC2', 'HIPAA', 'PCI'];
     const reports = await checkCompliance({ dir: tmpDir, frameworks });
 
     expect(reports.length).toBe(3);
-    expect(reports.map((r) => r.framework)).toEqual(['SOC2', 'HIPAA', 'PCI']);
+    expect(reports.map(r => r.framework)).toEqual(['SOC2', 'HIPAA', 'PCI']);
 
     for (const report of reports) {
       expect(report.controls.length).toBeGreaterThan(0);
@@ -235,7 +218,7 @@ describe('Compliance Checker', () => {
         '    }',
         '  }',
         '}',
-      ].join('\n'),
+      ].join('\n')
     );
 
     const reports = await checkCompliance({
@@ -245,7 +228,7 @@ describe('Compliance Checker', () => {
 
     const soc2 = reports[0];
     // SOC2-003 is the "Encryption at rest" control
-    const encryptionControl = soc2.controls.find((c) => c.id === 'SOC2-003');
+    const encryptionControl = soc2.controls.find(c => c.id === 'SOC2-003');
     expect(encryptionControl).toBeDefined();
     expect(encryptionControl!.status).toBe('pass');
   });
@@ -253,11 +236,7 @@ describe('Compliance Checker', () => {
   test('checkCompliance() fails encryption check when missing', async () => {
     fs.writeFileSync(
       path.join(tmpDir, 'storage.tf'),
-      [
-        'resource "aws_s3_bucket" "data" {',
-        '  bucket = "my-bucket"',
-        '}',
-      ].join('\n'),
+      ['resource "aws_s3_bucket" "data" {', '  bucket = "my-bucket"', '}'].join('\n')
     );
 
     const reports = await checkCompliance({
@@ -266,7 +245,7 @@ describe('Compliance Checker', () => {
     });
 
     const soc2 = reports[0];
-    const encryptionControl = soc2.controls.find((c) => c.id === 'SOC2-003');
+    const encryptionControl = soc2.controls.find(c => c.id === 'SOC2-003');
     expect(encryptionControl).toBeDefined();
     expect(encryptionControl!.status).toBe('fail');
   });
@@ -281,7 +260,7 @@ describe('Compliance Checker', () => {
         'resource "aws_cloudtrail" "main" {}',
         'resource "aws_iam_role" "admin" {}',
         'resource "aws_security_group" "web" {}',
-      ].join('\n'),
+      ].join('\n')
     );
 
     const reports = await checkCompliance({
@@ -297,10 +276,7 @@ describe('Compliance Checker', () => {
   });
 
   test('generateScorecard() produces formatted output', async () => {
-    fs.writeFileSync(
-      path.join(tmpDir, 'main.tf'),
-      'resource "aws_cloudtrail" "main" {}\n',
-    );
+    fs.writeFileSync(path.join(tmpDir, 'main.tf'), 'resource "aws_cloudtrail" "main" {}\n');
 
     const reports = await checkCompliance({
       dir: tmpDir,
@@ -494,7 +470,7 @@ describe('Cost Tracker', () => {
 
     const alphaEntries = tracker.getEntries('alpha');
     expect(alphaEntries.length).toBe(2);
-    expect(alphaEntries.every((e) => e.sessionId === 'alpha')).toBe(true);
+    expect(alphaEntries.every(e => e.sessionId === 'alpha')).toBe(true);
 
     const betaEntries = tracker.getEntries('beta');
     expect(betaEntries.length).toBe(1);
@@ -622,7 +598,7 @@ describe('Activity Log', () => {
     const results = log.query({ toolName: 'file_read' });
 
     expect(results.length).toBe(2);
-    expect(results.every((e) => e.toolName === 'file_read')).toBe(true);
+    expect(results.every(e => e.toolName === 'file_read')).toBe(true);
   });
 
   test('query() filters by date range', () => {
@@ -699,7 +675,7 @@ describe('Activity Log', () => {
     const results = log.query({ sessionId: 'alpha' });
 
     expect(results.length).toBe(2);
-    expect(results.every((e) => e.sessionId === 'alpha')).toBe(true);
+    expect(results.every(e => e.sessionId === 'alpha')).toBe(true);
   });
 
   test('query() filters by error status', () => {

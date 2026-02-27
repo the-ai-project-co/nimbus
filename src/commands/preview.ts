@@ -12,11 +12,7 @@
 import { logger } from '../utils';
 import { ui } from '../wizard/ui';
 import { terraformClient, k8sClient, helmClient } from '../clients';
-import {
-  loadSafetyPolicy,
-  evaluateSafety,
-  type SafetyContext,
-} from '../config/safety-policy';
+import { loadSafetyPolicy, evaluateSafety, type SafetyContext } from '../config/safety-policy';
 import { displaySafetySummary } from '../wizard/approval';
 
 export interface PreviewOptions {
@@ -131,7 +127,7 @@ async function previewTerraformWithCLI(options: PreviewOptions): Promise<void> {
   ui.info(`Running: terraform ${args.join(' ')}`);
   ui.newLine();
 
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     let output = '';
 
     const proc = spawn('terraform', args, {
@@ -139,23 +135,23 @@ async function previewTerraformWithCLI(options: PreviewOptions): Promise<void> {
       stdio: ['inherit', 'pipe', 'pipe'],
     });
 
-    proc.stdout?.on('data', (data) => {
+    proc.stdout?.on('data', data => {
       const text = data.toString();
       output += text;
       process.stdout.write(text);
     });
 
-    proc.stderr?.on('data', (data) => {
+    proc.stderr?.on('data', data => {
       process.stderr.write(data);
     });
 
-    proc.on('error', (error) => {
+    proc.on('error', error => {
       ui.error(`Failed to run terraform: ${error.message}`);
       ui.info('Make sure terraform is installed and in your PATH');
       resolve();
     });
 
-    proc.on('close', async (code) => {
+    proc.on('close', async code => {
       if (code === 0) {
         ui.newLine();
         ui.success('Plan preview complete');
@@ -259,18 +255,18 @@ async function previewKubernetesWithCLI(options: PreviewOptions): Promise<void> 
   ui.info(`Running: kubectl ${args.join(' ')}`);
   ui.newLine();
 
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const proc = spawn('kubectl', args, {
       stdio: 'inherit',
     });
 
-    proc.on('error', (error) => {
+    proc.on('error', error => {
       ui.error(`Failed to run kubectl: ${error.message}`);
       ui.info('Make sure kubectl is installed and configured');
       resolve();
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       ui.newLine();
       if (code === 0) {
         ui.success('No changes detected');
@@ -287,7 +283,7 @@ async function previewKubernetesWithCLI(options: PreviewOptions): Promise<void> 
 /**
  * Display Kubernetes diff
  */
-function displayK8sDiff(
+function _displayK8sDiff(
   result: { success: boolean; hasDiff: boolean; output?: string },
   options: PreviewOptions
 ): void {
@@ -361,18 +357,18 @@ async function previewHelmWithCLI(options: PreviewOptions): Promise<void> {
   ui.info(`Running: helm ${args.join(' ')}`);
   ui.newLine();
 
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const proc = spawn('helm', args, {
       stdio: 'inherit',
     });
 
-    proc.on('error', (error) => {
+    proc.on('error', error => {
       ui.error(`Failed to run helm: ${error.message}`);
       ui.info('Make sure helm is installed and in your PATH');
       resolve();
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       ui.newLine();
       if (code === 0) {
         ui.success('Template preview complete');
@@ -387,7 +383,7 @@ async function previewHelmWithCLI(options: PreviewOptions): Promise<void> {
 /**
  * Display Helm diff
  */
-function displayHelmDiff(
+function _displayHelmDiff(
   result: { success: boolean; hasDiff?: boolean; output?: string },
   options: PreviewOptions
 ): void {

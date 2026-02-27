@@ -29,7 +29,8 @@ export class GcpOperations {
   private projectId: string;
 
   constructor(config: GcpConfig = {}) {
-    this.projectId = config.projectId || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || '';
+    this.projectId =
+      config.projectId || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || '';
   }
 
   // ==========================================
@@ -43,13 +44,18 @@ export class GcpOperations {
     try {
       const project = options.project || this.projectId;
       if (!project) {
-        return { success: false, error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.' };
+        return {
+          success: false,
+          error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.',
+        };
       }
 
       // Pre-check: verify credentials are available
       try {
         const { GoogleAuth } = await import('google-auth-library');
-        const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/compute.readonly'] });
+        const auth = new GoogleAuth({
+          scopes: ['https://www.googleapis.com/auth/compute.readonly'],
+        });
         await auth.getClient();
       } catch (authErr: any) {
         return { success: false, error: authErr.message || 'GCP credentials not available' };
@@ -95,7 +101,11 @@ export class GcpOperations {
 
       const { InstancesClient, ZoneOperationsClient } = await import('@google-cloud/compute');
       const instancesClient = new InstancesClient();
-      const [operation] = await instancesClient.start({ project: effectiveProject, zone, instance });
+      const [operation] = await instancesClient.start({
+        project: effectiveProject,
+        zone,
+        instance,
+      });
 
       const operationsClient = new ZoneOperationsClient();
       await operationsClient.wait({ operation: operation.name, project: effectiveProject, zone });
@@ -190,7 +200,10 @@ export class GcpOperations {
     try {
       const effectiveProject = project || this.projectId;
       if (!effectiveProject) {
-        return { success: false, error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.' };
+        return {
+          success: false,
+          error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.',
+        };
       }
 
       const { Storage } = await import('@google-cloud/storage');
@@ -198,7 +211,7 @@ export class GcpOperations {
 
       const [buckets] = await storage.getBuckets({ project: effectiveProject });
 
-      const mappedBuckets = buckets.map((bucket) => ({
+      const mappedBuckets = buckets.map((bucket: any) => ({
         name: bucket.name,
         selfLink: bucket.metadata?.selfLink,
         location: bucket.metadata?.location,
@@ -208,7 +221,8 @@ export class GcpOperations {
         versioning: bucket.metadata?.versioning?.enabled || false,
         labels: bucket.metadata?.labels || {},
         iamConfiguration: {
-          uniformBucketLevelAccess: bucket.metadata?.iamConfiguration?.uniformBucketLevelAccess?.enabled || false,
+          uniformBucketLevelAccess:
+            bucket.metadata?.iamConfiguration?.uniformBucketLevelAccess?.enabled || false,
         },
         lifecycle: bucket.metadata?.lifecycle?.rule || [],
         encryption: bucket.metadata?.encryption || null,
@@ -238,12 +252,16 @@ export class GcpOperations {
       const storage = new Storage({ projectId: this.projectId || undefined });
 
       const queryOptions: any = {};
-      if (options.prefix) queryOptions.prefix = options.prefix;
-      if (options.maxResults) queryOptions.maxResults = options.maxResults;
+      if (options.prefix) {
+        queryOptions.prefix = options.prefix;
+      }
+      if (options.maxResults) {
+        queryOptions.maxResults = options.maxResults;
+      }
 
       const [files] = await storage.bucket(bucket).getFiles(queryOptions);
 
-      const objects = files.map((file) => ({
+      const objects = files.map((file: any) => ({
         name: file.name,
         selfLink: file.metadata?.selfLink,
         bucket: file.metadata?.bucket,
@@ -274,7 +292,10 @@ export class GcpOperations {
     try {
       const effectiveProject = project || this.projectId;
       if (!effectiveProject) {
-        return { success: false, error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.' };
+        return {
+          success: false,
+          error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.',
+        };
       }
 
       const { ClusterManagerClient } = await import('@google-cloud/container');
@@ -307,16 +328,20 @@ export class GcpOperations {
           name: pool.name,
           status: pool.status,
           initialNodeCount: pool.initialNodeCount,
-          autoscaling: pool.autoscaling ? {
-            enabled: pool.autoscaling.enabled,
-            minNodeCount: pool.autoscaling.minNodeCount,
-            maxNodeCount: pool.autoscaling.maxNodeCount,
-          } : null,
-          config: pool.config ? {
-            machineType: pool.config.machineType,
-            diskSizeGb: pool.config.diskSizeGb,
-            diskType: pool.config.diskType,
-          } : null,
+          autoscaling: pool.autoscaling
+            ? {
+                enabled: pool.autoscaling.enabled,
+                minNodeCount: pool.autoscaling.minNodeCount,
+                maxNodeCount: pool.autoscaling.maxNodeCount,
+              }
+            : null,
+          config: pool.config
+            ? {
+                machineType: pool.config.machineType,
+                diskSizeGb: pool.config.diskSizeGb,
+                diskType: pool.config.diskType,
+              }
+            : null,
         })),
       }));
 
@@ -330,7 +355,11 @@ export class GcpOperations {
   /**
    * Get details of a specific GKE cluster
    */
-  async describeCluster(project: string, location: string, cluster: string): Promise<OperationResult> {
+  async describeCluster(
+    project: string,
+    location: string,
+    cluster: string
+  ): Promise<OperationResult> {
     try {
       const effectiveProject = project || this.projectId;
       if (!effectiveProject) {
@@ -367,12 +396,14 @@ export class GcpOperations {
               status: pool.status,
               initialNodeCount: pool.initialNodeCount,
               autoscaling: pool.autoscaling,
-              config: pool.config ? {
-                machineType: pool.config.machineType,
-                diskSizeGb: pool.config.diskSizeGb,
-                diskType: pool.config.diskType,
-                imageType: pool.config.imageType,
-              } : null,
+              config: pool.config
+                ? {
+                    machineType: pool.config.machineType,
+                    diskSizeGb: pool.config.diskSizeGb,
+                    diskType: pool.config.diskType,
+                    imageType: pool.config.imageType,
+                  }
+                : null,
               version: pool.version,
             })),
           },
@@ -395,7 +426,10 @@ export class GcpOperations {
     try {
       const effectiveProject = project || this.projectId;
       if (!effectiveProject) {
-        return { success: false, error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.' };
+        return {
+          success: false,
+          error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.',
+        };
       }
 
       const iamMod = await import('@google-cloud/iam');
@@ -481,7 +515,10 @@ export class GcpOperations {
     try {
       const effectiveProject = project || this.projectId;
       if (!effectiveProject) {
-        return { success: false, error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.' };
+        return {
+          success: false,
+          error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.',
+        };
       }
 
       const { NetworksClient } = await import('@google-cloud/compute');
@@ -494,9 +531,11 @@ export class GcpOperations {
         selfLink: network.selfLink,
         description: network.description,
         autoCreateSubnetworks: network.autoCreateSubnetworks,
-        routingConfig: network.routingConfig ? {
-          routingMode: network.routingConfig.routingMode,
-        } : null,
+        routingConfig: network.routingConfig
+          ? {
+              routingMode: network.routingConfig.routingMode,
+            }
+          : null,
         subnetworks: network.subnetworks || [],
         peerings: (network.peerings || []).map((peering: any) => ({
           name: peering.name,
@@ -524,7 +563,10 @@ export class GcpOperations {
     try {
       const effectiveProject = project || this.projectId;
       if (!effectiveProject) {
-        return { success: false, error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.' };
+        return {
+          success: false,
+          error: 'No project specified. Set GOOGLE_CLOUD_PROJECT or pass project parameter.',
+        };
       }
 
       const { SubnetworksClient } = await import('@google-cloud/compute');

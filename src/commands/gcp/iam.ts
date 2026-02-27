@@ -85,14 +85,7 @@ async function listServiceAccounts(options: GcpCommandOptions): Promise<void> {
     ui.print(`Found ${accounts.length} service account(s)\n`);
 
     // Display table
-    ui.print(
-      ui.color(
-        'Display Name'.padEnd(30) +
-          'Email'.padEnd(50) +
-          'Disabled',
-        'cyan'
-      )
-    );
+    ui.print(ui.color(`${'Display Name'.padEnd(30) + 'Email'.padEnd(50)}Disabled`, 'cyan'));
     ui.print('─'.repeat(90));
 
     for (const account of accounts) {
@@ -100,9 +93,7 @@ async function listServiceAccounts(options: GcpCommandOptions): Promise<void> {
       const email = account.email?.substring(0, 49) || '';
       const disabled = account.disabled ? 'Yes' : 'No';
 
-      ui.print(
-        `${displayName.padEnd(30)}${email.padEnd(50)}${disabled}`
-      );
+      ui.print(`${displayName.padEnd(30)}${email.padEnd(50)}${disabled}`);
     }
   } catch (error: unknown) {
     ui.stopSpinnerFail('Failed to fetch service accounts');
@@ -115,10 +106,7 @@ async function listServiceAccounts(options: GcpCommandOptions): Promise<void> {
 /**
  * Describe a specific service account
  */
-async function describeServiceAccount(
-  email: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function describeServiceAccount(email: string, options: GcpCommandOptions): Promise<void> {
   ui.header(`Service Account: ${email}`);
   ui.newLine();
 
@@ -144,7 +132,15 @@ async function describeServiceAccount(
 
     // Get keys
     try {
-      const keysArgs = ['iam', 'service-accounts', 'keys', 'list', '--iam-account', email, '--format=json'];
+      const keysArgs = [
+        'iam',
+        'service-accounts',
+        'keys',
+        'list',
+        '--iam-account',
+        email,
+        '--format=json',
+      ];
       if (options.project) {
         keysArgs.push(`--project=${options.project}`);
       }
@@ -201,21 +197,16 @@ async function listRoles(options: GcpCommandOptions): Promise<void> {
     const roles = JSON.parse(stdout || '[]');
 
     if (roles.length === 0) {
-      ui.info('No custom roles found. Use gcloud iam roles list --filter="stage=GA" to see predefined roles.');
+      ui.info(
+        'No custom roles found. Use gcloud iam roles list --filter="stage=GA" to see predefined roles.'
+      );
       return;
     }
 
     ui.print(`Found ${roles.length} custom role(s)\n`);
 
     // Display table
-    ui.print(
-      ui.color(
-        'Name'.padEnd(40) +
-          'Title'.padEnd(35) +
-          'Stage',
-        'cyan'
-      )
-    );
+    ui.print(ui.color(`${'Name'.padEnd(40) + 'Title'.padEnd(35)}Stage`, 'cyan'));
     ui.print('─'.repeat(85));
 
     for (const role of roles) {
@@ -223,9 +214,7 @@ async function listRoles(options: GcpCommandOptions): Promise<void> {
       const title = role.title?.substring(0, 34) || '';
       const stage = role.stage || '';
 
-      ui.print(
-        `${name.padEnd(40)}${title.padEnd(35)}${stage}`
-      );
+      ui.print(`${name.padEnd(40)}${title.padEnd(35)}${stage}`);
     }
   } catch (error: unknown) {
     ui.stopSpinnerFail('Failed to fetch roles');
@@ -238,10 +227,7 @@ async function listRoles(options: GcpCommandOptions): Promise<void> {
 /**
  * Describe a specific role
  */
-async function describeRole(
-  roleName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function describeRole(roleName: string, options: GcpCommandOptions): Promise<void> {
   ui.header(`Role: ${roleName}`);
   ui.newLine();
 
@@ -300,7 +286,11 @@ async function listBindings(options: GcpCommandOptions): Promise<void> {
   if (!projectId) {
     // Get current project
     try {
-      const { stdout: projectOut } = await execFileAsync('gcloud', ['config', 'get-value', 'project']);
+      const { stdout: projectOut } = await execFileAsync('gcloud', [
+        'config',
+        'get-value',
+        'project',
+      ]);
       projectId = projectOut.trim();
     } catch {
       ui.error('Project not specified and no default project configured');

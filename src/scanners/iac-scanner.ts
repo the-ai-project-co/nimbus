@@ -20,7 +20,14 @@ const IAC_PATTERNS: IaCPattern[] = [
   {
     name: 'terraform',
     type: 'terraform',
-    configFiles: ['main.tf', 'variables.tf', 'outputs.tf', 'providers.tf', 'versions.tf', 'terraform.tfvars'],
+    configFiles: [
+      'main.tf',
+      'variables.tf',
+      'outputs.tf',
+      'providers.tf',
+      'versions.tf',
+      'terraform.tfvars',
+    ],
     directories: ['terraform', 'infra', 'infrastructure', 'iac', 'tf'],
     extensions: ['.tf', '.tfvars'],
   },
@@ -156,10 +163,7 @@ export class IaCScanner implements Scanner {
     });
   }
 
-  private async detectIaCTool(
-    cwd: string,
-    pattern: IaCPattern
-  ): Promise<IaCInfo | null> {
+  private async detectIaCTool(cwd: string, pattern: IaCPattern): Promise<IaCInfo | null> {
     let confidence: ConfidenceLevel = 'low';
     const foundFiles: string[] = [];
 
@@ -176,7 +180,9 @@ export class IaCScanner implements Scanner {
     for (const dir of pattern.directories) {
       const dirPath = path.join(cwd, dir);
       if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
-        if (confidence === 'low') confidence = 'medium';
+        if (confidence === 'low') {
+          confidence = 'medium';
+        }
 
         // Check for config files in directory
         for (const file of pattern.configFiles) {
@@ -212,7 +218,9 @@ export class IaCScanner implements Scanner {
         for (const file of files) {
           const ext = path.extname(file);
           if (pattern.extensions.includes(ext)) {
-            if (confidence === 'low') confidence = 'medium';
+            if (confidence === 'low') {
+              confidence = 'medium';
+            }
             foundFiles.push(file);
           }
         }
@@ -228,8 +236,12 @@ export class IaCScanner implements Scanner {
         if (!content.includes('AWS::Serverless')) {
           // Not a SAM template, reduce confidence
           const idx = foundFiles.indexOf('template.yaml');
-          if (idx > -1) foundFiles.splice(idx, 1);
-          if (foundFiles.length === 0) return null;
+          if (idx > -1) {
+            foundFiles.splice(idx, 1);
+          }
+          if (foundFiles.length === 0) {
+            return null;
+          }
         }
       } catch {
         // Ignore errors
@@ -263,7 +275,10 @@ export class IaCScanner implements Scanner {
 
           if (entry.isDirectory() && !entry.name.startsWith('.')) {
             scanDir(fullPath, relPath);
-          } else if (entry.isFile() && (entry.name.endsWith('.tf') || entry.name.endsWith('.tfvars'))) {
+          } else if (
+            entry.isFile() &&
+            (entry.name.endsWith('.tf') || entry.name.endsWith('.tfvars'))
+          ) {
             files.push(relPath);
           }
         }
@@ -292,7 +307,10 @@ export class IaCScanner implements Scanner {
 
           if (entry.isDirectory() && !entry.name.startsWith('.')) {
             scanDir(fullPath, relPath);
-          } else if (entry.isFile() && (entry.name.endsWith('.yaml') || entry.name.endsWith('.yml'))) {
+          } else if (
+            entry.isFile() &&
+            (entry.name.endsWith('.yaml') || entry.name.endsWith('.yml'))
+          ) {
             // Quick check if it looks like a K8s file
             try {
               const content = fs.readFileSync(fullPath, 'utf-8').slice(0, 500);
@@ -333,7 +351,11 @@ export class IaCScanner implements Scanner {
           const fullPath = path.join(dir, entry.name);
           const relPath = path.join(relativePath, entry.name);
 
-          if (entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.includes('node_modules')) {
+          if (
+            entry.isDirectory() &&
+            !entry.name.startsWith('.') &&
+            !entry.name.includes('node_modules')
+          ) {
             scanDir(fullPath, relPath);
           } else if (entry.isFile()) {
             if (

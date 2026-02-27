@@ -28,7 +28,10 @@ interface FsEntry {
 /**
  * List directory contents
  */
-export async function fsListCommand(dirPath: string, options: FsCommandOptions = {}): Promise<void> {
+export async function fsListCommand(
+  dirPath: string,
+  options: FsCommandOptions = {}
+): Promise<void> {
   ui.header('Files List');
 
   ui.info(`Path: ${dirPath}`);
@@ -73,7 +76,11 @@ export async function fsListCommand(dirPath: string, options: FsCommandOptions =
 /**
  * Search for files
  */
-export async function fsSearchCommand(pattern: string, searchPath: string = '.', options: FsCommandOptions = {}): Promise<void> {
+export async function fsSearchCommand(
+  pattern: string,
+  searchPath: string = '.',
+  options: FsCommandOptions = {}
+): Promise<void> {
   ui.header('Files Search');
 
   ui.info(`Pattern: ${pattern}`);
@@ -113,7 +120,10 @@ export async function fsSearchCommand(pattern: string, searchPath: string = '.',
 /**
  * Read file contents
  */
-export async function fsReadCommand(filePath: string, options: FsCommandOptions = {}): Promise<void> {
+export async function fsReadCommand(
+  filePath: string,
+  _options: FsCommandOptions = {}
+): Promise<void> {
   ui.header('Files Read');
 
   ui.info(`File: ${filePath}`);
@@ -150,7 +160,10 @@ interface TreeNode {
 /**
  * Display directory tree using the dedicated tree endpoint
  */
-export async function fsTreeCommand(dirPath: string, options: FsCommandOptions = {}): Promise<void> {
+export async function fsTreeCommand(
+  dirPath: string,
+  options: FsCommandOptions = {}
+): Promise<void> {
   ui.header('File Tree');
 
   ui.info(`Path: ${dirPath}`);
@@ -171,7 +184,7 @@ export async function fsTreeCommand(dirPath: string, options: FsCommandOptions =
       const tree = data?.tree || data?.entries || [];
       ui.stopSpinnerSuccess(`Tree for ${dirPath}`);
 
-      function printTree(nodes: TreeNode[], prefix = '') {
+      const printTree = (nodes: TreeNode[], prefix = ''): void => {
         for (let i = 0; i < nodes.length; i++) {
           const node = nodes[i];
           const isLast = i === nodes.length - 1;
@@ -183,7 +196,7 @@ export async function fsTreeCommand(dirPath: string, options: FsCommandOptions =
             printTree(node.children, childPrefix);
           }
         }
-      }
+      };
 
       if (tree.length > 0) {
         printTree(tree);
@@ -205,7 +218,11 @@ export async function fsTreeCommand(dirPath: string, options: FsCommandOptions =
 /**
  * Write content to a file
  */
-export async function fsWriteCommand(filePath: string, content: string, options: FsCommandOptions = {}): Promise<void> {
+export async function fsWriteCommand(
+  filePath: string,
+  content: string,
+  options: FsCommandOptions = {}
+): Promise<void> {
   ui.header('Files Write');
 
   ui.info(`File: ${filePath}`);

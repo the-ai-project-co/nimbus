@@ -9,12 +9,7 @@
  */
 
 import { Subagent, type SubagentConfig } from './base';
-import {
-  readFileTool,
-  globTool,
-  grepTool,
-  listDirTool,
-} from '../../tools/schemas/standard';
+import { readFileTool, globTool, grepTool, listDirTool } from '../../tools/schemas/standard';
 
 // ---------------------------------------------------------------------------
 // Security Patterns
@@ -48,7 +43,7 @@ const securityConfig: SubagentConfig = {
   systemPrompt: `You are a security auditor subagent. You scan codebases for security issues.
 
 Scan for:
-${SECURITY_PATTERNS.map((p) => `- ${p}`).join('\n')}
+${SECURITY_PATTERNS.map(p => `- ${p}`).join('\n')}
 
 Rules:
 - Search systematically — use grep for patterns, glob to find config files

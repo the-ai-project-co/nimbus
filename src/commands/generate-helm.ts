@@ -95,16 +95,66 @@ export interface HelmWizardContext {
  * Popular Helm charts with their repos
  */
 const POPULAR_CHARTS = [
-  { name: 'nginx', repo: 'bitnami', url: 'https://charts.bitnami.com/bitnami', description: 'NGINX web server' },
-  { name: 'postgresql', repo: 'bitnami', url: 'https://charts.bitnami.com/bitnami', description: 'PostgreSQL database' },
-  { name: 'redis', repo: 'bitnami', url: 'https://charts.bitnami.com/bitnami', description: 'Redis cache' },
-  { name: 'mysql', repo: 'bitnami', url: 'https://charts.bitnami.com/bitnami', description: 'MySQL database' },
-  { name: 'mongodb', repo: 'bitnami', url: 'https://charts.bitnami.com/bitnami', description: 'MongoDB database' },
-  { name: 'kafka', repo: 'bitnami', url: 'https://charts.bitnami.com/bitnami', description: 'Apache Kafka' },
-  { name: 'rabbitmq', repo: 'bitnami', url: 'https://charts.bitnami.com/bitnami', description: 'RabbitMQ message broker' },
-  { name: 'elasticsearch', repo: 'elastic', url: 'https://helm.elastic.co', description: 'Elasticsearch search engine' },
-  { name: 'prometheus', repo: 'prometheus-community', url: 'https://prometheus-community.github.io/helm-charts', description: 'Prometheus monitoring' },
-  { name: 'grafana', repo: 'grafana', url: 'https://grafana.github.io/helm-charts', description: 'Grafana dashboards' },
+  {
+    name: 'nginx',
+    repo: 'bitnami',
+    url: 'https://charts.bitnami.com/bitnami',
+    description: 'NGINX web server',
+  },
+  {
+    name: 'postgresql',
+    repo: 'bitnami',
+    url: 'https://charts.bitnami.com/bitnami',
+    description: 'PostgreSQL database',
+  },
+  {
+    name: 'redis',
+    repo: 'bitnami',
+    url: 'https://charts.bitnami.com/bitnami',
+    description: 'Redis cache',
+  },
+  {
+    name: 'mysql',
+    repo: 'bitnami',
+    url: 'https://charts.bitnami.com/bitnami',
+    description: 'MySQL database',
+  },
+  {
+    name: 'mongodb',
+    repo: 'bitnami',
+    url: 'https://charts.bitnami.com/bitnami',
+    description: 'MongoDB database',
+  },
+  {
+    name: 'kafka',
+    repo: 'bitnami',
+    url: 'https://charts.bitnami.com/bitnami',
+    description: 'Apache Kafka',
+  },
+  {
+    name: 'rabbitmq',
+    repo: 'bitnami',
+    url: 'https://charts.bitnami.com/bitnami',
+    description: 'RabbitMQ message broker',
+  },
+  {
+    name: 'elasticsearch',
+    repo: 'elastic',
+    url: 'https://helm.elastic.co',
+    description: 'Elasticsearch search engine',
+  },
+  {
+    name: 'prometheus',
+    repo: 'prometheus-community',
+    url: 'https://prometheus-community.github.io/helm-charts',
+    description: 'Prometheus monitoring',
+  },
+  {
+    name: 'grafana',
+    repo: 'grafana',
+    url: 'https://grafana.github.io/helm-charts',
+    description: 'Grafana dashboards',
+  },
 ];
 
 /**
@@ -133,7 +183,7 @@ export async function generateHelmCommand(options: GenerateHelmOptions = {}): Pr
       chartVersion: options.version,
     },
     steps: createWizardSteps(),
-    onEvent: (event) => {
+    onEvent: event => {
       logger.debug('Wizard event', { type: event.type });
     },
   });
@@ -335,10 +385,7 @@ async function chartSelectionStep(ctx: HelmWizardContext): Promise<StepResult> {
   } else {
     // Local chart
     ui.newLine();
-    localPath = await pathInput(
-      'Path to local chart:',
-      ctx.localPath || './chart'
-    );
+    localPath = await pathInput('Path to local chart:', ctx.localPath || './chart');
 
     if (!localPath) {
       return { success: false, error: 'Chart path is required' };
@@ -386,8 +433,10 @@ async function releaseConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
   const releaseName = await input({
     message: 'Release name:',
     defaultValue: ctx.releaseName || chartName,
-    validate: (value) => {
-      if (!value) return 'Release name is required';
+    validate: value => {
+      if (!value) {
+        return 'Release name is required';
+      }
       if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value)) {
         return 'Release name must be lowercase alphanumeric with dashes only';
       }
@@ -403,8 +452,10 @@ async function releaseConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
   const namespace = await input({
     message: 'Namespace:',
     defaultValue: ctx.namespace || 'default',
-    validate: (value) => {
-      if (!value) return 'Namespace is required';
+    validate: value => {
+      if (!value) {
+        return 'Namespace is required';
+      }
       if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(value)) {
         return 'Namespace must be lowercase alphanumeric with dashes only';
       }
@@ -499,9 +550,11 @@ async function resourceConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
   const replicasInput = await input({
     message: 'Number of replicas:',
     defaultValue: String(ctx.replicas || getDefaultReplicas(ctx.environment)),
-    validate: (value) => {
+    validate: value => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1) return 'Must be a positive number';
+      if (isNaN(num) || num < 1) {
+        return 'Must be a positive number';
+      }
       return true;
     },
   });
@@ -577,7 +630,7 @@ async function serviceConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
       {
         value: 'NodePort',
         label: 'NodePort',
-        description: 'Expose on each node\'s IP at a static port',
+        description: "Expose on each node's IP at a static port",
       },
       {
         value: 'LoadBalancer',
@@ -591,9 +644,11 @@ async function serviceConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
   const servicePortInput = await input({
     message: 'Service port:',
     defaultValue: String(ctx.servicePort || 80),
-    validate: (value) => {
+    validate: value => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1 || num > 65535) return 'Must be between 1 and 65535';
+      if (isNaN(num) || num < 1 || num > 65535) {
+        return 'Must be between 1 and 65535';
+      }
       return true;
     },
   });
@@ -612,7 +667,7 @@ async function serviceConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
 async function ingressConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
   const ingressEnabled = await confirm({
     message: 'Enable Ingress?',
-    defaultValue: ctx.ingressEnabled ?? (ctx.environment === 'production'),
+    defaultValue: ctx.ingressEnabled ?? ctx.environment === 'production',
   });
 
   if (!ingressEnabled) {
@@ -623,15 +678,17 @@ async function ingressConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
   const ingressHost = await input({
     message: 'Hostname (e.g., app.example.com):',
     defaultValue: ctx.ingressHost || `${ctx.releaseName}.example.com`,
-    validate: (value) => {
-      if (!value) return 'Hostname is required for Ingress';
+    validate: value => {
+      if (!value) {
+        return 'Hostname is required for Ingress';
+      }
       return true;
     },
   });
 
   const ingressTls = await confirm({
     message: 'Enable TLS?',
-    defaultValue: ctx.ingressTls ?? (ctx.environment === 'production'),
+    defaultValue: ctx.ingressTls ?? ctx.environment === 'production',
   });
 
   return {
@@ -644,10 +701,12 @@ async function ingressConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
  * Step 8: Secrets Configuration
  */
 async function secretsConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
-  const includeSecrets = ctx.includeSecrets ?? await confirm({
-    message: 'Generate a separate secrets values file?',
-    defaultValue: true,
-  });
+  const includeSecrets =
+    ctx.includeSecrets ??
+    (await confirm({
+      message: 'Generate a separate secrets values file?',
+      defaultValue: true,
+    }));
 
   if (!includeSecrets) {
     return { success: true, data: { includeSecrets: false } };
@@ -674,17 +733,21 @@ async function secretsConfigStep(ctx: HelmWizardContext): Promise<StepResult> {
   }
 
   // Allow adding custom secret keys
-  let addMore = Object.keys(secretValues).length === 0 || await confirm({
-    message: 'Add custom secret keys?',
-    defaultValue: false,
-  });
+  let addMore =
+    Object.keys(secretValues).length === 0 ||
+    (await confirm({
+      message: 'Add custom secret keys?',
+      defaultValue: false,
+    }));
 
   while (addMore) {
     const key = await input({
       message: 'Secret key (or press Enter to finish):',
     });
 
-    if (!key) break;
+    if (!key) {
+      break;
+    }
 
     const value = await input({
       message: `Value for ${key}:`,
@@ -773,7 +836,9 @@ async function generateStep(ctx: HelmWizardContext): Promise<StepResult> {
 /**
  * Generate values files
  */
-function generateValuesFiles(ctx: HelmWizardContext): Array<{ name: string; content: string; path: string }> {
+function generateValuesFiles(
+  ctx: HelmWizardContext
+): Array<{ name: string; content: string; path: string }> {
   const files: Array<{ name: string; content: string; path: string }> = [];
 
   // Main values file
@@ -865,13 +930,21 @@ function generateMainValues(ctx: HelmWizardContext): string {
     lines.push('resources:');
     if (ctx.cpuRequest || ctx.memoryRequest) {
       lines.push('  requests:');
-      if (ctx.cpuRequest) lines.push(`    cpu: ${ctx.cpuRequest}`);
-      if (ctx.memoryRequest) lines.push(`    memory: ${ctx.memoryRequest}`);
+      if (ctx.cpuRequest) {
+        lines.push(`    cpu: ${ctx.cpuRequest}`);
+      }
+      if (ctx.memoryRequest) {
+        lines.push(`    memory: ${ctx.memoryRequest}`);
+      }
     }
     if (ctx.cpuLimit || ctx.memoryLimit) {
       lines.push('  limits:');
-      if (ctx.cpuLimit) lines.push(`    cpu: ${ctx.cpuLimit}`);
-      if (ctx.memoryLimit) lines.push(`    memory: ${ctx.memoryLimit}`);
+      if (ctx.cpuLimit) {
+        lines.push(`    cpu: ${ctx.cpuLimit}`);
+      }
+      if (ctx.memoryLimit) {
+        lines.push(`    memory: ${ctx.memoryLimit}`);
+      }
     }
     lines.push('');
   }
@@ -917,7 +990,10 @@ function generateSecretsValues(ctx: HelmWizardContext): string {
     lines.push('secrets:');
     for (const [key, value] of Object.entries(ctx.secretValues)) {
       // Mask actual values in generated file with placeholders
-      lines.push(`  ${key}: "${value || '<CHANGE_ME>'}"  # TODO: Replace with actual value`);
+      const placeholder = value || Buffer.from('REPLACE_ME').toString('base64');
+      lines.push(
+        `  ${key}: "${placeholder}"  # base64-encoded value — replace with: echo -n 'your-value' | base64`
+      );
     }
   } else {
     lines.push('# Add your secret values here');
@@ -958,8 +1034,12 @@ helm repo update
 helm install ${ctx.releaseName} ${ctx.chart} \\
   --namespace ${ctx.namespace} \\
   --create-namespace \\
-  -f values${envSuffix}.yaml${ctx.includeSecrets ? ` \\
-  -f secrets${envSuffix}.yaml` : ''}
+  -f values${envSuffix}.yaml${
+    ctx.includeSecrets
+      ? ` \\
+  -f secrets${envSuffix}.yaml`
+      : ''
+  }
 \`\`\`
 
 ## Upgrade
@@ -967,8 +1047,12 @@ helm install ${ctx.releaseName} ${ctx.chart} \\
 \`\`\`bash
 helm upgrade ${ctx.releaseName} ${ctx.chart} \\
   --namespace ${ctx.namespace} \\
-  -f values${envSuffix}.yaml${ctx.includeSecrets ? ` \\
-  -f secrets${envSuffix}.yaml` : ''}
+  -f values${envSuffix}.yaml${
+    ctx.includeSecrets
+      ? ` \\
+  -f secrets${envSuffix}.yaml`
+      : ''
+  }
 \`\`\`
 
 ## Uninstall
@@ -984,12 +1068,16 @@ ${ctx.includeSecrets ? `- \`secrets${envSuffix}.yaml\` - Secret values (DO NOT c
 
 ## Security Notes
 
-${ctx.includeSecrets ? `- The \`secrets${envSuffix}.yaml\` file contains sensitive data
+${
+  ctx.includeSecrets
+    ? `- The \`secrets${envSuffix}.yaml\` file contains sensitive data
 - Add it to \`.gitignore\` to prevent accidental commits
 - Consider using:
   - [SOPS](https://github.com/mozilla/sops) for encrypted secrets in git
   - [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) for Kubernetes-native encryption
-  - [External Secrets](https://external-secrets.io/) for external secret managers` : '- No secrets file generated'}
+  - [External Secrets](https://external-secrets.io/) for external secret managers`
+    : '- No secrets file generated'
+}
 
 ## Customization
 

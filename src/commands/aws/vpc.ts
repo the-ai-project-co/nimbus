@@ -86,10 +86,7 @@ async function listVPCs(options: AwsCommandOptions): Promise<void> {
   ui.startSpinner({ message: 'Fetching VPCs...' });
 
   try {
-    const result = await runAwsCommand<{ Vpcs: VPC[] }>(
-      'ec2 describe-vpcs',
-      options
-    );
+    const result = await runAwsCommand<{ Vpcs: VPC[] }>('ec2 describe-vpcs', options);
 
     const vpcs = result.Vpcs || [];
 
@@ -148,7 +145,14 @@ async function describeVPC(vpcId: string, options: AwsCommandOptions): Promise<v
     const vpc = vpcData.Vpcs[0];
 
     // Get subnets
-    const subnetArgs = ['ec2', 'describe-subnets', '--filters', `Name=vpc-id,Values=${vpcId}`, '--output', 'json'];
+    const subnetArgs = [
+      'ec2',
+      'describe-subnets',
+      '--filters',
+      `Name=vpc-id,Values=${vpcId}`,
+      '--output',
+      'json',
+    ];
     if (options.profile) {
       subnetArgs.push('--profile', options.profile);
     }
@@ -161,7 +165,14 @@ async function describeVPC(vpcId: string, options: AwsCommandOptions): Promise<v
     const subnets = subnetData.Subnets || [];
 
     // Get security groups
-    const sgArgs = ['ec2', 'describe-security-groups', '--filters', `Name=vpc-id,Values=${vpcId}`, '--output', 'json'];
+    const sgArgs = [
+      'ec2',
+      'describe-security-groups',
+      '--filters',
+      `Name=vpc-id,Values=${vpcId}`,
+      '--output',
+      'json',
+    ];
     if (options.profile) {
       sgArgs.push('--profile', options.profile);
     }
@@ -193,9 +204,14 @@ async function describeVPC(vpcId: string, options: AwsCommandOptions): Promise<v
       ui.newLine();
 
       for (const subnet of subnets) {
-        const subnetName = subnet.Tags?.find((t: { Key: string }) => t.Key === 'Name')?.Value || '-';
-        const publicLabel = subnet.MapPublicIpOnLaunch ? ui.color('public', 'green') : ui.color('private', 'yellow');
-        ui.print(`  ${subnet.SubnetId}  ${subnetName.padEnd(20)}  ${subnet.CidrBlock.padEnd(18)}  ${subnet.AvailabilityZone}  ${publicLabel}`);
+        const subnetName =
+          subnet.Tags?.find((t: { Key: string }) => t.Key === 'Name')?.Value || '-';
+        const publicLabel = subnet.MapPublicIpOnLaunch
+          ? ui.color('public', 'green')
+          : ui.color('private', 'yellow');
+        ui.print(
+          `  ${subnet.SubnetId}  ${subnetName.padEnd(20)}  ${subnet.CidrBlock.padEnd(18)}  ${subnet.AvailabilityZone}  ${publicLabel}`
+        );
       }
     }
 
@@ -229,10 +245,7 @@ async function listSubnets(vpcId: string | undefined, options: AwsCommandOptions
       command += ` --filters Name=vpc-id,Values=${vpcId}`;
     }
 
-    const result = await runAwsCommand<{ Subnets: Subnet[] }>(
-      command,
-      options
-    );
+    const result = await runAwsCommand<{ Subnets: Subnet[] }>(command, options);
 
     const subnets = result.Subnets || [];
 
@@ -268,7 +281,10 @@ async function listSubnets(vpcId: string | undefined, options: AwsCommandOptions
 /**
  * List security groups
  */
-async function listSecurityGroups(vpcId: string | undefined, options: AwsCommandOptions): Promise<void> {
+async function listSecurityGroups(
+  vpcId: string | undefined,
+  options: AwsCommandOptions
+): Promise<void> {
   ui.header('Security Groups');
 
   ui.startSpinner({ message: 'Fetching security groups...' });
@@ -279,10 +295,7 @@ async function listSecurityGroups(vpcId: string | undefined, options: AwsCommand
       command += ` --filters Name=vpc-id,Values=${vpcId}`;
     }
 
-    const result = await runAwsCommand<{ SecurityGroups: SecurityGroup[] }>(
-      command,
-      options
-    );
+    const result = await runAwsCommand<{ SecurityGroups: SecurityGroup[] }>(command, options);
 
     const securityGroups = result.SecurityGroups || [];
 

@@ -118,11 +118,8 @@ export class GitHubDeviceFlow {
    * Wait for authorization by polling
    * Returns the access token when the user completes authorization
    */
-  async waitForAuthorization(
-    onPoll?: () => void,
-    abortSignal?: AbortSignal
-  ): Promise<string> {
-    while (true) {
+  async waitForAuthorization(onPoll?: () => void, abortSignal?: AbortSignal): Promise<string> {
+    for (;;) {
       if (abortSignal?.aborted) {
         throw new Error('Authorization cancelled');
       }
@@ -156,14 +153,12 @@ export class GitHubDeviceFlow {
       }
 
       // Unknown error
-      throw new Error(
-        result.error_description || result.error || 'Unknown authorization error'
-      );
+      throw new Error(result.error_description || result.error || 'Unknown authorization error');
     }
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
@@ -205,7 +200,7 @@ export async function fetchGitHubEmail(accessToken: string): Promise<string | nu
   }
 
   const emails = (await response.json()) as GitHubEmailResponse[];
-  const primaryEmail = emails.find((e) => e.primary && e.verified);
+  const primaryEmail = emails.find(e => e.primary && e.verified);
   return primaryEmail?.email || emails[0]?.email || null;
 }
 
@@ -257,7 +252,7 @@ export class BrowserOAuthServer {
     // Start the server
     this.server = Bun.serve({
       port: CALLBACK_PORT,
-      fetch: (request) => this.handleRequest(request),
+      fetch: request => this.handleRequest(request),
     });
 
     // Build authorization URL
@@ -333,7 +328,7 @@ export class BrowserOAuthServer {
   private generateState(): string {
     const array = new Uint8Array(16);
     crypto.getRandomValues(array);
-    return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
   }
 
   private getSuccessPage(): string {

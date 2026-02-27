@@ -31,6 +31,7 @@
     "precommit": "bun run lint && bun run format:check && bun run type-check"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
@@ -40,6 +41,7 @@
     "typescript": "^5.3.3"
   },
   "engines": {
+    "node": ">=18.0.0",
     "bun": ">=1.0.0"
   },
   "dependencies": {
@@ -57,6 +59,20 @@
     "openai": "^6.22.0",
     "react": "^19.2.4",
     "simple-git": "^3.32.1",
+    "better-sqlite3": "^11.0.0",
+    "tsx": "^4.7.0",
     "zod": "^4.3.6"
+  },
+  "optionalDependencies": {
+    "@azure/identity": "^4.0.0",
+    "@azure/arm-compute": "^22.0.0",
+    "@azure/arm-storage": "^18.0.0",
+    "@azure/arm-containerservice": "^21.0.0",
+    "@azure/arm-network": "^33.0.0",
+    "google-auth-library": "^9.0.0",
+    "@google-cloud/compute": "^4.0.0",
+    "@google-cloud/storage": "^7.0.0",
+    "@google-cloud/container": "^5.0.0",
+    "@octokit/rest": "^21.0.0"
   }
 }

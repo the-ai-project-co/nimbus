@@ -9,17 +9,8 @@
  */
 
 import { Subagent, type SubagentConfig } from './base';
-import {
-  readFileTool,
-  globTool,
-  grepTool,
-  listDirTool,
-} from '../../tools/schemas/standard';
-import {
-  cloudDiscoverTool,
-  costEstimateTool,
-  driftDetectTool,
-} from '../../tools/schemas/devops';
+import { readFileTool, globTool, grepTool, listDirTool } from '../../tools/schemas/standard';
+import { cloudDiscoverTool, costEstimateTool, driftDetectTool } from '../../tools/schemas/devops';
 
 // ---------------------------------------------------------------------------
 // Configuration

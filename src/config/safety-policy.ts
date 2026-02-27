@@ -81,33 +81,10 @@ export interface SafetyContext {
  * Default safety policy
  */
 export const defaultSafetyPolicy: SafetyPolicy = {
-  alwaysRequireApproval: [
-    'destroy',
-    'delete',
-    'terminate',
-    'update',
-    'apply',
-    'create',
-  ],
-  protectedEnvironments: [
-    'production',
-    'prod',
-    'prd',
-    'live',
-    'main',
-    'master',
-  ],
+  alwaysRequireApproval: ['destroy', 'delete', 'terminate', 'update', 'apply', 'create'],
+  protectedEnvironments: ['production', 'prod', 'prd', 'live', 'main', 'master'],
   costThreshold: 500,
-  skipSafetyFor: [
-    'plan',
-    'validate',
-    'show',
-    'list',
-    'get',
-    'describe',
-    'logs',
-    'status',
-  ],
+  skipSafetyFor: ['plan', 'validate', 'show', 'list', 'get', 'describe', 'logs', 'status'],
   customRules: [],
 };
 
@@ -158,9 +135,7 @@ function parseSafetyConfig(content: string): Partial<SafetyPolicy> | null {
   // Parse protectedEnvironments
   const envMatch = safetySection.match(/protectedEnvironments:\s*\[([^\]]+)\]/);
   if (envMatch) {
-    policy.protectedEnvironments = envMatch[1]
-      .split(',')
-      .map(s => s.trim().replace(/['"]/g, ''));
+    policy.protectedEnvironments = envMatch[1].split(',').map(s => s.trim().replace(/['"]/g, ''));
   }
 
   // Parse costThreshold
@@ -226,9 +201,7 @@ export function evaluateSafety(
   let requiresApprovalFlag = false;
 
   // Check for destroy/delete operations
-  if (['destroy', 'delete', 'terminate'].some(op =>
-    context.operation.toLowerCase().includes(op)
-  )) {
+  if (['destroy', 'delete', 'terminate'].some(op => context.operation.toLowerCase().includes(op))) {
     const risk: Risk = {
       id: 'destructive-operation',
       severity: 'critical',

@@ -24,7 +24,9 @@ export class Analytics {
   }
 
   async trackEvent(event: string, properties?: Record<string, unknown>): Promise<void> {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      return;
+    }
 
     try {
       await fetch(`${this.host}/capture/`, {
@@ -46,7 +48,9 @@ export class Analytics {
   }
 
   async identifyUser(userId: string, properties?: Record<string, unknown>): Promise<void> {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      return;
+    }
 
     try {
       await fetch(`${this.host}/capture/`, {

@@ -193,12 +193,7 @@ describe('IntentParser – entity extraction', () => {
 describe('IntentParser – confidence', () => {
   it('returns confidence between 0 and 1 for any input', async () => {
     const parser = makeParser();
-    const inputs = [
-      'create a vpc on aws',
-      'explain kubernetes',
-      'help',
-      'random gibberish xyz',
-    ];
+    const inputs = ['create a vpc on aws', 'explain kubernetes', 'help', 'random gibberish xyz'];
 
     for (const input of inputs) {
       const result = await parser.parse(input);

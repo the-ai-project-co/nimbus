@@ -8,7 +8,7 @@
 import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { Database } from 'bun:sqlite';
+import type { Database } from './compat/sqlite';
 import type { LLMRouter } from './llm/router';
 
 /** The resolved path to ~/.nimbus */
@@ -62,7 +62,30 @@ export async function initApp(): Promise<AppContext> {
     const { standardTools } = await import('./tools/schemas/standard');
     const { devopsTools } = await import('./tools/schemas/devops');
     for (const tool of [...standardTools, ...devopsTools]) {
-      try { defaultToolRegistry.register(tool); } catch { /* skip duplicates */ }
+      try {
+        defaultToolRegistry.register(tool);
+      } catch {
+        /* skip duplicates */
+      }
+    }
+  }
+
+  // Connect MCP servers and register their tools (non-critical)
+  try {
+    const { MCPManager } = await import('./mcp/manager');
+    const mcpManager = new MCPManager();
+    await mcpManager.loadConfig(process.cwd());
+    if (mcpManager.serverCount > 0) {
+      await mcpManager.connectAll();
+      mcpManager.registerTools(defaultToolRegistry);
+    }
+  } catch (mcpErr) {
+    // MCP is non-critical — tools work fine without it, but warn the user
+    const msg = mcpErr instanceof Error ? mcpErr.message : String(mcpErr);
+    if (process.stderr.isTTY) {
+      process.stderr.write(
+        `\x1b[33m  Warning: MCP server loading failed: ${msg}. External tools from .mcp.json will not be available.\x1b[0m\n`
+      );
     }
   }
 

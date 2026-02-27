@@ -19,18 +19,18 @@ const execAsync = promisify(exec);
  * Sensitive file patterns that should be blocked from access
  */
 const SENSITIVE_PATTERNS: RegExp[] = [
-  /\.env(\.|$)/i,              // .env, .env.local, .env.production
-  /credentials/i,              // AWS credentials, any credentials file
-  /\.pem$/i,                   // PEM certificates
-  /\.key$/i,                   // Private keys
-  /id_rsa/i,                   // SSH keys
-  /id_ed25519/i,               // SSH keys (Ed25519)
-  /id_ecdsa/i,                 // SSH keys (ECDSA)
-  /\.ssh[/\\]/i,               // Anything inside .ssh directory
-  /\/etc\/shadow$/,            // Unix shadow passwords
-  /\/etc\/passwd$/,            // Unix passwords
-  /\.aws[/\\]credentials/i,   // AWS credentials file specifically
-  /\.kube[/\\]config/i,       // Kubeconfig with cluster secrets
+  /\.env(\.|$)/i, // .env, .env.local, .env.production
+  /credentials/i, // AWS credentials, any credentials file
+  /\.pem$/i, // PEM certificates
+  /\.key$/i, // Private keys
+  /id_rsa/i, // SSH keys
+  /id_ed25519/i, // SSH keys (Ed25519)
+  /id_ecdsa/i, // SSH keys (ECDSA)
+  /\.ssh[/\\]/i, // Anything inside .ssh directory
+  /\/etc\/shadow$/, // Unix shadow passwords
+  /\/etc\/passwd$/, // Unix passwords
+  /\.aws[/\\]credentials/i, // AWS credentials file specifically
+  /\.kube[/\\]config/i, // Kubeconfig with cluster secrets
 ];
 
 export interface FileStats {
@@ -114,9 +114,7 @@ export class FileSystemOperations {
    * Resolve path relative to base path
    */
   private resolvePath(filePath: string): string {
-    const resolved = path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(this.basePath, filePath);
+    const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(this.basePath, filePath);
 
     this.assertNotSensitive(resolved);
     return resolved;
@@ -146,7 +144,11 @@ export class FileSystemOperations {
   /**
    * Write content to file
    */
-  async writeFile(filePath: string, content: string | Buffer, options?: { createDirs?: boolean }): Promise<{ success: boolean; path: string }> {
+  async writeFile(
+    filePath: string,
+    content: string | Buffer,
+    options?: { createDirs?: boolean }
+  ): Promise<{ success: boolean; path: string }> {
     const resolvedPath = this.resolvePath(filePath);
     logger.info(`Writing file: ${resolvedPath}`);
 
@@ -209,7 +211,10 @@ export class FileSystemOperations {
     }
   }
 
-  private async searchWithRipgrep(directory: string, options: SearchOptions): Promise<SearchResult[]> {
+  private async searchWithRipgrep(
+    directory: string,
+    options: SearchOptions
+  ): Promise<SearchResult[]> {
     const args: string[] = ['--json', '--line-number', '--column'];
 
     if (!options.caseSensitive) {
@@ -233,7 +238,10 @@ export class FileSystemOperations {
     const { stdout } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
 
     const results: SearchResult[] = [];
-    const lines = stdout.trim().split('\n').filter(line => line);
+    const lines = stdout
+      .trim()
+      .split('\n')
+      .filter(line => line);
 
     for (const line of lines) {
       try {
@@ -356,7 +364,11 @@ export class FileSystemOperations {
   /**
    * Get file diff using system diff command
    */
-  async diff(file1: string, file2: string, options?: { unified?: number; ignoreWhitespace?: boolean }): Promise<string> {
+  async diff(
+    file1: string,
+    file2: string,
+    options?: { unified?: number; ignoreWhitespace?: boolean }
+  ): Promise<string> {
     const path1 = this.resolvePath(file1);
     const path2 = this.resolvePath(file2);
     logger.info(`Diffing ${path1} and ${path2}`);
@@ -388,7 +400,11 @@ export class FileSystemOperations {
   /**
    * Copy file or directory
    */
-  async copy(source: string, destination: string, options?: { recursive?: boolean; overwrite?: boolean }): Promise<{ success: boolean; source: string; destination: string }> {
+  async copy(
+    source: string,
+    destination: string,
+    options?: { recursive?: boolean; overwrite?: boolean }
+  ): Promise<{ success: boolean; source: string; destination: string }> {
     const srcPath = this.resolvePath(source);
     const destPath = this.resolvePath(destination);
     logger.info(`Copying ${srcPath} to ${destPath}`);
@@ -448,7 +464,10 @@ export class FileSystemOperations {
   /**
    * Move/rename file or directory
    */
-  async move(source: string, destination: string): Promise<{ success: boolean; source: string; destination: string }> {
+  async move(
+    source: string,
+    destination: string
+  ): Promise<{ success: boolean; source: string; destination: string }> {
     const srcPath = this.resolvePath(source);
     const destPath = this.resolvePath(destination);
     logger.info(`Moving ${srcPath} to ${destPath}`);
@@ -462,7 +481,10 @@ export class FileSystemOperations {
   /**
    * Delete file or directory
    */
-  async delete(filePath: string, options?: { recursive?: boolean; force?: boolean }): Promise<{ success: boolean; path: string }> {
+  async delete(
+    filePath: string,
+    options?: { recursive?: boolean; force?: boolean }
+  ): Promise<{ success: boolean; path: string }> {
     const resolvedPath = this.resolvePath(filePath);
     logger.info(`Deleting: ${resolvedPath}`);
 
@@ -483,7 +505,10 @@ export class FileSystemOperations {
   /**
    * Create directory
    */
-  async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<{ success: boolean; path: string }> {
+  async mkdir(
+    dirPath: string,
+    options?: { recursive?: boolean }
+  ): Promise<{ success: boolean; path: string }> {
     const resolvedPath = this.resolvePath(dirPath);
     logger.info(`Creating directory: ${resolvedPath}`);
 
@@ -531,7 +556,9 @@ export class FileSystemOperations {
   /**
    * Read directory entries
    */
-  async readDir(dirPath: string): Promise<Array<{ name: string; type: 'file' | 'directory' | 'symlink' }>> {
+  async readDir(
+    dirPath: string
+  ): Promise<Array<{ name: string; type: 'file' | 'directory' | 'symlink' }>> {
     const resolvedPath = this.resolvePath(dirPath);
     logger.info(`Reading directory: ${resolvedPath}`);
 
@@ -550,9 +577,13 @@ export class FileSystemOperations {
     const resolvedPath = this.resolvePath(filePath);
     logger.info(`Watching: ${resolvedPath}`);
 
-    const watcher = fsSync.watch(resolvedPath, { recursive: true }, (event: string, filename: string | null) => {
-      callback(event, filename);
-    });
+    const watcher = fsSync.watch(
+      resolvedPath,
+      { recursive: true },
+      (event: string, filename: string | null) => {
+        callback(event, filename);
+      }
+    );
 
     // Return a cleanup function
     return () => {

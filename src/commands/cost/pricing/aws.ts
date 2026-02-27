@@ -25,7 +25,7 @@ const EC2_PRICING: Record<string, number> = {
   't2.xlarge': 133.63,
   't2.2xlarge': 267.26,
   // T3 burstable
-  't3.nano': 3.80,
+  't3.nano': 3.8,
   't3.micro': 7.59,
   't3.small': 15.18,
   't3.medium': 30.37,
@@ -37,7 +37,7 @@ const EC2_PRICING: Record<string, number> = {
   't3a.micro': 6.86,
   't3a.small': 13.72,
   't3a.medium': 27.45,
-  't3a.large': 54.90,
+  't3a.large': 54.9,
   't3a.xlarge': 109.79,
   // M5 general purpose
   'm5.large': 69.12,
@@ -56,15 +56,15 @@ const EC2_PRICING: Record<string, number> = {
   'm7i.xlarge': 145.12,
   'm7i.2xlarge': 290.24,
   // C5 compute optimized
-  'c5.large': 61.20,
-  'c5.xlarge': 122.40,
-  'c5.2xlarge': 244.80,
-  'c5.4xlarge': 489.60,
-  'c5.9xlarge': 1101.60,
+  'c5.large': 61.2,
+  'c5.xlarge': 122.4,
+  'c5.2xlarge': 244.8,
+  'c5.4xlarge': 489.6,
+  'c5.9xlarge': 1101.6,
   // C6i compute optimized
-  'c6i.large': 61.20,
-  'c6i.xlarge': 122.40,
-  'c6i.2xlarge': 244.80,
+  'c6i.large': 61.2,
+  'c6i.xlarge': 122.4,
+  'c6i.2xlarge': 244.8,
   // R5 memory optimized
   'r5.large': 90.72,
   'r5.xlarge': 181.44,
@@ -75,8 +75,8 @@ const EC2_PRICING: Record<string, number> = {
   'r6i.xlarge': 181.44,
   'r6i.2xlarge': 362.88,
   // P3 GPU
-  'p3.2xlarge': 2208.60,
-  'p3.8xlarge': 8834.40,
+  'p3.2xlarge': 2208.6,
+  'p3.8xlarge': 8834.4,
   // G4dn GPU
   'g4dn.xlarge': 379.58,
   'g4dn.2xlarge': 543.12,
@@ -93,31 +93,31 @@ const RDS_PRICING: Record<string, number> = {
   'db.t3.xlarge': 198.56,
   'db.t4g.micro': 11.83,
   'db.t4g.small': 23.65,
-  'db.t4g.medium': 47.30,
-  'db.m5.large': 124.10,
-  'db.m5.xlarge': 248.20,
-  'db.m5.2xlarge': 496.40,
-  'db.m5.4xlarge': 992.80,
-  'db.m6i.large': 124.10,
-  'db.m6i.xlarge': 248.20,
-  'db.r5.large': 172.80,
-  'db.r5.xlarge': 345.60,
-  'db.r5.2xlarge': 691.20,
-  'db.r6i.large': 172.80,
-  'db.r6i.xlarge': 345.60,
+  'db.t4g.medium': 47.3,
+  'db.m5.large': 124.1,
+  'db.m5.xlarge': 248.2,
+  'db.m5.2xlarge': 496.4,
+  'db.m5.4xlarge': 992.8,
+  'db.m6i.large': 124.1,
+  'db.m6i.xlarge': 248.2,
+  'db.r5.large': 172.8,
+  'db.r5.xlarge': 345.6,
+  'db.r5.2xlarge': 691.2,
+  'db.r6i.large': 172.8,
+  'db.r6i.xlarge': 345.6,
 };
 
 // ------------------------------------------------------------------
 // EBS volume pricing (per GB/month, us-east-1)
 // ------------------------------------------------------------------
 const EBS_PRICING: Record<string, number> = {
-  'gp2': 0.10,
-  'gp3': 0.08,
-  'io1': 0.125,
-  'io2': 0.125,
-  'st1': 0.045,
-  'sc1': 0.015,
-  'standard': 0.05,
+  gp2: 0.1,
+  gp3: 0.08,
+  io1: 0.125,
+  io2: 0.125,
+  st1: 0.045,
+  sc1: 0.015,
+  standard: 0.05,
 };
 
 // ------------------------------------------------------------------
@@ -130,8 +130,8 @@ const ELASTICACHE_PRICING: Record<string, number> = {
   'cache.t4g.micro': 11.52,
   'cache.t4g.small': 23.04,
   'cache.t4g.medium': 46.08,
-  'cache.m5.large': 124.10,
-  'cache.m5.xlarge': 248.20,
+  'cache.m5.large': 124.1,
+  'cache.m5.xlarge': 248.2,
   'cache.r5.large': 163.52,
   'cache.r5.xlarge': 327.04,
 };
@@ -223,7 +223,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
 
     case 'aws_rds_cluster_instance': {
       const instanceClass = attributes.instance_class || 'db.r5.large';
-      const price = RDS_PRICING[instanceClass] || 172.80;
+      const price = RDS_PRICING[instanceClass] || 172.8;
       return {
         monthlyCost: price,
         hourlyCost: price / HOURS_PER_MONTH,
@@ -235,7 +235,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
     case 'aws_s3_bucket': {
       // S3 pricing is purely usage-based; estimate 100GB standard as a baseline
       return {
-        monthlyCost: 2.30,
+        monthlyCost: 2.3,
         hourlyCost: 0,
         unit: 'GB',
         description: 'S3 Standard (estimated 100GB baseline)',
@@ -263,7 +263,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
     case 'aws_efs_file_system': {
       // EFS standard: ~$0.30/GB, estimate 50GB
       return {
-        monthlyCost: 15.00,
+        monthlyCost: 15.0,
         hourlyCost: 0,
         unit: 'GB',
         description: 'EFS Standard (estimated 50GB)',
@@ -311,7 +311,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
     case 'aws_cloudfront_distribution': {
       // CloudFront pricing is usage-based; provide a baseline
       return {
-        monthlyCost: 10.00,
+        monthlyCost: 10.0,
         hourlyCost: 0,
         description: 'CloudFront (estimated baseline, usage-based)',
       };
@@ -320,8 +320,8 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
     // ----- Containers -----
     case 'aws_eks_cluster': {
       return {
-        monthlyCost: 73.00,
-        hourlyCost: 0.10,
+        monthlyCost: 73.0,
+        hourlyCost: 0.1,
         description: 'EKS cluster control plane',
       };
     }
@@ -347,7 +347,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
     case 'aws_ecr_repository': {
       // ~$0.10/GB storage
       return {
-        monthlyCost: 1.00,
+        monthlyCost: 1.0,
         hourlyCost: 0,
         description: 'ECR repository (estimated 10GB images)',
       };
@@ -424,7 +424,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
 
     case 'aws_elasticache_replication_group': {
       const nodeType = attributes.node_type || 'cache.t3.medium';
-      const numReplicas = (attributes.number_cache_clusters || attributes.num_cache_clusters || 2);
+      const numReplicas = attributes.number_cache_clusters || attributes.num_cache_clusters || 2;
       const price = ELASTICACHE_PRICING[nodeType] || 49.06;
       return {
         monthlyCost: price * numReplicas,
@@ -447,7 +447,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
     case 'aws_cloudwatch_metric_alarm': {
       // Standard resolution: $0.10/alarm/month
       return {
-        monthlyCost: 0.10,
+        monthlyCost: 0.1,
         hourlyCost: 0,
         description: 'CloudWatch alarm',
       };
@@ -489,7 +489,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
     // ----- Data Transfer / VPN -----
     case 'aws_vpn_gateway': {
       return {
-        monthlyCost: 36.50,
+        monthlyCost: 36.5,
         hourlyCost: 0.05,
         description: 'VPN Gateway',
       };
@@ -528,7 +528,7 @@ export function getAWSPrice(resource: TerraformResource): PricingResult | null {
       const nodeType = attributes.node_type || 'dc2.large';
       const numNodes = attributes.number_of_nodes || 1;
       // dc2.large ~$0.25/hr
-      const perNode = 182.50;
+      const perNode = 182.5;
       return {
         monthlyCost: perNode * numNodes,
         hourlyCost: (perNode * numNodes) / HOURS_PER_MONTH,

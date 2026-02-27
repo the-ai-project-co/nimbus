@@ -9,9 +9,8 @@ export {
   TerraformProjectGenerator,
   type TerraformProjectConfig,
   type GeneratedFile,
-  type TerraformModule,
-  type ValidationResult,
-  type ValidationIssue,
+  type ValidationReport,
+  type ValidationItem,
 } from './terraform';
 
 export {
@@ -21,11 +20,7 @@ export {
   type GeneratedManifest,
 } from './kubernetes';
 
-export {
-  HelmGenerator,
-  createHelmGenerator,
-  type HelmChartConfig,
-} from './helm';
+export { HelmGenerator, createHelmGenerator, type HelmChartConfig } from './helm';
 
 export {
   BestPracticesEngine,

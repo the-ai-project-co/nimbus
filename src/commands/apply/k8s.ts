@@ -105,7 +105,9 @@ async function applyWithService(options: ApplyK8sOptions): Promise<void> {
   ui.newLine();
   ui.print('Resources to apply:');
   for (const resource of resources) {
-    ui.print(`  - ${resource.kind}/${resource.name}${resource.namespace ? ` (${resource.namespace})` : ''}`);
+    ui.print(
+      `  - ${resource.kind}/${resource.name}${resource.namespace ? ` (${resource.namespace})` : ''}`
+    );
   }
 
   // Dry run mode
@@ -218,7 +220,9 @@ async function applyWithService(options: ApplyK8sOptions): Promise<void> {
   try {
     const { trackGeneration } = await import('../../telemetry');
     trackGeneration('k8s-apply', ['kubernetes']);
-  } catch { /* telemetry failure is non-critical */ }
+  } catch {
+    /* telemetry failure is non-critical */
+  }
 
   // Display results
   ui.newLine();
@@ -278,7 +282,9 @@ async function waitForResources(
 
     for (const resource of rolloutResources) {
       const key = `${resource.kind}/${resource.name}`;
-      if (readySet.has(key)) continue;
+      if (readySet.has(key)) {
+        continue;
+      }
 
       try {
         const result = await k8sClient.rollout(
@@ -349,27 +355,30 @@ async function applyWithLocalCLI(options: ApplyK8sOptions): Promise<void> {
   ui.newLine();
 
   // Run kubectl
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const proc = spawn('kubectl', args, {
       stdio: 'inherit',
     });
 
-    proc.on('error', (error) => {
+    proc.on('error', error => {
       ui.error(`Failed to run kubectl: ${error.message}`);
       ui.info('Make sure kubectl is installed and in your PATH');
       process.exit(1);
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       if (code === 0) {
         ui.newLine();
         ui.success('kubectl apply completed successfully');
 
         // Track successful k8s apply
         try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { trackGeneration } = require('../../telemetry');
           trackGeneration('k8s-apply', ['kubernetes']);
-        } catch { /* telemetry failure is non-critical */ }
+        } catch {
+          /* telemetry failure is non-critical */
+        }
 
         resolve();
       } else {
@@ -420,7 +429,9 @@ function parseManifests(content: string): Array<{
 
   for (const doc of documents) {
     const trimmed = doc.trim();
-    if (!trimmed) continue;
+    if (!trimmed) {
+      continue;
+    }
 
     // Simple YAML parsing for kind and metadata
     const kindMatch = trimmed.match(/^kind:\s*(.+)$/m);

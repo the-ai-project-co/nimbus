@@ -38,7 +38,7 @@ export async function authStatusCommand(options: AuthStatusOptions = {}): Promis
             authenticatedAt: status.identity.authenticatedAt,
           }
         : null,
-      providers: status.providers.map((p) => ({
+      providers: status.providers.map(p => ({
         name: p.name,
         model: p.model,
         isDefault: p.isDefault,

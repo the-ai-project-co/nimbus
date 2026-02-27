@@ -5,7 +5,7 @@
  * and listOperationsByType.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape returned by the operation query helpers. */
@@ -87,7 +87,7 @@ export function saveOperation(operation: SaveOperationInput, db?: Database): voi
     operation.model || null,
     operation.tokensUsed || null,
     operation.costUsd || null,
-    operation.metadata ? JSON.stringify(operation.metadata) : null,
+    operation.metadata ? JSON.stringify(operation.metadata) : null
   );
 }
 
@@ -109,7 +109,11 @@ export function getOperation(id: string, db?: Database): OperationRecord | null 
 /**
  * List operations ordered by timestamp descending.
  */
-export function listOperations(limit: number = 50, offset: number = 0, db?: Database): OperationRecord[] {
+export function listOperations(
+  limit: number = 50,
+  offset: number = 0,
+  db?: Database
+): OperationRecord[] {
   const d = db || getDb();
   const stmt = d.prepare(`
     SELECT * FROM operations
@@ -124,7 +128,12 @@ export function listOperations(limit: number = 50, offset: number = 0, db?: Data
 /**
  * List operations filtered by type, ordered by timestamp descending.
  */
-export function listOperationsByType(type: string, limit: number = 50, offset: number = 0, db?: Database): OperationRecord[] {
+export function listOperationsByType(
+  type: string,
+  limit: number = 50,
+  offset: number = 0,
+  db?: Database
+): OperationRecord[] {
   const d = db || getDb();
   const stmt = d.prepare(`
     SELECT * FROM operations

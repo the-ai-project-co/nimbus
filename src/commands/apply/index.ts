@@ -8,9 +8,9 @@
 
 import { logger } from '../../utils';
 import { ui } from '../../wizard';
-import { applyTerraformCommand, type ApplyTerraformOptions } from './terraform';
-import { applyK8sCommand, type ApplyK8sOptions } from './k8s';
-import { applyHelmCommand, type ApplyHelmOptions } from './helm';
+import { applyTerraformCommand } from './terraform';
+import { applyK8sCommand } from './k8s';
+import { applyHelmCommand } from './helm';
 
 // Re-export subcommand types
 export { type ApplyTerraformOptions } from './terraform';
@@ -179,7 +179,7 @@ export async function applyCommand(type: string | undefined, args: string[]): Pr
       });
       break;
 
-    case 'helm':
+    case 'helm': {
       // For Helm, we need release name and chart
       const releaseName = positionalArgs[0];
       const chartPath = positionalArgs[1] || '.';
@@ -194,6 +194,7 @@ export async function applyCommand(type: string | undefined, args: string[]): Pr
         values: options.varFile,
       });
       break;
+    }
 
     default:
       ui.error(`Unknown apply type: ${type}`);

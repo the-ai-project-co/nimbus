@@ -1,15 +1,38 @@
 #!/usr/bin/env sh
-# Nimbus CLI launcher — tries Bun first, falls back to npx tsx for Node.js users.
+# Nimbus CLI launcher — prefers Bun, falls back to Node.js (>=18).
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENTRY="$SCRIPT_DIR/../src/nimbus.ts"
 
+# Prefer Bun for best performance (native bun:sqlite, fast startup)
 if command -v bun >/dev/null 2>&1; then
   exec bun "$ENTRY" "$@"
-elif command -v npx >/dev/null 2>&1; then
-  exec npx --yes tsx "$ENTRY" "$@"
-else
-  echo "Error: Nimbus requires Bun (https://bun.sh) or Node.js with npx." >&2
-  exit 1
 fi
+
+# Fallback: Node.js with tsx for TypeScript execution
+if command -v node >/dev/null 2>&1; then
+  NODE_VERSION=$(node -e "console.log(process.versions.node.split('.')[0])")
+  if [ "$NODE_VERSION" -ge 18 ] 2>/dev/null; then
+    # Use tsx (TypeScript eXecute) for Node.js — handles TS natively
+    TSX_BIN="$SCRIPT_DIR/../node_modules/.bin/tsx"
+    if [ -x "$TSX_BIN" ]; then
+      exec "$TSX_BIN" "$ENTRY" "$@"
+    fi
+    # Try global tsx
+    if command -v tsx >/dev/null 2>&1; then
+      exec tsx "$ENTRY" "$@"
+    fi
+    # Last resort: use Node.js --import tsx (Node >= 18.19)
+    exec node --import tsx "$ENTRY" "$@"
+  fi
+fi
+
+echo "Error: Nimbus requires Bun (recommended) or Node.js >= 18." >&2
+echo "" >&2
+echo "Install Bun (recommended):" >&2
+echo "  curl -fsSL https://bun.sh/install | bash" >&2
+echo "" >&2
+echo "Or ensure Node.js >= 18 is installed:" >&2
+echo "  https://nodejs.org/" >&2
+exit 1

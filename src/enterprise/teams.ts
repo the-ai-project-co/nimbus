@@ -13,12 +13,10 @@
 import {
   createTeam as stateCreateTeam,
   getTeam as stateGetTeam,
-  listTeams as stateListTeams,
   addTeamMember as stateAddTeamMember,
   removeTeamMember as stateRemoveTeamMember,
   listTeamMembers as stateListTeamMembers,
   createUser as stateCreateUser,
-  getUser as stateGetUser,
   type TeamRecord,
   type TeamMemberRecord,
   type UserRecord,
@@ -200,12 +198,16 @@ export async function listUserTeams(userId: string): Promise<Team[]> {
   const { getDb } = await import('../state/db');
   const db = getDb();
 
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT t.* FROM teams t
     JOIN team_members tm ON t.id = tm.team_id
     WHERE tm.user_id = ?
     ORDER BY t.created_at DESC
-  `).all(userId) as any[];
+  `
+    )
+    .all(userId) as any[];
 
   return rows.map(row => ({
     id: row.id,
@@ -256,7 +258,7 @@ export async function deleteTeam(id: string, requesterId?: string): Promise<void
 export async function inviteMember(
   teamId: string,
   request: InviteMemberRequest,
-  requesterId?: string,
+  requesterId?: string
 ): Promise<TeamMember> {
   const { email, role = 'member' } = request;
 
@@ -325,14 +327,18 @@ export async function listMembers(teamId: string): Promise<TeamMember[]> {
   const { getDb } = await import('../state/db');
   const db = getDb();
 
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT tm.id, tm.team_id, tm.user_id, tm.role, tm.joined_at,
            u.email, u.name
     FROM team_members tm
     LEFT JOIN users u ON tm.user_id = u.id
     WHERE tm.team_id = ?
     ORDER BY tm.joined_at ASC
-  `).all(teamId) as any[];
+  `
+    )
+    .all(teamId) as any[];
 
   return rows.map(row => ({
     teamId: row.team_id,
@@ -359,7 +365,7 @@ export async function updateMemberRole(
   teamId: string,
   userId: string,
   request: UpdateRoleRequest,
-  requesterId?: string,
+  requesterId?: string
 ): Promise<TeamMember> {
   const { role } = request;
 
@@ -392,7 +398,11 @@ export async function updateMemberRole(
 
   const { getDb } = await import('../state/db');
   const db = getDb();
-  db.prepare('UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?').run(role, teamId, userId);
+  db.prepare('UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?').run(
+    role,
+    teamId,
+    userId
+  );
 
   return {
     teamId,
@@ -411,7 +421,7 @@ export async function updateMemberRole(
 export async function removeMember(
   teamId: string,
   userId: string,
-  requesterId?: string,
+  requesterId?: string
 ): Promise<void> {
   if (requesterId) {
     const requesterMember = getTeamMember(teamId, requesterId);

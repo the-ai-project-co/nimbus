@@ -13,14 +13,20 @@ const PROVIDER_ENV_VARS = [
   'OPENAI_API_KEY',
   'GOOGLE_API_KEY',
   'OPENROUTER_API_KEY',
+  'GROQ_API_KEY',
+  'TOGETHER_API_KEY',
+  'DEEPSEEK_API_KEY',
+  'FIREWORKS_API_KEY',
+  'PERPLEXITY_API_KEY',
   'OLLAMA_BASE_URL', // Ollama doesn't need API key, just base URL
+  'AWS_ACCESS_KEY_ID', // Bedrock uses AWS IAM credentials
 ];
 
 /**
  * Check if any provider API key is available via environment variables
  */
 function hasEnvVarCredentials(): boolean {
-  return PROVIDER_ENV_VARS.some((envVar) => !!process.env[envVar]);
+  return PROVIDER_ENV_VARS.some(envVar => !!process.env[envVar]);
 }
 
 /**

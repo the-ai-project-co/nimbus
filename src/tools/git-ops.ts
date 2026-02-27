@@ -5,7 +5,12 @@
  * Provides direct git operations for the embedded CLI binary.
  */
 
-import simpleGit, { SimpleGit, SimpleGitOptions, StatusResult, LogResult, DiffResult } from 'simple-git';
+import simpleGit, {
+  type SimpleGit,
+  type SimpleGitOptions,
+  type StatusResult,
+  type LogResult,
+} from 'simple-git';
 import { logger } from '../utils';
 
 export interface GitCloneOptions {
@@ -146,7 +151,9 @@ export class GitOperations {
   /**
    * Commit staged changes
    */
-  async commit(options: GitCommitOptions): Promise<{ success: boolean; hash: string; summary: string }> {
+  async commit(
+    options: GitCommitOptions
+  ): Promise<{ success: boolean; hash: string; summary: string }> {
     logger.info(`Committing with message: ${options.message}`);
 
     const commitOptions: string[] = [];
@@ -162,14 +169,18 @@ export class GitOperations {
     return {
       success: true,
       hash: result.commit,
-      summary: result.summary ? `${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions` : 'Committed'
+      summary: result.summary
+        ? `${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions`
+        : 'Committed',
     };
   }
 
   /**
    * Push to remote
    */
-  async push(options: GitPushOptions = {}): Promise<{ success: boolean; remote: string; branch: string }> {
+  async push(
+    options: GitPushOptions = {}
+  ): Promise<{ success: boolean; remote: string; branch: string }> {
     const remote = options.remote || 'origin';
     logger.info(`Pushing to ${remote}${options.branch ? `/${options.branch}` : ''}`);
 
@@ -202,7 +213,9 @@ export class GitOperations {
 
     return {
       success: true,
-      summary: result.summary ? `${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions` : 'Already up to date'
+      summary: result.summary
+        ? `${result.summary.changes} changes, ${result.summary.insertions} insertions, ${result.summary.deletions} deletions`
+        : 'Already up to date',
     };
   }
 
@@ -228,21 +241,26 @@ export class GitOperations {
   /**
    * List branches
    */
-  async listBranches(showRemote: boolean = false): Promise<{ current: string; branches: string[] }> {
+  async listBranches(
+    showRemote: boolean = false
+  ): Promise<{ current: string; branches: string[] }> {
     logger.info('Listing branches');
 
     const result = await this.git.branch(showRemote ? ['-a'] : []);
 
     return {
       current: result.current,
-      branches: result.all
+      branches: result.all,
     };
   }
 
   /**
    * Checkout a branch or commit
    */
-  async checkout(target: string, create: boolean = false): Promise<{ success: boolean; target: string }> {
+  async checkout(
+    target: string,
+    create: boolean = false
+  ): Promise<{ success: boolean; target: string }> {
     logger.info(`Checking out: ${target}`);
 
     if (create) {
@@ -324,7 +342,7 @@ export class GitOperations {
 
     return {
       success: true,
-      result: result.result || 'Merged successfully'
+      result: result.result || 'Merged successfully',
     };
   }
 
@@ -337,18 +355,28 @@ export class GitOperations {
     let result: string;
 
     switch (options.command) {
-      case 'push':
+      case 'push': {
         const pushArgs = options.message ? ['-m', options.message] : [];
         result = await this.git.stash(['push', ...pushArgs]);
         break;
+      }
       case 'pop':
-        result = await this.git.stash(['pop', ...(options.index !== undefined ? [options.index.toString()] : [])]);
+        result = await this.git.stash([
+          'pop',
+          ...(options.index !== undefined ? [options.index.toString()] : []),
+        ]);
         break;
       case 'apply':
-        result = await this.git.stash(['apply', ...(options.index !== undefined ? [options.index.toString()] : [])]);
+        result = await this.git.stash([
+          'apply',
+          ...(options.index !== undefined ? [options.index.toString()] : []),
+        ]);
         break;
       case 'drop':
-        result = await this.git.stash(['drop', ...(options.index !== undefined ? [options.index.toString()] : [])]);
+        result = await this.git.stash([
+          'drop',
+          ...(options.index !== undefined ? [options.index.toString()] : []),
+        ]);
         break;
       case 'list':
         result = await this.git.stash(['list']);
@@ -382,7 +410,10 @@ export class GitOperations {
   /**
    * Reset to a commit
    */
-  async reset(target: string, mode: 'soft' | 'mixed' | 'hard' = 'mixed'): Promise<{ success: boolean }> {
+  async reset(
+    target: string,
+    mode: 'soft' | 'mixed' | 'hard' = 'mixed'
+  ): Promise<{ success: boolean }> {
     logger.info(`Resetting to ${target} with mode ${mode}`);
     await this.git.reset([`--${mode}`, target]);
     return { success: true };
@@ -433,7 +464,10 @@ export class GitOperations {
   /**
    * Cherry-pick a commit
    */
-  async cherryPick(commit: string, options: CherryPickOptions = {}): Promise<{ success: boolean; result: string }> {
+  async cherryPick(
+    commit: string,
+    options: CherryPickOptions = {}
+  ): Promise<{ success: boolean; result: string }> {
     logger.info(`Cherry-picking commit: ${commit}`);
 
     const cherryPickArgs: string[] = [commit];
@@ -466,7 +500,10 @@ export class GitOperations {
   /**
    * Rebase onto a target branch
    */
-  async rebase(target: string, options: RebaseOptions = {}): Promise<{ success: boolean; result: string }> {
+  async rebase(
+    target: string,
+    options: RebaseOptions = {}
+  ): Promise<{ success: boolean; result: string }> {
     logger.info(`Rebasing onto: ${target}`);
 
     const rebaseArgs: string[] = [];
@@ -602,7 +639,7 @@ export class GitOperations {
     logger.info(`Pushing tags to ${remote}`);
 
     if (tagName) {
-      await this.git.push(remote, 'refs/tags/' + tagName);
+      await this.git.push(remote, `refs/tags/${tagName}`);
     } else {
       await this.git.pushTags(remote);
     }
@@ -693,7 +730,10 @@ export class GitOperations {
   /**
    * Revert a commit
    */
-  async revert(commit: string, options: { noCommit?: boolean; noEdit?: boolean } = {}): Promise<{ success: boolean; result: string }> {
+  async revert(
+    commit: string,
+    options: { noCommit?: boolean; noEdit?: boolean } = {}
+  ): Promise<{ success: boolean; result: string }> {
     logger.info(`Reverting commit: ${commit}`);
 
     const revertArgs: string[] = [];

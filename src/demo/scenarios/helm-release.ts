@@ -151,7 +151,8 @@ Chart is ready for deployment!
       id: 'template-preview',
       title: 'Preview Rendered Templates',
       description: 'See what the chart will generate when installed',
-      command: 'nimbus helm template my-webapp charts/my-webapp --values charts/my-webapp/values.yaml | head -50',
+      command:
+        'nimbus helm template my-webapp charts/my-webapp --values charts/my-webapp/values.yaml | head -50',
       showOutput: true,
       waitForInput: true,
       mockResponse: `
@@ -204,7 +205,8 @@ spec:
       id: 'install-release',
       title: 'Install Helm Release (Dry Run)',
       description: 'Deploy the chart to Kubernetes (dry run mode)',
-      command: 'nimbus apply helm --release my-webapp --chart charts/my-webapp --namespace demo --dry-run',
+      command:
+        'nimbus apply helm --release my-webapp --chart charts/my-webapp --namespace demo --dry-run',
       showOutput: true,
       waitForInput: true,
       mockResponse: `
@@ -235,7 +237,8 @@ To install for real, remove --dry-run flag
       id: 'install-actual',
       title: 'Install Helm Release',
       description: 'Actually deploy the chart to the cluster',
-      command: 'nimbus apply helm --release my-webapp --chart charts/my-webapp --namespace demo --create-namespace',
+      command:
+        'nimbus apply helm --release my-webapp --chart charts/my-webapp --namespace demo --create-namespace',
       showOutput: true,
       waitForInput: true,
       mockResponse: `
@@ -281,7 +284,8 @@ my-webapp  demo       1         deployed  my-webapp-0.1.0  1.0.0
       id: 'upgrade-release',
       title: 'Upgrade Release',
       description: 'Upgrade the release with new values',
-      command: 'nimbus helm upgrade my-webapp charts/my-webapp --namespace demo --set replicaCount=3',
+      command:
+        'nimbus helm upgrade my-webapp charts/my-webapp --namespace demo --set replicaCount=3',
       showOutput: true,
       waitForInput: true,
       mockResponse: `

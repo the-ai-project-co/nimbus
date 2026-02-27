@@ -4,7 +4,7 @@
  * Refactored from SQLiteAdapter.setConfig, getConfig, and getAllConfig.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 // ---------------------------------------------------------------------------
@@ -38,7 +38,12 @@ export function getConfig(key: string, db?: Database): any | null {
     return null;
   }
 
-  return JSON.parse(row.value);
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    // Corrupted config value — treat as missing
+    return null;
+  }
 }
 
 /**
@@ -51,7 +56,11 @@ export function getAllConfig(db?: Database): Record<string, any> {
 
   const config: Record<string, any> = {};
   for (const row of rows) {
-    config[row.key] = JSON.parse(row.value);
+    try {
+      config[row.key] = JSON.parse(row.value);
+    } catch {
+      // Skip corrupted config entries
+    }
   }
 
   return config;

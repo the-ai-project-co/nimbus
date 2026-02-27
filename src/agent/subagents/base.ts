@@ -9,8 +9,7 @@
  */
 
 import type { LLMRouter } from '../../llm/router';
-import type { ToolDefinition, ToolResult } from '../../tools/schemas/types';
-import { ToolRegistry } from '../../tools/schemas/types';
+import { ToolRegistry, type ToolDefinition } from '../../tools/schemas/types';
 import { runAgentLoop, type AgentLoopResult } from '../loop';
 
 // ---------------------------------------------------------------------------
@@ -105,9 +104,7 @@ export class Subagent {
     });
 
     // Extract the final assistant message
-    const lastAssistant = [...result.messages]
-      .reverse()
-      .find((m) => m.role === 'assistant');
+    const lastAssistant = [...result.messages].reverse().find(m => m.role === 'assistant');
 
     return {
       output: (lastAssistant?.content as string) ?? '(no output)',

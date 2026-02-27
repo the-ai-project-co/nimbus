@@ -35,7 +35,7 @@ const EC2_HOURLY: Record<string, number> = {
   // T2 burstable
   't2.nano': 0.0058,
   't2.micro': 0.0116,
-  't2.small': 0.0230,
+  't2.small': 0.023,
   't2.medium': 0.0464,
   't2.large': 0.0928,
   't2.xlarge': 0.1856,
@@ -51,9 +51,9 @@ const EC2_HOURLY: Record<string, number> = {
   'm6i.2xlarge': 0.384,
   // C5 compute optimized
   'c5.large': 0.085,
-  'c5.xlarge': 0.170,
-  'c5.2xlarge': 0.340,
-  'c5.4xlarge': 0.680,
+  'c5.xlarge': 0.17,
+  'c5.2xlarge': 0.34,
+  'c5.4xlarge': 0.68,
   // R5 memory optimized
   'r5.large': 0.126,
   'r5.xlarge': 0.252,
@@ -81,21 +81,21 @@ const RDS_HOURLY: Record<string, number> = {
   'db.m5.2xlarge': 0.684,
   'db.m6i.large': 0.171,
   'db.m6i.xlarge': 0.342,
-  'db.r5.large': 0.240,
-  'db.r5.xlarge': 0.480,
-  'db.r5.2xlarge': 0.960,
-  'db.r6i.large': 0.240,
-  'db.r6i.xlarge': 0.480,
+  'db.r5.large': 0.24,
+  'db.r5.xlarge': 0.48,
+  'db.r5.2xlarge': 0.96,
+  'db.r6i.large': 0.24,
+  'db.r6i.xlarge': 0.48,
 };
 
 // ------------------------------------------------------------------
 // Fixed hourly rates for managed services
 // ------------------------------------------------------------------
 const MANAGED_SERVICE_HOURLY: Record<string, number> = {
-  'eks-cluster': 0.10,
+  'eks-cluster': 0.1,
   'nat-gateway': 0.045,
-  'alb': 0.0225,
-  'nlb': 0.0225,
+  alb: 0.0225,
+  nlb: 0.0225,
   'vpn-gateway': 0.05,
   'elasticache-t3-medium': 0.068,
   'redshift-dc2-large': 0.25,
@@ -245,9 +245,8 @@ export function estimateCloudCost(
  *   "Estimated cost: ~$0.04/hour ($30.37/month) - EC2 t3.medium on-demand"
  */
 export function formatCostWarning(estimate: CloudCostEstimate): string {
-  const hourly = estimate.hourly < 0.01
-    ? `$${estimate.hourly.toFixed(4)}`
-    : `$${estimate.hourly.toFixed(2)}`;
+  const hourly =
+    estimate.hourly < 0.01 ? `$${estimate.hourly.toFixed(4)}` : `$${estimate.hourly.toFixed(2)}`;
   const monthly = `$${estimate.monthly.toFixed(2)}`;
   return `Estimated cost: ~${hourly}/hour (${monthly}/month) - ${estimate.description}`;
 }

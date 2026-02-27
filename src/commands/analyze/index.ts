@@ -108,7 +108,8 @@ function analyzeFile(filePath: string, type: AnalyzeOptions['type']): Refactorin
             line: lineNum,
             type: 'complexity',
             severity: 'warning',
-            explanation: 'Multiple nested arrow functions detected. Consider extracting to named functions.',
+            explanation:
+              'Multiple nested arrow functions detected. Consider extracting to named functions.',
           });
         }
 
@@ -133,7 +134,8 @@ function analyzeFile(filePath: string, type: AnalyzeOptions['type']): Refactorin
             line: lineNum,
             type: 'security',
             severity: 'error',
-            explanation: 'Potential hardcoded credential detected. Use environment variables instead.',
+            explanation:
+              'Potential hardcoded credential detected. Use environment variables instead.',
           });
         }
 
@@ -155,7 +157,8 @@ function analyzeFile(filePath: string, type: AnalyzeOptions['type']): Refactorin
             line: lineNum,
             type: 'security',
             severity: 'warning',
-            explanation: 'Potential SQL injection. Use parameterized queries instead of string interpolation.',
+            explanation:
+              'Potential SQL injection. Use parameterized queries instead of string interpolation.',
           });
         }
       }
@@ -249,8 +252,13 @@ export async function analyzeCommand(options: AnalyzeOptions): Promise<void> {
   // Track analysis completion
   try {
     const { trackEvent } = await import('../../telemetry');
-    trackEvent('analysis_completed', { filesAnalyzed: files.length, suggestionsCount: allSuggestions.length });
-  } catch { /* telemetry failure is non-critical */ }
+    trackEvent('analysis_completed', {
+      filesAnalyzed: files.length,
+      suggestionsCount: allSuggestions.length,
+    });
+  } catch {
+    /* telemetry failure is non-critical */
+  }
 
   // Build analysis result
   const byType: Record<string, number> = {};
@@ -287,9 +295,15 @@ export async function analyzeCommand(options: AnalyzeOptions): Promise<void> {
   if (analysis.summary.suggestionsCount > 0) {
     ui.newLine();
     ui.print('  By severity:');
-    if (bySeverity.error) ui.print(`    ${ui.color('Errors:', 'red')}   ${bySeverity.error}`);
-    if (bySeverity.warning) ui.print(`    ${ui.color('Warnings:', 'yellow')} ${bySeverity.warning}`);
-    if (bySeverity.info) ui.print(`    ${ui.color('Info:', 'blue')}     ${bySeverity.info}`);
+    if (bySeverity.error) {
+      ui.print(`    ${ui.color('Errors:', 'red')}   ${bySeverity.error}`);
+    }
+    if (bySeverity.warning) {
+      ui.print(`    ${ui.color('Warnings:', 'yellow')} ${bySeverity.warning}`);
+    }
+    if (bySeverity.info) {
+      ui.print(`    ${ui.color('Info:', 'blue')}     ${bySeverity.info}`);
+    }
 
     ui.newLine();
     ui.print('  By type:');

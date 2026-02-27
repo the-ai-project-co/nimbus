@@ -7,7 +7,7 @@
  * - AI conversation context across sessions
  */
 
-import { Database } from 'bun:sqlite';
+import { Database } from '../compat/sqlite';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -65,7 +65,13 @@ export class ContextDatabase {
     this.db.exec(SCHEMA);
   }
 
-  recordCommand(command: string, args?: string, status: string = 'success', durationMs?: number, outputSummary?: string): void {
+  recordCommand(
+    command: string,
+    args?: string,
+    status: string = 'success',
+    durationMs?: number,
+    outputSummary?: string
+  ): void {
     const stmt = this.db.prepare(`
       INSERT INTO command_history (command, args, status, duration_ms, output_summary)
       VALUES (?, ?, ?, ?, ?)
@@ -94,7 +100,12 @@ export class ContextDatabase {
     }));
   }
 
-  trackFileChange(filePath: string, changeType: 'created' | 'modified' | 'deleted', contentHash?: string, metadata?: Record<string, unknown>): void {
+  trackFileChange(
+    filePath: string,
+    changeType: 'created' | 'modified' | 'deleted',
+    contentHash?: string,
+    metadata?: Record<string, unknown>
+  ): void {
     const stmt = this.db.prepare(`
       INSERT INTO file_changes (file_path, change_type, content_hash, metadata)
       VALUES (?, ?, ?, ?)
@@ -117,18 +128,40 @@ export class ContextDatabase {
     }));
   }
 
-  saveConversation(id: string, title: string, messages: unknown[], model?: string, tokenCount?: number, metadata?: Record<string, unknown>): void {
+  saveConversation(
+    id: string,
+    title: string,
+    messages: unknown[],
+    model?: string,
+    tokenCount?: number,
+    metadata?: Record<string, unknown>
+  ): void {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO conversation_context (id, title, messages, model, token_count, metadata)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, title, JSON.stringify(messages), model || null, tokenCount || null, metadata ? JSON.stringify(metadata) : null);
+    stmt.run(
+      id,
+      title,
+      JSON.stringify(messages),
+      model || null,
+      tokenCount || null,
+      metadata ? JSON.stringify(metadata) : null
+    );
   }
 
-  getConversation(id: string): { id: string; title: string; messages: unknown[]; model: string | null; tokenCount: number | null } | null {
+  getConversation(id: string): {
+    id: string;
+    title: string;
+    messages: unknown[];
+    model: string | null;
+    tokenCount: number | null;
+  } | null {
     const stmt = this.db.prepare('SELECT * FROM conversation_context WHERE id = ?');
     const row: any = stmt.get(id);
-    if (!row) return null;
+    if (!row) {
+      return null;
+    }
     return {
       id: row.id,
       title: row.title,
@@ -138,7 +171,9 @@ export class ContextDatabase {
     };
   }
 
-  listConversations(limit: number = 20): Array<{ id: string; title: string; timestamp: string; model: string | null }> {
+  listConversations(
+    limit: number = 20
+  ): Array<{ id: string; title: string; timestamp: string; model: string | null }> {
     const stmt = this.db.prepare(`
       SELECT id, title, timestamp, model FROM conversation_context ORDER BY timestamp DESC LIMIT ?
     `);

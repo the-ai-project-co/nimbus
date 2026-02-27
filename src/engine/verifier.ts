@@ -44,9 +44,9 @@ export class Verifier {
     // Calculate summary
     const summary = {
       total_checks: checks.length,
-      passed: checks.filter((c) => c.status === 'passed').length,
-      failed: checks.filter((c) => c.status === 'failed').length,
-      warnings: checks.filter((c) => c.status === 'warning').length,
+      passed: checks.filter(c => c.status === 'passed').length,
+      failed: checks.filter(c => c.status === 'failed').length,
+      warnings: checks.filter(c => c.status === 'warning').length,
     };
 
     // Determine overall status
@@ -136,8 +136,7 @@ export class Verifier {
     if (components.includes('eks') || components.includes('rds')) {
       const securityGroups = (context.security_groups as SecurityGroupRule[] | undefined) || [];
       const hasOverlyPermissive = securityGroups.some(
-        (rule) =>
-          rule.cidr === '0.0.0.0/0' && rule.from_port === 0 && rule.to_port === 65535
+        rule => rule.cidr === '0.0.0.0/0' && rule.from_port === 0 && rule.to_port === 65535
       );
       checks.push({
         id: 'sec_check_004',
@@ -185,8 +184,8 @@ export class Verifier {
     // Check: Required tags present (case-sensitive)
     const requiredTags = ['Environment', 'Project', 'ManagedBy'] as const;
     const tags = (context.tags as Record<string, unknown> | undefined) || {};
-    const presentTags = requiredTags.filter((tag) => tag in tags);
-    const missingTags = requiredTags.filter((tag) => !(tag in tags));
+    const presentTags = requiredTags.filter(tag => tag in tags);
+    const missingTags = requiredTags.filter(tag => !(tag in tags));
     const allTagsPresent = missingTags.length === 0;
     checks.push({
       id: 'comp_check_001',
@@ -196,9 +195,7 @@ export class Verifier {
       status: allTagsPresent ? 'passed' : 'failed',
       expected: [...requiredTags],
       actual: [...presentTags],
-      error: allTagsPresent
-        ? undefined
-        : `Missing required tags: ${missingTags.join(', ')}`,
+      error: allTagsPresent ? undefined : `Missing required tags: ${missingTags.join(', ')}`,
     });
 
     // Check: Backup enabled (for rds)
@@ -261,7 +258,7 @@ export class Verifier {
     const checks: VerificationCheck[] = [];
 
     // Check: All steps completed
-    const allCompleted = results.every((r) => r.status === 'success');
+    const allCompleted = results.every(r => r.status === 'success');
     checks.push({
       id: 'func_check_001',
       type: 'functionality',
@@ -274,7 +271,7 @@ export class Verifier {
     });
 
     // Check: Artifacts generated
-    const hasArtifacts = results.some((r) => r.artifacts && r.artifacts.length > 0);
+    const hasArtifacts = results.some(r => r.artifacts && r.artifacts.length > 0);
     checks.push({
       id: 'func_check_002',
       type: 'functionality',
@@ -286,7 +283,7 @@ export class Verifier {
     });
 
     // Check: Outputs available
-    const hasOutputs = results.some((r) => r.outputs && Object.keys(r.outputs).length > 0);
+    const hasOutputs = results.some(r => r.outputs && Object.keys(r.outputs).length > 0);
     checks.push({
       id: 'func_check_003',
       type: 'functionality',
@@ -366,9 +363,7 @@ export class Verifier {
     const components = (context.components as string[]) || [];
     if (components.includes('eks')) {
       const eksResult = results.find(
-        (r) =>
-          r.step_id?.toLowerCase().includes('eks') ||
-          (r.outputs && 'cluster_name' in r.outputs)
+        r => r.step_id?.toLowerCase().includes('eks') || (r.outputs && 'cluster_name' in r.outputs)
       );
 
       if (eksResult) {
@@ -520,7 +515,8 @@ export class Verifier {
 
     if (domain === 'terraform' && workDir) {
       try {
-        const validateResult = await this.terraformOps.validate(workDir);
+        const tfOps = new TerraformOperations(workDir);
+        const validateResult = await tfOps.validate();
         checks.push({
           id: 'domain_tf_validate',
           type: 'functionality',
@@ -554,7 +550,8 @@ export class Verifier {
         status: 'warning',
         expected: 'validated',
         actual: 'not_run',
-        error: 'Run kubectl apply --dry-run=client to validate Kubernetes manifests before applying',
+        error:
+          'Run kubectl apply --dry-run=client to validate Kubernetes manifests before applying',
       });
     }
 
@@ -610,7 +607,7 @@ export class Verifier {
         description: 'Verify VPC CIDR block is valid',
         status: cidrValid ? 'passed' : 'failed',
         expected: 'valid_cidr',
-        actual: cidrValid ? cidrValue : (cidrValue || 'not_set'),
+        actual: cidrValid ? cidrValue : cidrValue || 'not_set',
         error: cidrValid ? undefined : `Invalid CIDR format: ${cidrValue || 'not_set'}`,
       },
       {
@@ -664,8 +661,7 @@ export class Verifier {
   private verifyRds(config: Record<string, unknown>): VerificationCheck[] {
     const storageEncrypted = config.storage_encrypted !== false;
     const backupRetention = config.backup_retention_period;
-    const validBackup =
-      typeof backupRetention === 'number' && backupRetention > 0;
+    const validBackup = typeof backupRetention === 'number' && backupRetention > 0;
     const publiclyAccessible = config.publicly_accessible === true;
 
     return [
@@ -687,9 +683,7 @@ export class Verifier {
         status: validBackup ? 'passed' : 'failed',
         expected: '>= 1 day',
         actual: validBackup ? `${backupRetention} days` : 'not_configured',
-        error: validBackup
-          ? undefined
-          : 'Backup retention period must be a number greater than 0',
+        error: validBackup ? undefined : 'Backup retention period must be a number greater than 0',
       },
       {
         id: 'rds_003',
@@ -699,9 +693,7 @@ export class Verifier {
         status: publiclyAccessible ? 'failed' : 'passed',
         expected: false,
         actual: publiclyAccessible,
-        error: publiclyAccessible
-          ? 'RDS instance is publicly accessible'
-          : undefined,
+        error: publiclyAccessible ? 'RDS instance is publicly accessible' : undefined,
       },
     ];
   }

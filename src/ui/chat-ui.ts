@@ -34,7 +34,7 @@ import {
  * Wraps fenced code blocks (```...```) with dim formatting.
  */
 function highlightCodeBlocks(text: string): string {
-  return text.replace(/```[\s\S]*?```/g, (match) => {
+  return text.replace(/```[\s\S]*?```/g, match => {
     // Strip the fences and dim the content
     const inner = match.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
     return `\x1b[2m${inner}\x1b[0m`;
@@ -63,13 +63,17 @@ export interface ChatUIOptions {
   welcomeMessage?: string;
   /** Active persona tone */
   persona?: PersonaTone;
+  /** Resume a previous session by ID */
+  resumeSessionId?: string;
 }
 
 /**
  * Summarize tool input for compact terminal display.
  */
 function summarizeToolInput(toolName: string, input: unknown): string {
-  if (!input || typeof input !== 'object') return '';
+  if (!input || typeof input !== 'object') {
+    return '';
+  }
   const obj = input as Record<string, unknown>;
 
   switch (toolName) {
@@ -88,7 +92,7 @@ function summarizeToolInput(toolName: string, input: unknown): string {
     case 'list_dir':
       return obj.path ? String(obj.path) : '.';
     case 'git':
-      return obj.action ? `${obj.action}${obj.args ? ' ' + obj.args : ''}` : '';
+      return obj.action ? `${obj.action}${obj.args ? ` ${obj.args}` : ''}` : '';
     case 'terraform':
     case 'kubectl':
     case 'helm':
@@ -117,6 +121,7 @@ export class ChatUI {
   private verboseOutput: boolean = false;
   private abortController: AbortController = new AbortController();
   private permissionState: PermissionSessionState = createPermissionState();
+  private currentMode: 'plan' | 'build' | 'deploy' = 'build';
 
   constructor(options: ChatUIOptions = {}) {
     this.options = options;
@@ -135,7 +140,7 @@ export class ChatUI {
       this.sessionManager = SessionManager.getInstance();
       const session = this.sessionManager.create({
         name: `chat-${new Date().toISOString().slice(0, 16)}`,
-        mode: 'build',
+        mode: this.currentMode,
         model: options.model,
         cwd: process.cwd(),
       });
@@ -168,7 +173,7 @@ export class ChatUI {
     });
 
     // Handle line input
-    this.rl.on('line', async (input) => {
+    this.rl.on('line', async input => {
       await this.handleInput(input.trim());
     });
 
@@ -192,11 +197,13 @@ export class ChatUI {
 
     const content = [
       ui.bold('Nimbus Agent'),
-      ui.dim(`Model: ${modelInfo} (${providerInfo}) | Mode: build`),
+      ui.dim(`Model: ${modelInfo} (${providerInfo}) | Mode: ${this.currentMode}`),
       '',
       ui.dim('AI agent with full tool access (file edit, bash, git, and more).'),
       ui.dim('Type your message and press Enter. Press Ctrl+C to interrupt.'),
-      ui.dim('Commands: /help, /clear, /model, /persona, /verbose, /history, /undo, /redo, /export, /exit'),
+      ui.dim(
+        'Commands: /help, /clear, /model, /models, /mode, /persona, /verbose, /history, /undo, /redo, /export, /exit'
+      ),
     ];
 
     ui.box({
@@ -302,6 +309,45 @@ export class ChatUI {
         break;
       }
 
+      case 'mode': {
+        const validModes = ['plan', 'build', 'deploy'] as const;
+        const newMode = args[0]?.toLowerCase() as (typeof validModes)[number];
+        if (!newMode) {
+          ui.info(`Current mode: ${this.currentMode}`);
+          ui.print(ui.dim('  Available: plan, build, deploy'));
+        } else if (validModes.includes(newMode)) {
+          this.currentMode = newMode;
+          // Reset permission state to prevent privilege escalation
+          this.permissionState = createPermissionState();
+          ui.success(`Mode switched to: ${newMode}`);
+        } else {
+          ui.warning(`Invalid mode: ${newMode}`);
+          ui.print(ui.dim('  Available: plan, build, deploy'));
+        }
+        break;
+      }
+
+      case 'models': {
+        try {
+          const models = await this.router.getAvailableModels();
+          const entries = Object.entries(models);
+          if (entries.length === 0) {
+            ui.info('No providers configured.');
+          } else {
+            ui.section('Available Models');
+            for (const [provider, modelList] of entries) {
+              ui.print(`  ${ui.bold(provider)}:`);
+              for (const model of modelList) {
+                ui.print(`    - ${model}`);
+              }
+            }
+          }
+        } catch {
+          ui.warning('Failed to list models.');
+        }
+        break;
+      }
+
       case 'exit':
       case 'quit':
       case 'q':
@@ -372,6 +418,8 @@ export class ChatUI {
     ui.print('  /help           - Show this help message');
     ui.print('  /clear          - Clear chat history');
     ui.print('  /model <name>   - Change the LLM model');
+    ui.print('  /models         - List all available provider models');
+    ui.print('  /mode <mode>    - Switch mode (plan, build, deploy)');
     ui.print('  /persona <tone> - Set persona (professional, assistant, expert)');
     ui.print('  /verbose        - Toggle verbose output (tokens, model, latency)');
     ui.print('  /history        - Show conversation history');
@@ -401,35 +449,41 @@ export class ChatUI {
 
     for (const msg of this.history) {
       const roleColor = msg.role === 'user' ? 'green' : msg.role === 'assistant' ? 'blue' : 'gray';
-      const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Nimbus' : 'System';
+      const roleLabel =
+        msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Nimbus' : 'System';
 
-      const displayContent = msg.role === 'assistant'
-        ? highlightCodeBlocks(msg.content)
-        : msg.content;
-      ui.print(`  ${ui.color(roleLabel + ':', roleColor)} ${displayContent.substring(0, 100)}${displayContent.length > 100 ? '...' : ''}`);
+      const displayContent =
+        msg.role === 'assistant' ? highlightCodeBlocks(msg.content) : msg.content;
+      ui.print(
+        `  ${ui.color(`${roleLabel}:`, roleColor)} ${displayContent.substring(0, 100)}${displayContent.length > 100 ? '...' : ''}`
+      );
     }
   }
 
   /**
    * Prompt user for permission via readline. Returns allow/deny/block.
    */
-  private promptPermission(tool: ToolDefinition, input: unknown): Promise<'allow' | 'deny' | 'block'> {
-    return new Promise((resolve) => {
-      const inputSummary = (input && typeof input === 'object')
-        ? Object.entries(input as Record<string, unknown>)
-            .slice(0, 3)
-            .map(([k, v]) => {
-              const s = typeof v === 'string' ? v : JSON.stringify(v);
-              return `  ${k}: ${s.length > 60 ? s.slice(0, 57) + '...' : s}`;
-            })
-            .join('\n')
-        : '';
+  private promptPermission(
+    tool: ToolDefinition,
+    input: unknown
+  ): Promise<'allow' | 'deny' | 'block'> {
+    return new Promise(resolve => {
+      const inputSummary =
+        input && typeof input === 'object'
+          ? Object.entries(input as Record<string, unknown>)
+              .slice(0, 3)
+              .map(([k, v]) => {
+                const s = typeof v === 'string' ? v : JSON.stringify(v);
+                return `  ${k}: ${s.length > 60 ? `${s.slice(0, 57)}...` : s}`;
+              })
+              .join('\n')
+          : '';
 
       ui.newLine();
       process.stdout.write(
-        ui.color('⚠ Permission required', 'yellow') + ': ' + ui.bold(tool.name) + '\n' +
-        (inputSummary ? inputSummary + '\n' : '') +
-        ui.dim('[y] Allow  [n] Deny  [a] Allow for session') + ' ',
+        `${ui.color('⚠ Permission required', 'yellow')}: ${ui.bold(tool.name)}\n${
+          inputSummary ? `${inputSummary}\n` : ''
+        }${ui.dim('[y] Allow  [n] Deny  [a] Allow for session')} `
       );
 
       const onLine = (line: string) => {
@@ -465,7 +519,9 @@ export class ChatUI {
    */
   private expandFileReferences(text: string): string {
     const fileRefs = text.match(/@([\w./_-]+)/g);
-    if (!fileRefs) return text;
+    if (!fileRefs) {
+      return text;
+    }
 
     let expanded = text;
     for (const ref of fileRefs) {
@@ -473,13 +529,11 @@ export class ChatUI {
       try {
         const resolved = path.resolve(process.cwd(), filePath);
         const content = fs.readFileSync(resolved, 'utf-8');
-        const truncated = content.length > 10000
-          ? content.slice(0, 10000) + '\n... (truncated)'
-          : content;
-        expanded = expanded.replace(
-          ref,
-          `\n<file path="${filePath}">\n${truncated}\n</file>`,
-        );
+        const truncated =
+          content.length > 10000
+            ? `${content.slice(0, 10000)}\n... (truncated — showing 10,000 of ${content.length.toLocaleString()} chars)`
+            : content;
+        expanded = expanded.replace(ref, `\n<file path="${filePath}">\n${truncated}\n</file>`);
       } catch {
         // File not found — leave the @reference as-is
       }
@@ -523,13 +577,15 @@ export class ChatUI {
       const result: AgentLoopResult = await runAgentLoop(expandedMessage, this.agentHistory, {
         router: this.router,
         toolRegistry: defaultToolRegistry,
-        mode: 'build',
+        mode: this.currentMode,
         model: this.options.model,
         cwd: process.cwd(),
         signal: this.abortController.signal,
         contextManager: this.contextManager,
+        snapshotManager: this.snapshotManager,
+        sessionId: this.sessionId || undefined,
 
-        onText: (text) => {
+        onText: text => {
           clearThinking();
           if (!textStarted) {
             process.stdout.write(ui.color('Nimbus: ', 'blue'));
@@ -543,9 +599,7 @@ export class ChatUI {
           clearThinking();
           // Show tool execution inline as text
           const inputSummary = summarizeToolInput(info.name, info.input);
-          process.stdout.write(
-            `\n${ui.dim(`  [Tool: ${info.name}]`)} ${ui.dim(inputSummary)}\n`,
-          );
+          process.stdout.write(`\n${ui.dim(`  [Tool: ${info.name}]`)} ${ui.dim(inputSummary)}\n`);
           textStarted = false; // Reset so next text block gets prefix
         },
 
@@ -557,22 +611,29 @@ export class ChatUI {
             const output = result.output.trim();
             if (output) {
               const lines = output.split('\n');
-              const preview = lines.length > 5
-                ? lines.slice(0, 5).join('\n') + `\n  ... (${lines.length - 5} more lines)`
-                : output;
+              const preview =
+                lines.length > 5
+                  ? `${lines.slice(0, 5).join('\n')}\n  ... (${lines.length - 5} more lines)`
+                  : output;
               process.stdout.write(`  ${ui.dim(preview)}\n`);
             }
           }
         },
 
-        onCompact: (compactResult) => {
-          ui.info(`Context auto-compacted: saved ${compactResult.savedTokens.toLocaleString()} tokens.`);
+        onCompact: compactResult => {
+          ui.info(
+            `Context auto-compacted: saved ${compactResult.savedTokens.toLocaleString()} tokens.`
+          );
         },
 
         checkPermission: async (tool, input) => {
           const decision = checkToolPermission(tool, input, this.permissionState);
-          if (decision === 'allow') return 'allow';
-          if (decision === 'block') return 'block';
+          if (decision === 'allow') {
+            return 'allow';
+          }
+          if (decision === 'block') {
+            return 'block';
+          }
           // decision === 'ask': prompt the user inline
           return this.promptPermission(tool, input);
         },
@@ -595,13 +656,13 @@ export class ChatUI {
             tokenCount: result.usage.totalTokens,
             costUSD: result.totalCost,
           });
-        } catch { /* persistence is non-critical */ }
+        } catch {
+          /* persistence is non-critical */
+        }
       }
 
       // Extract the final assistant response for display history
-      const lastAssistant = [...result.messages]
-        .reverse()
-        .find((m) => m.role === 'assistant');
+      const lastAssistant = [...result.messages].reverse().find(m => m.role === 'assistant');
 
       if (lastAssistant) {
         this.history.push({
@@ -615,15 +676,24 @@ export class ChatUI {
         });
       }
 
-      // Show verbose info (token count, model, latency, turns) when enabled
+      // Show verbose info (token count, model, latency, turns, cost) when enabled
       if (this.verboseOutput || this.options.showTokenCount) {
         const latencyMs = Date.now() - startTime;
         const parts: string[] = [];
-        if (tokenCount > 0) parts.push(`${tokenCount} tokens`);
+        if (tokenCount > 0) {
+          parts.push(`${tokenCount} tokens`);
+        }
         if (this.verboseOutput) {
           parts.push(`model: ${this.options.model || 'default'}`);
           parts.push(`${latencyMs}ms`);
           parts.push(`${result.turns} turn${result.turns !== 1 ? 's' : ''}`);
+          if (result.totalCost > 0) {
+            const costStr =
+              result.totalCost < 0.01
+                ? `$${result.totalCost.toFixed(4)}`
+                : `$${result.totalCost.toFixed(2)}`;
+            parts.push(`cost: ${costStr}`);
+          }
         }
         if (parts.length > 0) {
           ui.print(ui.dim(`  (${parts.join(' | ')})`));
@@ -655,7 +725,7 @@ export class ChatUI {
    * Supported formats: json (default), markdown, text.
    */
   private async handleExportCommand(args: string[]): Promise<void> {
-    const userMessages = this.history.filter((m) => m.role !== 'system');
+    const userMessages = this.history.filter(m => m.role !== 'system');
 
     if (userMessages.length === 0) {
       ui.info('Nothing to export. Start a conversation first.');
@@ -695,7 +765,7 @@ export class ChatUI {
       case 'json': {
         const payload = {
           title: `Nimbus Chat Export`,
-          messages: this.history.map((m) => ({
+          messages: this.history.map(m => ({
             role: m.role,
             content: m.content,
           })),
@@ -714,7 +784,9 @@ export class ChatUI {
           '',
         ];
         for (const msg of this.history) {
-          if (msg.role === 'system') continue;
+          if (msg.role === 'system') {
+            continue;
+          }
           const heading = msg.role === 'user' ? 'User' : 'Assistant';
           lines.push(`## ${heading}`, '', msg.content, '');
         }
@@ -730,7 +802,9 @@ export class ChatUI {
           '',
         ];
         for (const msg of this.history) {
-          if (msg.role === 'system') continue;
+          if (msg.role === 'system') {
+            continue;
+          }
           const label = msg.role === 'user' ? 'You' : 'Nimbus';
           lines.push(`${label}:`, msg.content, '');
         }
@@ -756,7 +830,9 @@ export class ChatUI {
     if (this.sessionManager && this.sessionId) {
       try {
         this.sessionManager.complete(this.sessionId);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     if (this.rl) {

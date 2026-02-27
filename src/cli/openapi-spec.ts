@@ -34,9 +34,7 @@ export function getOpenAPISpec(): Record<string, unknown> {
         name: 'MIT',
       },
     },
-    servers: [
-      { url: 'http://localhost:4200', description: 'Local development' },
-    ],
+    servers: [{ url: 'http://localhost:4200', description: 'Local development' }],
     paths: {
       // -----------------------------------------------------------------
       // Health

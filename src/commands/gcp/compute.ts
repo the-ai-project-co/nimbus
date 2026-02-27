@@ -128,11 +128,9 @@ async function listInstances(options: GcpCommandOptions): Promise<void> {
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(25) +
-          'Zone'.padEnd(25) +
-          'Machine Type'.padEnd(20) +
-          'Status'.padEnd(12) +
-          'External IP',
+        `${
+          'Name'.padEnd(25) + 'Zone'.padEnd(25) + 'Machine Type'.padEnd(20) + 'Status'.padEnd(12)
+        }External IP`,
         'cyan'
       )
     );
@@ -143,8 +141,7 @@ async function listInstances(options: GcpCommandOptions): Promise<void> {
       const zone = instance.zone?.split('/').pop()?.substring(0, 24) || '';
       const machineType = instance.machineType?.split('/').pop()?.substring(0, 19) || '';
       const status = instance.status || '';
-      const externalIp =
-        instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP || 'None';
+      const externalIp = instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP || 'None';
 
       const statusColor =
         status === 'RUNNING'
@@ -170,10 +167,7 @@ async function listInstances(options: GcpCommandOptions): Promise<void> {
 /**
  * Describe a specific instance
  */
-async function describeInstance(
-  instanceName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function describeInstance(instanceName: string, options: GcpCommandOptions): Promise<void> {
   ui.header(`Instance: ${instanceName}`);
   ui.newLine();
 
@@ -227,10 +221,7 @@ async function describeInstance(
 /**
  * Start an instance
  */
-async function startInstance(
-  instanceName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function startInstance(instanceName: string, options: GcpCommandOptions): Promise<void> {
   const gcloudArgs = ['compute', 'instances', 'start', instanceName];
   if (options.project) {
     gcloudArgs.push(`--project=${options.project}`);
@@ -254,10 +245,7 @@ async function startInstance(
 /**
  * Stop an instance
  */
-async function stopInstance(
-  instanceName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function stopInstance(instanceName: string, options: GcpCommandOptions): Promise<void> {
   const gcloudArgs = ['compute', 'instances', 'stop', instanceName];
   if (options.project) {
     gcloudArgs.push(`--project=${options.project}`);
@@ -281,10 +269,7 @@ async function stopInstance(
 /**
  * Delete an instance (requires safety approval)
  */
-async function deleteInstance(
-  instanceName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function deleteInstance(instanceName: string, options: GcpCommandOptions): Promise<void> {
   // Run safety checks
   const safetyResult = await runComputeSafetyChecks('delete', instanceName, options);
 

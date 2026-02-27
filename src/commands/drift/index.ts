@@ -102,7 +102,7 @@ export function parseDriftFixOptions(args: string[]): DriftFixOptions {
 /**
  * Format drift severity with color
  */
-function formatSeverity(severity: 'critical' | 'high' | 'medium' | 'low'): string {
+function _formatSeverity(severity: 'critical' | 'high' | 'medium' | 'low'): string {
   switch (severity) {
     case 'critical':
       return ui.color('CRITICAL', 'red');
@@ -141,7 +141,9 @@ function displayDriftReport(report: DriftReport): void {
 
   ui.print(`  ${ui.dim('Detected at:')} ${new Date(report.detectedAt).toLocaleString()}`);
   ui.print(`  ${ui.dim('Total items:')} ${report.summary.total}`);
-  ui.print(`  ${ui.dim('Has drift:')}   ${report.hasDrift ? ui.color('Yes', 'yellow') : ui.color('No', 'green')}`);
+  ui.print(
+    `  ${ui.dim('Has drift:')}   ${report.hasDrift ? ui.color('Yes', 'yellow') : ui.color('No', 'green')}`
+  );
   ui.newLine();
 
   if (!report.hasDrift) {
@@ -178,7 +180,9 @@ function displayDriftReport(report: DriftReport): void {
       for (const change of resource.changes.slice(0, 5)) {
         const expected = change.expected !== undefined ? JSON.stringify(change.expected) : 'null';
         const actual = change.actual !== undefined ? JSON.stringify(change.actual) : 'null';
-        ui.print(`      ${ui.dim(change.attribute)}: ${ui.color(expected, 'red')} -> ${ui.color(actual, 'green')}`);
+        ui.print(
+          `      ${ui.dim(change.attribute)}: ${ui.color(expected, 'red')} -> ${ui.color(actual, 'green')}`
+        );
       }
       if (resource.changes.length > 5) {
         ui.print(ui.dim(`      ... and ${resource.changes.length - 5} more changes`));
@@ -195,7 +199,9 @@ function displayRemediationResult(result: DriftRemediationResult): void {
   ui.section('Remediation Result');
 
   const statusColor = result.success ? 'green' : 'red';
-  ui.print(`  ${ui.dim('Status:')}   ${ui.color(result.success ? 'Success' : 'Failed', statusColor)}`);
+  ui.print(
+    `  ${ui.dim('Status:')}   ${ui.color(result.success ? 'Success' : 'Failed', statusColor)}`
+  );
   ui.print(`  ${ui.dim('Applied:')}  ${result.appliedCount}`);
   ui.print(`  ${ui.dim('Failed:')}   ${result.failedCount}`);
   ui.print(`  ${ui.dim('Skipped:')} ${result.skippedCount}`);
@@ -205,11 +211,12 @@ function displayRemediationResult(result: DriftRemediationResult): void {
     ui.section('Actions Taken');
 
     for (const action of result.actions) {
-      const icon = action.status === 'applied'
-        ? ui.color('✓', 'green')
-        : action.status === 'failed'
-          ? ui.color('✗', 'red')
-          : ui.color('○', 'dim');
+      const icon =
+        action.status === 'applied'
+          ? ui.color('✓', 'green')
+          : action.status === 'failed'
+            ? ui.color('✗', 'red')
+            : ui.color('○', 'dim');
 
       ui.print(`  ${icon} ${action.description}`);
       if (action.error) {
@@ -281,7 +288,11 @@ export async function driftDetectCommand(options: DriftDetectOptions): Promise<v
       message: 'Select infrastructure provider to check:',
       options: [
         { label: 'Terraform', value: 'terraform', description: 'Check Terraform state drift' },
-        { label: 'Kubernetes', value: 'kubernetes', description: 'Check Kubernetes manifest drift' },
+        {
+          label: 'Kubernetes',
+          value: 'kubernetes',
+          description: 'Check Kubernetes manifest drift',
+        },
         { label: 'Helm', value: 'helm', description: 'Check Helm release drift' },
       ],
     });

@@ -4,7 +4,7 @@
  * Refactored from SQLiteAdapter.logAuditEvent and getAuditLogs.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape accepted when writing an audit event. */
@@ -72,7 +72,7 @@ export function logAuditEvent(event: AuditEventInput, db?: Database): void {
     event.output ? JSON.stringify(event.output) : null,
     event.status,
     event.durationMs || null,
-    event.metadata ? JSON.stringify(event.metadata) : null,
+    event.metadata ? JSON.stringify(event.metadata) : null
   );
 }
 
@@ -112,7 +112,7 @@ export function getAuditLogs(filter?: AuditLogFilter, db?: Database): AuditLogRe
   }
 
   if (conditions.length > 0) {
-    query += ' WHERE ' + conditions.join(' AND ');
+    query += ` WHERE ${conditions.join(' AND ')}`;
   }
 
   query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';

@@ -5,7 +5,7 @@
  * listConversations, and deleteConversation.
  */
 
-import type { Database } from 'bun:sqlite';
+import type { Database } from '../compat/sqlite';
 import { getDb } from './db';
 
 /** Shape returned by conversation query helpers. */
@@ -32,7 +32,7 @@ export function saveConversation(
   messages: any[],
   model?: string,
   metadata?: any,
-  db?: Database,
+  db?: Database
 ): void {
   const d = db || getDb();
   const stmt = d.prepare(`
@@ -51,7 +51,7 @@ export function saveConversation(
     title,
     JSON.stringify(messages),
     model || null,
-    metadata ? JSON.stringify(metadata) : null,
+    metadata ? JSON.stringify(metadata) : null
   );
 }
 
@@ -81,7 +81,11 @@ export function getConversation(id: string, db?: Database): ConversationRecord |
 /**
  * List conversations ordered by most-recently updated first.
  */
-export function listConversations(limit: number = 50, offset: number = 0, db?: Database): ConversationRecord[] {
+export function listConversations(
+  limit: number = 50,
+  offset: number = 0,
+  db?: Database
+): ConversationRecord[] {
   const d = db || getDb();
   const stmt = d.prepare(`
     SELECT * FROM conversations

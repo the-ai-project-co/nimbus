@@ -148,8 +148,8 @@ const BUILD_TOOL_NAMES: ReadonlySet<string> = new Set([
  * @internal
  */
 const DEPLOY_TOOL_NAMES: ReadonlySet<string> = new Set([
-  ...standardTools.map((t) => t.name),
-  ...devopsTools.map((t) => t.name),
+  ...standardTools.map(t => t.name),
+  ...devopsTools.map(t => t.name),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -166,8 +166,7 @@ const DEPLOY_TOOL_NAMES: ReadonlySet<string> = new Set([
 export const PLAN_MODE: ModeConfig = {
   name: 'plan',
   label: 'Plan',
-  description:
-    'Read-only exploration and analysis. No file edits, no infrastructure changes.',
+  description: 'Read-only exploration and analysis. No file edits, no infrastructure changes.',
   allowedToolNames: PLAN_TOOL_NAMES,
   systemPromptAddition: `You are in PLAN mode. You may only use read-only tools: read_file, glob, grep, list_dir, webfetch, cost_estimate, drift_detect, todo_read, todo_write, cloud_discover.
 
@@ -191,8 +190,7 @@ Focus on understanding the current state, analyzing configurations, estimating c
 export const BUILD_MODE: ModeConfig = {
   name: 'build',
   label: 'Build',
-  description:
-    'File editing and non-destructive DevOps. No infrastructure mutations.',
+  description: 'File editing and non-destructive DevOps. No infrastructure mutations.',
   allowedToolNames: BUILD_TOOL_NAMES,
   systemPromptAddition: `You are in BUILD mode. You may read, edit, and create files, run non-destructive commands, and use git.
 
@@ -218,8 +216,7 @@ Focus on building, testing, and validating changes. Use deploy_preview to show w
 export const DEPLOY_MODE: ModeConfig = {
   name: 'deploy',
   label: 'Deploy',
-  description:
-    'Full access including infrastructure mutations. Destructive ops require approval.',
+  description: 'Full access including infrastructure mutations. Destructive ops require approval.',
   allowedToolNames: DEPLOY_TOOL_NAMES,
   systemPromptAddition: `You are in DEPLOY mode. You have access to ALL tools including infrastructure-mutating operations.
 
@@ -281,7 +278,7 @@ const ALL_TOOLS: readonly ToolDefinition[] = [...standardTools, ...devopsTools];
  */
 export function getToolsForMode(mode: Mode): ToolDefinition[] {
   const config = MODE_CONFIGS[mode];
-  return ALL_TOOLS.filter((tool) => config.allowedToolNames.has(tool.name));
+  return ALL_TOOLS.filter(tool => config.allowedToolNames.has(tool.name));
 }
 
 /**

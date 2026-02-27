@@ -61,7 +61,7 @@ export interface DeployPreview {
  */
 export async function generateDeployPreview(
   action: string,
-  workdir: string,
+  workdir: string
 ): Promise<DeployPreview> {
   const actionLower = action.toLowerCase();
 
@@ -111,11 +111,21 @@ export function formatDeployPreview(preview: DeployPreview): string {
   // Summary
   const { toCreate, toUpdate, toDestroy, toReplace, unchanged } = preview.summary;
   lines.push('Summary:');
-  if (toCreate > 0) lines.push(`  + ${toCreate} to create`);
-  if (toUpdate > 0) lines.push(`  ~ ${toUpdate} to update`);
-  if (toReplace > 0) lines.push(`  +/- ${toReplace} to replace`);
-  if (toDestroy > 0) lines.push(`  - ${toDestroy} to destroy`);
-  if (unchanged > 0) lines.push(`  = ${unchanged} unchanged`);
+  if (toCreate > 0) {
+    lines.push(`  + ${toCreate} to create`);
+  }
+  if (toUpdate > 0) {
+    lines.push(`  ~ ${toUpdate} to update`);
+  }
+  if (toReplace > 0) {
+    lines.push(`  +/- ${toReplace} to replace`);
+  }
+  if (toDestroy > 0) {
+    lines.push(`  - ${toDestroy} to destroy`);
+  }
+  if (unchanged > 0) {
+    lines.push(`  = ${unchanged} unchanged`);
+  }
   lines.push('');
 
   // Detailed changes
@@ -163,7 +173,7 @@ async function generateTerraformPreview(workdir: string): Promise<DeployPreview>
     // Run terraform plan with JSON output
     const { stdout, stderr } = await execAsync(
       'terraform plan -no-color -detailed-exitcode 2>&1 || true',
-      { cwd: workdir, timeout: 300_000, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: workdir, timeout: 300_000, maxBuffer: 10 * 1024 * 1024 }
     );
 
     const output = stdout || stderr;
@@ -194,10 +204,7 @@ async function generateTerraformPreview(workdir: string): Promise<DeployPreview>
  * Run `kubectl diff` against the current cluster state and parse
  * the unified-diff output into {@link ResourceChange} entries.
  */
-async function generateKubectlPreview(
-  action: string,
-  workdir: string,
-): Promise<DeployPreview> {
+async function generateKubectlPreview(action: string, workdir: string): Promise<DeployPreview> {
   const base = {
     tool: 'kubectl',
     action,
@@ -205,10 +212,11 @@ async function generateKubectlPreview(
   };
 
   try {
-    const { stdout } = await execAsync(
-      'kubectl diff -f . 2>&1 || true',
-      { cwd: workdir, timeout: 60_000, maxBuffer: 10 * 1024 * 1024 },
-    );
+    const { stdout } = await execAsync('kubectl diff -f . 2>&1 || true', {
+      cwd: workdir,
+      timeout: 60_000,
+      maxBuffer: 10 * 1024 * 1024,
+    });
 
     const changes = parseKubectlDiffOutput(stdout);
     const summary = summarizeChanges(changes);
@@ -237,10 +245,7 @@ async function generateKubectlPreview(
  * Run `helm template` to render the chart locally and report the
  * rendered manifests as a single create change.
  */
-async function generateHelmPreview(
-  action: string,
-  workdir: string,
-): Promise<DeployPreview> {
+async function generateHelmPreview(action: string, workdir: string): Promise<DeployPreview> {
   const base = {
     tool: 'helm',
     action,
@@ -249,10 +254,11 @@ async function generateHelmPreview(
 
   try {
     // Use helm template to show what would be deployed
-    const { stdout } = await execAsync(
-      'helm template . 2>&1',
-      { cwd: workdir, timeout: 60_000, maxBuffer: 10 * 1024 * 1024 },
-    );
+    const { stdout } = await execAsync('helm template . 2>&1', {
+      cwd: workdir,
+      timeout: 60_000,
+      maxBuffer: 10 * 1024 * 1024,
+    });
 
     return {
       ...base,
@@ -323,7 +329,7 @@ function parseTerraformPlanOutput(output: string): ResourceChange[] {
 
     // Also match: "Plan: X to add, Y to change, Z to destroy."
     const summaryMatch = line.match(
-      /Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy/,
+      /Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy/
     );
     if (summaryMatch && changes.length === 0) {
       // If we didn't find specific resources, create generic entries
@@ -404,11 +410,17 @@ function summarizeChanges(changes: ResourceChange[]): DeployPreview['summary'] {
  */
 function getChangeSymbol(action: ResourceChange['action']): string {
   switch (action) {
-    case 'create': return '+';
-    case 'update': return '~';
-    case 'destroy': return '-';
-    case 'replace': return '+/-';
-    case 'read': return '>';
-    case 'no-op': return '=';
+    case 'create':
+      return '+';
+    case 'update':
+      return '~';
+    case 'destroy':
+      return '-';
+    case 'replace':
+      return '+/-';
+    case 'read':
+      return '>';
+    case 'no-op':
+      return '=';
   }
 }

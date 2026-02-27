@@ -1,5 +1,11 @@
 import { logger } from '../utils';
-import type { AgentPlan, PlanStep, ExecutionResult, ExecutionLog, ExecutionArtifact } from './orchestrator';
+import type {
+  AgentPlan,
+  PlanStep,
+  ExecutionResult,
+  ExecutionLog,
+  ExecutionArtifact,
+} from './orchestrator';
 import { TerraformOperations } from '../tools/terraform-ops';
 import { FileSystemOperations } from '../tools/file-ops';
 import { saveCheckpoint, getLatestCheckpoint, deleteCheckpoints } from '../state/checkpoints';
@@ -41,9 +47,18 @@ class ExecutionError extends Error {
 
 /** Thin adapter for generator functionality used by executor steps. */
 interface GeneratorAdapter {
-  renderTemplate(templateId: string, variables: Record<string, unknown>): Promise<{ rendered_content: string }>;
-  analyzeBestPractices(component: string, config: Record<string, unknown>): Promise<{ summary?: { total_violations?: number } }>;
-  applyAutofixes(component: string, config: Record<string, unknown>): Promise<{ fixes_applied?: number }>;
+  renderTemplate(
+    templateId: string,
+    variables: Record<string, unknown>
+  ): Promise<{ rendered_content: string }>;
+  analyzeBestPractices(
+    component: string,
+    config: Record<string, unknown>
+  ): Promise<{ summary?: { total_violations?: number } }>;
+  applyAutofixes(
+    component: string,
+    config: Record<string, unknown>
+  ): Promise<{ fixes_applied?: number }>;
 }
 
 /**
@@ -51,13 +66,17 @@ interface GeneratorAdapter {
  * Generates simple template content without HTTP round-trips.
  */
 class LocalGeneratorAdapter implements GeneratorAdapter {
-  async renderTemplate(templateId: string, variables: Record<string, unknown>): Promise<{ rendered_content: string }> {
+  async renderTemplate(
+    templateId: string,
+    variables: Record<string, unknown>
+  ): Promise<{ rendered_content: string }> {
     // Simple inline template rendering for common terraform templates
     const parts = templateId.split('/'); // e.g. terraform/aws/vpc
     const component = parts[2] || parts[parts.length - 1] || 'unknown';
     const provider = parts[1] || 'aws';
 
-    const rendered_content = `# Generated ${component.toUpperCase()} configuration\n` +
+    const rendered_content =
+      `# Generated ${component.toUpperCase()} configuration\n` +
       `# Provider: ${provider}\n` +
       `# Variables: ${JSON.stringify(variables, null, 2)}\n\n` +
       `resource "${provider}_${component}" "main" {\n` +
@@ -120,6 +139,13 @@ export class Executor {
   }
 
   /**
+   * Create a TerraformOperations instance bound to a specific working directory.
+   */
+  private tfOpsForDir(workDir: string): TerraformOperations {
+    return new TerraformOperations(workDir);
+  }
+
+  /**
    * Execute a plan
    */
   async executePlan(plan: AgentPlan): Promise<ExecutionResult[]> {
@@ -159,7 +185,7 @@ export class Executor {
 
       // Execute ready steps in parallel with retry
       const stepResults = await Promise.allSettled(
-        readySteps.map((step) => this.executeWithRetry(plan.id, step))
+        readySteps.map(step => this.executeWithRetry(plan.id, step))
       );
 
       // Process results
@@ -176,7 +202,7 @@ export class Executor {
             const checkpointId = `ckpt_${plan.id}_${step.order}`;
             await saveCheckpoint(checkpointId, plan.id, step.order, {
               completedStepIds: Array.from(executedSteps),
-              results: results.map((r) => ({
+              results: results.map(r => ({
                 id: r.id,
                 plan_id: r.plan_id,
                 step_id: r.step_id,
@@ -248,13 +274,17 @@ export class Executor {
     // The orchestrator will provide the plan; this method is a convenience wrapper
     // that confirms a checkpoint exists before the orchestrator re-invokes executePlan.
 
-    return checkpoint.state.results as ExecutionResult[] || [];
+    return (checkpoint.state.results as ExecutionResult[]) || [];
   }
 
   /**
    * Execute a step with retry logic and exponential backoff
    */
-  private async executeWithRetry(planId: string, step: PlanStep, maxRetries = 3): Promise<ExecutionResult> {
+  private async executeWithRetry(
+    planId: string,
+    step: PlanStep,
+    maxRetries = 3
+  ): Promise<ExecutionResult> {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const result = await this.executeStep(planId, step);
@@ -266,7 +296,9 @@ export class Executor {
           return result;
         }
         // Retry on transient failure results
-        logger.warn(`Step ${step.id} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying...`);
+        logger.warn(
+          `Step ${step.id} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying...`
+        );
         await this.delay(1000 * Math.pow(2, attempt));
         // Reset step status for retry
         step.status = 'pending';
@@ -288,7 +320,9 @@ export class Executor {
             },
           };
         }
-        logger.warn(`Step ${step.id} threw error (attempt ${attempt + 1}/${maxRetries + 1}), retrying...`);
+        logger.warn(
+          `Step ${step.id} threw error (attempt ${attempt + 1}/${maxRetries + 1}), retrying...`
+        );
         await this.delay(1000 * Math.pow(2, attempt));
         step.status = 'pending';
       }
@@ -301,7 +335,7 @@ export class Executor {
    * Delay helper for retry backoff
    */
   private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
@@ -422,16 +456,20 @@ export class Executor {
    * Get steps that are ready for execution
    */
   private getReadySteps(steps: PlanStep[], executedSteps: Set<string>): PlanStep[] {
-    return steps.filter((step) => {
+    return steps.filter(step => {
       // Skip already executed steps
-      if (executedSteps.has(step.id)) return false;
+      if (executedSteps.has(step.id)) {
+        return false;
+      }
 
       // Skip failed/completed steps
-      if (step.status === 'completed' || step.status === 'failed') return false;
+      if (step.status === 'completed' || step.status === 'failed') {
+        return false;
+      }
 
       // Check if all dependencies are satisfied
       if (step.depends_on && step.depends_on.length > 0) {
-        return step.depends_on.every((depId) => executedSteps.has(depId));
+        return step.depends_on.every(depId => executedSteps.has(depId));
       }
 
       return true;
@@ -447,7 +485,7 @@ export class Executor {
   ): Promise<Record<string, unknown>> {
     this.log(executionId, 'info', 'Validating infrastructure requirements');
 
-    const { provider, components, requirements } = step.parameters;
+    const { provider, components, requirements: _requirements } = step.parameters;
 
     // Validate provider
     if (!['aws', 'gcp', 'azure'].includes(provider as string)) {
@@ -508,10 +546,14 @@ export class Executor {
     const outputPath = `/tmp/nimbus/${executionId}/${component}.tf`;
 
     try {
-      await this.fsOps.write(outputPath, generatedCode, { createDirs: true });
+      await this.fsOps.writeFile(outputPath, generatedCode, { createDirs: true });
       this.log(executionId, 'info', `Wrote generated code to: ${outputPath}`);
     } catch (error) {
-      this.log(executionId, 'warn', `File write unavailable, file not written: ${(error as Error).message}`);
+      this.log(
+        executionId,
+        'warn',
+        `File write unavailable, file not written: ${(error as Error).message}`
+      );
     }
 
     // Create artifact
@@ -551,17 +593,19 @@ export class Executor {
     const workDir = (step.parameters.workDir as string) || `/tmp/nimbus/${executionId}`;
 
     try {
+      const tfOps = this.tfOpsForDir(workDir);
+
       // Initialize terraform first (needed for validation)
       this.log(executionId, 'info', 'Initializing Terraform for validation...');
-      await this.terraformOps.init(workDir);
+      await tfOps.init();
 
       // Run terraform validate
       this.log(executionId, 'info', 'Running Terraform validate...');
-      const validateResult = await this.terraformOps.validate(workDir);
+      const validateResult = await tfOps.validate();
 
       // Format terraform files
       this.log(executionId, 'info', 'Formatting Terraform files...');
-      await this.terraformOps.fmt(workDir, { recursive: true });
+      await tfOps.fmt({ recursive: true });
 
       const validationResults = {
         syntax_valid: validateResult.valid,
@@ -602,7 +646,7 @@ export class Executor {
 
     try {
       // Analyze best practices for each component using local adapter
-      for (const component of (components as string[])) {
+      for (const component of components as string[]) {
         this.log(executionId, 'info', `Analyzing best practices for ${component}...`);
 
         const report = await this.generatorAdapter.analyzeBestPractices(
@@ -638,13 +682,14 @@ export class Executor {
         violations_found: totalViolations,
         violations_fixed: totalFixed,
         component_reports: componentReports,
-        compliance_score: totalViolations === 0 ? 100 : Math.max(0, 100 - (totalViolations - totalFixed) * 5),
+        compliance_score:
+          totalViolations === 0 ? 100 : Math.max(0, 100 - (totalViolations - totalFixed) * 5),
       };
     } catch (error) {
-      throw new ExecutionError(
-        `Step 'apply_best_practices' failed: ${(error as Error).message}.`,
-        { step: 'apply_best_practices', cause: error }
-      );
+      throw new ExecutionError(`Step 'apply_best_practices' failed: ${(error as Error).message}.`, {
+        step: 'apply_best_practices',
+        cause: error,
+      });
     }
   }
 
@@ -660,28 +705,25 @@ export class Executor {
     const workDir = (step.parameters.workDir as string) || `/tmp/nimbus/${executionId}`;
 
     try {
+      const tfOps = this.tfOpsForDir(workDir);
+
       // Initialize terraform first
       this.log(executionId, 'info', 'Initializing Terraform...');
-      await this.terraformOps.init(workDir);
+      await tfOps.init();
 
       // Run terraform plan
       this.log(executionId, 'info', 'Running Terraform plan...');
-      const planResult = await this.terraformOps.plan(workDir, {
+      const planResult = await tfOps.plan({
         out: `${workDir}/plan.tfplan`,
         varFile: step.parameters.varFile as string | undefined,
       });
 
-      this.log(
-        executionId,
-        'info',
-        `Plan: ${planResult.changes.to_add} to add, ${planResult.changes.to_change} to change, ${planResult.changes.to_destroy} to destroy`
-      );
+      this.log(executionId, 'info', `Plan: hasChanges=${planResult.hasChanges}`);
 
       return {
         plan_output: planResult.output,
-        changes: planResult.changes,
+        has_changes: planResult.hasChanges,
         plan_file: `${workDir}/plan.tfplan`,
-        resource_changes: planResult.resourceChanges,
       };
     } catch (error) {
       throw new ExecutionError(
@@ -705,11 +747,12 @@ export class Executor {
     const planFile = step.parameters.planFile as string | undefined;
 
     try {
+      const tfOps = this.tfOpsForDir(workDir);
       const startTime = Date.now();
 
       // Run terraform apply
       this.log(executionId, 'info', 'Running Terraform apply...');
-      const applyResult = await this.terraformOps.apply(workDir, {
+      const applyResult = await tfOps.apply({
         autoApprove,
         planFile,
         varFile: step.parameters.varFile as string | undefined,
@@ -718,15 +761,12 @@ export class Executor {
 
       const deploymentTime = Date.now() - startTime;
 
-      this.log(executionId, 'info', `Deployment completed: ${applyResult.resourcesCreated} resources created`);
+      this.log(executionId, 'info', `Deployment completed successfully`);
 
       return {
         applied: applyResult.success,
-        resources_created: applyResult.resourcesCreated,
-        resources_updated: applyResult.resourcesUpdated,
-        resources_deleted: applyResult.resourcesDeleted,
         deployment_time: deploymentTime,
-        outputs: applyResult.outputs,
+        output: applyResult.output,
       };
     } catch (error) {
       throw new ExecutionError(
@@ -749,25 +789,33 @@ export class Executor {
     const workDir = (step.parameters.workDir as string) || `/tmp/nimbus/${executionId}`;
 
     try {
+      const tfOps = this.tfOpsForDir(workDir);
+
       // Validate terraform state
       this.log(executionId, 'info', 'Validating Terraform configuration...');
-      const validateResult = await this.terraformOps.validate(workDir);
+      const validateResult = await tfOps.validate();
 
       if (!validateResult.valid) {
-        this.log(executionId, 'error', `Validation failed with ${validateResult.errorCount} errors`);
+        this.log(
+          executionId,
+          'error',
+          `Validation failed with ${validateResult.errorCount} errors`
+        );
         return {
           verification_passed: false,
           validation_errors: validateResult.diagnostics.filter((d: any) => d.severity === 'error'),
-          validation_warnings: validateResult.diagnostics.filter((d: any) => d.severity === 'warning'),
+          validation_warnings: validateResult.diagnostics.filter(
+            (d: any) => d.severity === 'warning'
+          ),
         };
       }
 
       // Get terraform outputs
       this.log(executionId, 'info', 'Retrieving Terraform outputs...');
-      const outputs = await this.terraformOps.output(workDir);
+      const outputs = await tfOps.output();
 
       // Build component checks
-      const checks = (components as string[]).map((component) => ({
+      const checks = (components as string[]).map(component => ({
         component,
         status: 'passed',
         checks_passed: 10,
@@ -820,12 +868,12 @@ export class Executor {
       const diagramGen = new DiagramGenerator();
       const diagramContent = diagramGen.generateInfrastructureDiagram(
         components as string[],
-        'aws',
+        'aws'
       );
       const diagramPath = `/tmp/nimbus/${executionId}/architecture.txt`;
 
       try {
-        await this.fsOps.write(diagramPath, diagramContent, { createDirs: true });
+        await this.fsOps.writeFile(diagramPath, diagramContent, { createDirs: true });
       } catch {
         // Best-effort write
       }
@@ -949,10 +997,12 @@ export class Executor {
    * Helper: Generate README
    */
   private generateReadme(components: string[]): string {
-    return `# Infrastructure Documentation\n\n` +
-      `## Components\n\n` +
-      components.map((c) => `- ${c.toUpperCase()}`).join('\n') +
-      `\n\n## Deployment\n\nRun \`terraform apply\` to deploy.\n`;
+    return (
+      `# Infrastructure Documentation\n\n` +
+      `## Components\n\n${components
+        .map(c => `- ${c.toUpperCase()}`)
+        .join('\n')}\n\n## Deployment\n\nRun \`terraform apply\` to deploy.\n`
+    );
   }
 
   /**
@@ -973,7 +1023,7 @@ export class Executor {
    * Helper: Sleep
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**

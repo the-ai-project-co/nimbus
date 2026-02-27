@@ -596,7 +596,9 @@ override.tf.json
  */
 function generateTemplateFiles(templateName: string, outputDir: string, projectName: string): void {
   const template = TEMPLATES[templateName];
-  if (!template) return;
+  if (!template) {
+    return;
+  }
 
   for (const [filePath, content] of Object.entries(template.files)) {
     const fullPath = path.join(outputDir, filePath);
@@ -635,7 +637,8 @@ function displayScanSummary(context: ProjectContext): void {
     ui.print(`  ${ui.bold('Languages:')}`);
     for (const lang of context.structure.languages.slice(0, 5)) {
       const version = lang.version ? ` (${lang.version})` : '';
-      const confidence = lang.confidence === 'high' ? ui.color('●', 'green') : ui.color('○', 'yellow');
+      const confidence =
+        lang.confidence === 'high' ? ui.color('●', 'green') : ui.color('○', 'yellow');
       ui.print(`    ${confidence} ${lang.name}${version}`);
     }
     if (context.structure.languages.length > 5) {
@@ -649,7 +652,8 @@ function displayScanSummary(context: ProjectContext): void {
     ui.print(`  ${ui.bold('Frameworks:')}`);
     for (const fw of context.structure.frameworks.slice(0, 5)) {
       const version = fw.version ? ` (${fw.version})` : '';
-      const confidence = fw.confidence === 'high' ? ui.color('●', 'green') : ui.color('○', 'yellow');
+      const confidence =
+        fw.confidence === 'high' ? ui.color('●', 'green') : ui.color('○', 'yellow');
       ui.print(`    ${confidence} ${fw.name}${version}`);
     }
     if (context.structure.frameworks.length > 5) {
@@ -667,16 +671,19 @@ function displayScanSummary(context: ProjectContext): void {
   }
 
   // Infrastructure
-  const hasInfra = context.files.terraform.length > 0 ||
-                   context.files.kubernetes.length > 0 ||
-                   context.files.docker.length > 0;
+  const hasInfra =
+    context.files.terraform.length > 0 ||
+    context.files.kubernetes.length > 0 ||
+    context.files.docker.length > 0;
   if (hasInfra) {
     ui.print(`  ${ui.bold('Infrastructure:')}`);
     if (context.files.terraform.length > 0) {
       ui.print(`    ${ui.color('●', 'green')} Terraform (${context.files.terraform.length} files)`);
     }
     if (context.files.kubernetes.length > 0) {
-      ui.print(`    ${ui.color('●', 'green')} Kubernetes (${context.files.kubernetes.length} files)`);
+      ui.print(
+        `    ${ui.color('●', 'green')} Kubernetes (${context.files.kubernetes.length} files)`
+      );
     }
     if (context.files.docker.length > 0) {
       ui.print(`    ${ui.color('●', 'green')} Docker (${context.files.docker.length} files)`);
@@ -687,7 +694,9 @@ function displayScanSummary(context: ProjectContext): void {
   // CI/CD
   if (context.cicd.platform) {
     ui.print(`  ${ui.bold('CI/CD:')}`);
-    ui.print(`    ${ui.color('●', 'green')} ${context.cicd.platform} (${context.cicd.workflows.length} workflows)`);
+    ui.print(
+      `    ${ui.color('●', 'green')} ${context.cicd.platform} (${context.cicd.workflows.length} workflows)`
+    );
     ui.newLine();
   }
 
@@ -750,7 +759,7 @@ function createWorkspaceConfig(options: {
   lines.push('  protectedEnvironments: [production, prod]');
   lines.push('  costThreshold: 500');
 
-  return lines.join('\n') + '\n';
+  return `${lines.join('\n')}\n`;
 }
 
 /**
@@ -841,10 +850,10 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       }
     }
 
-    provider = await select({
+    provider = (await select({
       message: 'Default cloud provider:',
       options: providerOptions,
-    }) as string;
+    })) as string;
 
     // Output directory
     const defaultOutput = context.files.terraform.length > 0 ? './terraform' : './infrastructure';
@@ -872,7 +881,8 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   } else {
     // Non-interactive: use detected or default values
     provider = provider || context.cloud.providers[0] || '';
-    outputDir = outputDir || (context.files.terraform.length > 0 ? './terraform' : './infrastructure');
+    outputDir =
+      outputDir || (context.files.terraform.length > 0 ? './terraform' : './infrastructure');
   }
 
   // Update context with user-provided name
@@ -965,7 +975,9 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
           if (fs.existsSync(telemetryConfigPath)) {
             telemetryConfig = JSON.parse(fs.readFileSync(telemetryConfigPath, 'utf-8'));
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
 
         const { randomUUID } = await import('crypto');
         telemetryConfig.telemetry = {
@@ -1022,9 +1034,13 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   ui.print(`  ${ui.dim('1.')} Run ${ui.color('nimbus login', 'cyan')} to configure authentication`);
   ui.print(`  ${ui.dim('2.')} Run ${ui.color('nimbus chat', 'cyan')} to start a conversation`);
   if (context.files.terraform.length > 0) {
-    ui.print(`  ${ui.dim('3.')} Run ${ui.color('nimbus plan terraform', 'cyan')} to preview infrastructure`);
+    ui.print(
+      `  ${ui.dim('3.')} Run ${ui.color('nimbus plan terraform', 'cyan')} to preview infrastructure`
+    );
   } else {
-    ui.print(`  ${ui.dim('3.')} Run ${ui.color('nimbus generate terraform', 'cyan')} to generate infrastructure`);
+    ui.print(
+      `  ${ui.dim('3.')} Run ${ui.color('nimbus generate terraform', 'cyan')} to generate infrastructure`
+    );
   }
   ui.newLine();
 }

@@ -24,13 +24,18 @@ import type {
   ToolCompletionRequest,
   ToolDefinition as LLMToolDefinition,
 } from '../llm/types';
-import type { ToolDefinition, ToolResult } from '../tools/schemas/types';
-import { ToolRegistry, toOpenAITool } from '../tools/schemas/types';
+import {
+  toOpenAITool,
+  type ToolDefinition,
+  type ToolResult,
+  type ToolRegistry,
+} from '../tools/schemas/types';
 import { buildSystemPrompt, type AgentMode } from './system-prompt';
-import type { ContextManager } from './context-manager';
-import type { CompactionResult } from './context-manager';
+import type { ContextManager, CompactionResult } from './context-manager';
 import { runCompaction } from './compaction-agent';
 import type { LSPManager } from '../lsp/manager';
+import { SnapshotManager } from '../snapshots/manager';
+import { calculateCost } from '../llm/cost-calculator';
 
 // ---------------------------------------------------------------------------
 // Public Types
@@ -72,10 +77,7 @@ export interface AgentLoopOptions {
    * Callback to check permission before tool execution.
    * If omitted, all tools are executed without prompting.
    */
-  checkPermission?: (
-    tool: ToolDefinition,
-    input: unknown,
-  ) => Promise<PermissionDecision>;
+  checkPermission?: (tool: ToolDefinition, input: unknown) => Promise<PermissionDecision>;
 
   /** AbortSignal for cancellation (Ctrl+C). */
   signal?: AbortSignal;
@@ -97,6 +99,16 @@ export interface AgentLoopOptions {
    *  and appends any diagnostics to the tool result so the LLM can
    *  self-correct type errors and other issues. */
   lspManager?: LSPManager;
+
+  /** Optional snapshot manager for auto-capture before file-editing tools.
+   *  When provided, a snapshot is captured before each file-modifying tool
+   *  call so users can undo/redo changes. */
+  snapshotManager?: SnapshotManager;
+
+  /** Callback fired after each LLM turn with accumulated usage and cost.
+   *  Allows the TUI to update cost/token display in real-time during
+   *  multi-turn agent loops, not just at the end. */
+  onUsage?: (usage: AgentLoopUsage, costUSD: number) => void;
 }
 
 /** Information about a tool call in progress. */
@@ -163,6 +175,10 @@ const DEFAULT_MAX_TOKENS = 8192;
 /** Default maximum number of agent turns. */
 const DEFAULT_MAX_TURNS = 50;
 
+/** Maximum characters of tool output to include in conversation history.
+ *  Anything beyond this is truncated to prevent context window overflow. */
+const MAX_TOOL_OUTPUT_CHARS = 100_000;
+
 // ---------------------------------------------------------------------------
 // Main Entry Point
 // ---------------------------------------------------------------------------
@@ -187,7 +203,7 @@ const DEFAULT_MAX_TURNS = 50;
 export async function runAgentLoop(
   userMessage: string,
   history: LLMMessage[],
-  options: AgentLoopOptions,
+  options: AgentLoopOptions
 ): Promise<AgentLoopResult> {
   const {
     router,
@@ -225,10 +241,7 @@ export async function runAgentLoop(
   // 2. Initialize conversation state
   // -----------------------------------------------------------------------
 
-  const messages: LLMMessage[] = [
-    ...history,
-    { role: 'user', content: userMessage },
-  ];
+  const messages: LLMMessage[] = [...history, { role: 'user', content: userMessage }];
 
   let turns = 0;
   let interrupted = false;
@@ -255,40 +268,69 @@ export async function runAgentLoop(
     try {
       // Build the completion request with tool definitions
       const request: ToolCompletionRequest = {
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages,
-        ],
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
         model: model ?? DEFAULT_MODEL,
         tools: llmTools,
         maxTokens: DEFAULT_MAX_TOKENS,
       };
 
-      // Call the LLM via the router (handles provider selection, fallback,
-      // model alias resolution, and cost calculation)
-      const response = await router.routeWithTools(request);
+      // Stream text tokens incrementally via routeStreamWithTools.
+      // Tokens are forwarded to onText as they arrive; tool calls
+      // are accumulated from the final chunk.
+      let responseContent = '';
+      let responseToolCalls: ToolCall[] | undefined;
+      let responseUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
-      // Accumulate usage
-      totalUsage.promptTokens += response.usage.promptTokens;
-      totalUsage.completionTokens += response.usage.completionTokens;
-      totalUsage.totalTokens += response.usage.totalTokens;
-
-      if (response.cost) {
-        totalCost += response.cost.costUSD;
+      for await (const chunk of router.routeStreamWithTools(request)) {
+        if (chunk.content) {
+          responseContent += chunk.content;
+          if (onText) {
+            onText(chunk.content);
+          }
+        }
+        if (chunk.toolCallStart && onText) {
+          // Show early feedback when the LLM starts composing a tool call
+          onText(`\n[Preparing tool: ${chunk.toolCallStart.name}...]\n`);
+        }
+        if (chunk.toolCalls) {
+          responseToolCalls = chunk.toolCalls;
+        }
+        if (chunk.usage) {
+          responseUsage = chunk.usage;
+        }
       }
 
-      // Emit text content to the streaming callback
-      if (response.content && onText) {
-        onText(response.content);
+      // Accumulate usage and cost
+      totalUsage.promptTokens += responseUsage.promptTokens;
+      totalUsage.completionTokens += responseUsage.completionTokens;
+      totalUsage.totalTokens += responseUsage.totalTokens;
+
+      // Estimate cost for this turn
+      const resolvedModel = model ?? DEFAULT_MODEL;
+      const providerName = resolvedModel.includes('/') ? resolvedModel.split('/')[0] : 'anthropic';
+      const modelName = resolvedModel.includes('/')
+        ? resolvedModel.split('/').slice(1).join('/')
+        : resolvedModel;
+      const turnCost = calculateCost(
+        providerName,
+        modelName,
+        responseUsage.promptTokens,
+        responseUsage.completionTokens
+      );
+      totalCost += turnCost.costUSD;
+
+      // Notify caller of accumulated usage/cost after each turn
+      if (options.onUsage) {
+        options.onUsage(totalUsage, totalCost);
       }
 
       // -----------------------------------------------------------------
       // No tool calls → the LLM is done
       // -----------------------------------------------------------------
-      if (!response.toolCalls || response.toolCalls.length === 0) {
+      if (!responseToolCalls || responseToolCalls.length === 0) {
         messages.push({
           role: 'assistant',
-          content: response.content,
+          content: responseContent,
         });
         break;
       }
@@ -300,12 +342,12 @@ export async function runAgentLoop(
       // Append the assistant message that contains the tool calls
       messages.push({
         role: 'assistant',
-        content: response.content,
-        toolCalls: response.toolCalls,
+        content: responseContent,
+        toolCalls: responseToolCalls,
       });
 
       // Process tool calls sequentially (order may matter for side effects)
-      for (const toolCall of response.toolCalls) {
+      for (const toolCall of responseToolCalls) {
         // Check for cancellation between tool calls
         if (signal?.aborted) {
           interrupted = true;
@@ -319,23 +361,34 @@ export async function runAgentLoop(
           onToolCallEnd,
           checkPermission,
           options.lspManager,
+          options.snapshotManager,
+          options.sessionId,
+          signal
         );
 
         // Append each tool result as a separate message so the LLM can
         // match it to the corresponding tool_use block by toolCallId.
+        let toolContent = result.isError ? `Error: ${result.error}` : result.output;
+
+        // Truncate excessively large tool outputs to prevent context overflow
+        if (toolContent.length > MAX_TOOL_OUTPUT_CHARS) {
+          const truncatedLength = toolContent.length;
+          toolContent = `${toolContent.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n\n... [Output truncated: ${truncatedLength.toLocaleString()} chars total, showing first ${MAX_TOOL_OUTPUT_CHARS.toLocaleString()}]`;
+        }
+
         messages.push({
           role: 'tool',
           toolCallId: toolCall.id,
           name: toolCall.function.name,
-          content: result.isError
-            ? `Error: ${result.error}`
-            : result.output,
+          content: toolContent,
         });
       }
 
       // If we broke out of the tool-call loop due to cancellation, exit
       // the main loop as well.
-      if (interrupted) break;
+      if (interrupted) {
+        break;
+      }
 
       // -----------------------------------------------------------------
       // Auto-compact check
@@ -346,33 +399,29 @@ export async function runAgentLoop(
       if (options.contextManager) {
         const toolTokens = llmTools.reduce(
           (sum, t) => sum + Math.ceil(JSON.stringify(t).length / 4),
-          0,
+          0
         );
-        if (
-          options.contextManager.shouldCompact(
-            systemPrompt,
-            messages,
-            toolTokens,
-          )
-        ) {
+        if (options.contextManager.shouldCompact(systemPrompt, messages, toolTokens)) {
           try {
-            const compactResult = await runCompaction(
-              messages,
-              options.contextManager,
-              { router },
-            );
+            const compactResult = await runCompaction(messages, options.contextManager, { router });
             // Replace messages with the compacted version
             messages.length = 0;
             messages.push(...compactResult.messages);
             if (options.onCompact) {
               options.onCompact(compactResult.result);
             }
-          } catch {
-            // Compaction failed — continue with original messages
+          } catch (compactErr) {
+            // Compaction failed — notify user visibly and continue with original messages
+            const compactErrMsg =
+              compactErr instanceof Error ? compactErr.message : String(compactErr);
+            if (onText) {
+              onText(
+                `\n[Warning: Auto-compaction failed: ${compactErrMsg}. Context may exceed budget on the next turn.]\n`
+              );
+            }
           }
         }
       }
-
     } catch (error: unknown) {
       // LLM API error — report to the caller and break
       const msg = error instanceof Error ? error.message : String(error);
@@ -393,9 +442,7 @@ export async function runAgentLoop(
 
   if (turns >= maxTurns && !interrupted) {
     if (onText) {
-      onText(
-        `\n[Agent reached maximum turns limit (${maxTurns}). Stopping.]\n`,
-      );
+      onText(`\n[Agent reached maximum turns limit (${maxTurns}). Stopping.]\n`);
     }
   }
 
@@ -422,7 +469,9 @@ const FILE_EDITING_TOOLS = new Set(['edit_file', 'multi_edit', 'write_file']);
  * the target file. Returns `null` for non-file tools.
  */
 function extractFilePath(toolName: string, input: unknown): string | null {
-  if (!FILE_EDITING_TOOLS.has(toolName)) return null;
+  if (!FILE_EDITING_TOOLS.has(toolName)) {
+    return null;
+  }
   if (input && typeof input === 'object' && 'path' in input) {
     return (input as { path: string }).path;
   }
@@ -454,11 +503,11 @@ async function executeToolCall(
   registry: ToolRegistry,
   onStart?: (info: ToolCallInfo) => void,
   onEnd?: (info: ToolCallInfo, result: ToolResult) => void,
-  checkPermission?: (
-    tool: ToolDefinition,
-    input: unknown,
-  ) => Promise<PermissionDecision>,
+  checkPermission?: (tool: ToolDefinition, input: unknown) => Promise<PermissionDecision>,
   lspManager?: LSPManager,
+  snapshotManager?: SnapshotManager,
+  sessionId?: string,
+  signal?: AbortSignal
 ): Promise<ToolResult> {
   const toolName = toolCall.function.name;
 
@@ -489,7 +538,9 @@ async function executeToolCall(
       error: `Unknown tool: ${toolName}`,
       isError: true,
     };
-    if (onEnd) onEnd(callInfo, result);
+    if (onEnd) {
+      onEnd(callInfo, result);
+    }
     return result;
   }
 
@@ -510,8 +561,27 @@ async function executeToolCall(
             : `User denied permission for tool '${toolName}'.`,
         isError: true,
       };
-      if (onEnd) onEnd(callInfo, result);
+      if (onEnd) {
+        onEnd(callInfo, result);
+      }
       return result;
+    }
+  }
+
+  // Capture snapshot before file-modifying tools for undo/redo support
+  if (
+    snapshotManager &&
+    SnapshotManager.shouldSnapshot(toolName, parsedArgs as Record<string, unknown>)
+  ) {
+    try {
+      await snapshotManager.captureSnapshot({
+        sessionId: sessionId || 'default',
+        messageId: toolCall.id,
+        toolCallId: toolCall.id,
+        description: `${toolName}: ${extractFilePath(toolName, parsedArgs) || '(bash command)'}`,
+      });
+    } catch {
+      // Snapshot failure should never block the tool call
     }
   }
 
@@ -519,6 +589,12 @@ async function executeToolCall(
   let result: ToolResult;
   try {
     const validatedInput = tool.inputSchema.parse(parsedArgs);
+
+    // Thread AbortSignal into bash tool for Ctrl+C child process killing
+    if (signal && toolName === 'bash' && validatedInput && typeof validatedInput === 'object') {
+      (validatedInput as Record<string, unknown>)._signal = signal;
+    }
+
     result = await tool.execute(validatedInput);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -547,14 +623,20 @@ async function executeToolCall(
           if (formatted) {
             result = {
               ...result,
-              output: result.output
-                ? `${result.output}\n\n${formatted}`
-                : formatted,
+              output: result.output ? `${result.output}\n\n${formatted}` : formatted,
             };
           }
         }
-      } catch {
-        // LSP errors should never block the agent loop
+      } catch (lspErr) {
+        // LSP errors should never block the agent loop.
+        // Append a note to the tool result so the LLM (and user) can see it.
+        const lspErrMsg = lspErr instanceof Error ? lspErr.message : String(lspErr);
+        result = {
+          ...result,
+          output: result.output
+            ? `${result.output}\n\n[Note: LSP diagnostics unavailable: ${lspErrMsg}]`
+            : `[Note: LSP diagnostics unavailable: ${lspErrMsg}]`,
+        };
       }
     }
   }
@@ -600,12 +682,7 @@ const PLAN_MODE_TOOLS = new Set([
  * environments.  The permission engine provides fine-grained control on
  * top of this coarse filter.
  */
-const BUILD_MODE_BLOCKED_TOOLS = new Set([
-  'terraform',
-  'kubectl',
-  'helm',
-  'deploy_preview',
-]);
+const BUILD_MODE_BLOCKED_TOOLS = new Set(['terraform', 'kubectl', 'helm']);
 
 /**
  * Filter tools based on the current agent mode.
@@ -618,16 +695,13 @@ const BUILD_MODE_BLOCKED_TOOLS = new Set([
  * @param mode - The active agent mode.
  * @returns The subset of tools available in the given mode.
  */
-export function getToolsForMode(
-  allTools: ToolDefinition[],
-  mode: AgentMode,
-): ToolDefinition[] {
+export function getToolsForMode(allTools: ToolDefinition[], mode: AgentMode): ToolDefinition[] {
   switch (mode) {
     case 'plan':
-      return allTools.filter((t) => PLAN_MODE_TOOLS.has(t.name));
+      return allTools.filter(t => PLAN_MODE_TOOLS.has(t.name));
 
     case 'build':
-      return allTools.filter((t) => !BUILD_MODE_BLOCKED_TOOLS.has(t.name));
+      return allTools.filter(t => !BUILD_MODE_BLOCKED_TOOLS.has(t.name));
 
     case 'deploy':
       // All tools available

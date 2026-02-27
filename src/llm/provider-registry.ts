@@ -7,16 +7,16 @@
  * Map of known provider prefixes used in "provider/model" format
  */
 const PROVIDER_MAP: Record<string, string> = {
-  'anthropic': 'anthropic',
-  'openai': 'openai',
-  'google': 'google',
+  anthropic: 'anthropic',
+  openai: 'openai',
+  google: 'google',
   'meta-llama': 'openrouter',
-  'mistralai': 'openrouter',
-  'groq': 'groq',
-  'together': 'together',
-  'deepseek': 'deepseek',
-  'fireworks': 'fireworks',
-  'perplexity': 'perplexity',
+  mistralai: 'openrouter',
+  groq: 'groq',
+  together: 'together',
+  deepseek: 'deepseek',
+  fireworks: 'fireworks',
+  perplexity: 'perplexity',
 };
 
 /**
@@ -38,11 +38,26 @@ export function detectProvider(model: string): string {
   }
 
   // Model name pattern matching
-  if (model.startsWith('claude')) return 'anthropic';
-  if (model.startsWith('gpt')) return 'openai';
-  if (model.startsWith('gemini')) return 'google';
-  if (model.startsWith('llama') || model.startsWith('mistral') || model.startsWith('codellama') || model.startsWith('phi')) return 'ollama';
-  if (model.startsWith('deepseek')) return 'deepseek';
+  if (model.startsWith('claude')) {
+    return 'anthropic';
+  }
+  if (model.startsWith('gpt')) {
+    return 'openai';
+  }
+  if (model.startsWith('gemini')) {
+    return 'google';
+  }
+  if (
+    model.startsWith('llama') ||
+    model.startsWith('mistral') ||
+    model.startsWith('codellama') ||
+    model.startsWith('phi')
+  ) {
+    return 'ollama';
+  }
+  if (model.startsWith('deepseek')) {
+    return 'deepseek';
+  }
 
   return 'anthropic'; // default
 }

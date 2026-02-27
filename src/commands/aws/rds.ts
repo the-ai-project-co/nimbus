@@ -20,10 +20,7 @@ import {
   type SafetyCheckResult,
 } from '../../config/safety-policy';
 import { promptForApproval } from '../../wizard/approval';
-import {
-  estimateCloudCost,
-  formatCostWarning,
-} from '../cost/cloud-cost-estimator';
+import { estimateCloudCost, formatCostWarning } from '../cost/cloud-cost-estimator';
 import type { AwsCommandOptions } from './index';
 
 interface RDSInstance {
@@ -103,7 +100,9 @@ function displayRdsCostWarning(instanceClass: string, multiAz: boolean): void {
     ui.newLine();
     ui.print(ui.bold('  Estimated Cost:'));
     ui.print(`    Hourly:  ${ui.color(`$${estimate.hourly.toFixed(4)}/hr`, color)}`);
-    ui.print(`    Monthly: ${ui.color(`$${estimate.monthly.toFixed(2)}/mo`, color)} (on-demand${multiAz ? ', Multi-AZ' : ''}, approximate)`);
+    ui.print(
+      `    Monthly: ${ui.color(`$${estimate.monthly.toFixed(2)}/mo`, color)} (on-demand${multiAz ? ', Multi-AZ' : ''}, approximate)`
+    );
     ui.newLine();
   }
 }
@@ -234,10 +233,7 @@ async function startInstance(identifier: string, options: AwsCommandOptions): Pr
   ui.startSpinner({ message: 'Starting instance...' });
 
   try {
-    await runAwsCommand(
-      `rds start-db-instance --db-instance-identifier ${identifier}`,
-      options
-    );
+    await runAwsCommand(`rds start-db-instance --db-instance-identifier ${identifier}`, options);
 
     ui.stopSpinnerSuccess('Instance starting');
     ui.info(`Instance ${identifier} is now starting`);
@@ -299,10 +295,7 @@ async function stopInstance(identifier: string, options: AwsCommandOptions): Pro
   ui.startSpinner({ message: 'Stopping instance...' });
 
   try {
-    await runAwsCommand(
-      `rds stop-db-instance --db-instance-identifier ${identifier}`,
-      options
-    );
+    await runAwsCommand(`rds stop-db-instance --db-instance-identifier ${identifier}`, options);
 
     ui.stopSpinnerSuccess('Instance stopping');
     ui.info(`Instance ${identifier} is now stopping`);
@@ -375,24 +368,28 @@ function displayInstanceTable(instances: RDSInstance[]): void {
   ]);
 
   // Print header
-  const headerRow = headers.map((h, i) => {
-    const maxWidth = Math.max(h.length, ...rows.map(r => r[i].length));
-    return h.padEnd(maxWidth);
-  }).join('  ');
+  const headerRow = headers
+    .map((h, i) => {
+      const maxWidth = Math.max(h.length, ...rows.map(r => r[i].length));
+      return h.padEnd(maxWidth);
+    })
+    .join('  ');
 
   ui.print(ui.bold(headerRow));
   ui.print('-'.repeat(headerRow.length));
 
   // Print rows
   for (const row of rows) {
-    const formattedRow = row.map((cell, i) => {
-      const maxWidth = Math.max(headers[i].length, ...rows.map(r => r[i].length));
-      if (i === 3) {
-        // Status column - colorize
-        return formatStatus(cell).padEnd(maxWidth + 10);
-      }
-      return cell.padEnd(maxWidth);
-    }).join('  ');
+    const formattedRow = row
+      .map((cell, i) => {
+        const maxWidth = Math.max(headers[i].length, ...rows.map(r => r[i].length));
+        if (i === 3) {
+          // Status column - colorize
+          return formatStatus(cell).padEnd(maxWidth + 10);
+        }
+        return cell.padEnd(maxWidth);
+      })
+      .join('  ');
 
     ui.print(formattedRow);
   }

@@ -190,11 +190,12 @@ async function listAccounts(options: AzureCommandOptions): Promise<void> {
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(30) +
+        `${
+          'Name'.padEnd(30) +
           'Resource Group'.padEnd(25) +
           'Location'.padEnd(15) +
-          'Kind'.padEnd(15) +
-          'Status',
+          'Kind'.padEnd(15)
+        }Status`,
         'cyan'
       )
     );
@@ -207,12 +208,7 @@ async function listAccounts(options: AzureCommandOptions): Promise<void> {
       const kind = account.kind?.substring(0, 14) || '';
       const status = account.provisioningState || '';
 
-      const statusColor =
-        status === 'Succeeded'
-          ? 'green'
-          : status === 'Failed'
-            ? 'red'
-            : 'white';
+      const statusColor = status === 'Succeeded' ? 'green' : status === 'Failed' ? 'red' : 'white';
 
       ui.print(
         `${name.padEnd(30)}${rg.padEnd(25)}${location.padEnd(15)}${kind.padEnd(15)}${ui.color(status, statusColor as 'green' | 'red' | 'white')}`
@@ -229,10 +225,7 @@ async function listAccounts(options: AzureCommandOptions): Promise<void> {
 /**
  * Show storage account details
  */
-async function showAccount(
-  accountName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function showAccount(accountName: string, options: AzureCommandOptions): Promise<void> {
   ui.header(`Storage Account: ${accountName}`);
   ui.newLine();
 
@@ -241,7 +234,17 @@ async function showAccount(
     return;
   }
 
-  const azArgs = ['storage', 'account', 'show', '-n', accountName, '-g', options.resourceGroup, '-o', 'json'];
+  const azArgs = [
+    'storage',
+    'account',
+    'show',
+    '-n',
+    accountName,
+    '-g',
+    options.resourceGroup,
+    '-o',
+    'json',
+  ];
   if (options.subscription) {
     azArgs.push('--subscription', options.subscription);
   }
@@ -275,10 +278,18 @@ async function showAccount(
 
     ui.print(ui.bold('Endpoints:'));
     const endpoints = account.primaryEndpoints || {};
-    if (endpoints.blob) ui.print(`  Blob:           ${endpoints.blob}`);
-    if (endpoints.file) ui.print(`  File:           ${endpoints.file}`);
-    if (endpoints.queue) ui.print(`  Queue:          ${endpoints.queue}`);
-    if (endpoints.table) ui.print(`  Table:          ${endpoints.table}`);
+    if (endpoints.blob) {
+      ui.print(`  Blob:           ${endpoints.blob}`);
+    }
+    if (endpoints.file) {
+      ui.print(`  File:           ${endpoints.file}`);
+    }
+    if (endpoints.queue) {
+      ui.print(`  Queue:          ${endpoints.queue}`);
+    }
+    if (endpoints.table) {
+      ui.print(`  Table:          ${endpoints.table}`);
+    }
   } catch (error: unknown) {
     ui.stopSpinnerFail('Failed to fetch details');
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -290,14 +301,21 @@ async function showAccount(
 /**
  * List containers in a storage account
  */
-async function listContainers(
-  accountName: string,
-  options: AzureCommandOptions
-): Promise<void> {
+async function listContainers(accountName: string, options: AzureCommandOptions): Promise<void> {
   ui.header(`Containers in ${accountName}`);
   ui.newLine();
 
-  const azArgs = ['storage', 'container', 'list', '--account-name', accountName, '-o', 'json', '--auth-mode', 'login'];
+  const azArgs = [
+    'storage',
+    'container',
+    'list',
+    '--account-name',
+    accountName,
+    '-o',
+    'json',
+    '--auth-mode',
+    'login',
+  ];
   if (options.subscription) {
     azArgs.push('--subscription', options.subscription);
   }
@@ -339,7 +357,11 @@ async function deleteContainer(
   options: AzureCommandOptions
 ): Promise<void> {
   // Run safety checks
-  const safetyResult = await runStorageSafetyChecks('delete', `${accountName}/${containerName}`, options);
+  const safetyResult = await runStorageSafetyChecks(
+    'delete',
+    `${accountName}/${containerName}`,
+    options
+  );
 
   displaySafetySummary({
     operation: `delete container ${containerName}`,
@@ -360,7 +382,17 @@ async function deleteContainer(
     }
   }
 
-  const azArgs = ['storage', 'container', 'delete', '--name', containerName, '--account-name', accountName, '--auth-mode', 'login'];
+  const azArgs = [
+    'storage',
+    'container',
+    'delete',
+    '--name',
+    containerName,
+    '--account-name',
+    accountName,
+    '--auth-mode',
+    'login',
+  ];
   if (options.subscription) {
     azArgs.push('--subscription', options.subscription);
   }
@@ -388,7 +420,19 @@ async function listBlobs(
   ui.header(`Blobs in ${accountName}/${containerName}`);
   ui.newLine();
 
-  const azArgs = ['storage', 'blob', 'list', '--container-name', containerName, '--account-name', accountName, '-o', 'json', '--auth-mode', 'login'];
+  const azArgs = [
+    'storage',
+    'blob',
+    'list',
+    '--container-name',
+    containerName,
+    '--account-name',
+    accountName,
+    '-o',
+    'json',
+    '--auth-mode',
+    'login',
+  ];
   if (options.subscription) {
     azArgs.push('--subscription', options.subscription);
   }

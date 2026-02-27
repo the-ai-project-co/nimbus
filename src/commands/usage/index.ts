@@ -74,7 +74,10 @@ export async function usageCommand(options: UsageOptions): Promise<void> {
     }
 
     ui.newLine();
-    ui.header('Usage Dashboard', `${new Date(usage.period.start).toLocaleDateString()} - ${new Date(usage.period.end).toLocaleDateString()}`);
+    ui.header(
+      'Usage Dashboard',
+      `${new Date(usage.period.start).toLocaleDateString()} - ${new Date(usage.period.end).toLocaleDateString()}`
+    );
 
     // Summary
     ui.section('Summary');

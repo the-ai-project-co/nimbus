@@ -13,15 +13,23 @@
  * @module tools/schemas/converter
  */
 
-import type { ToolDefinition } from './types';
-import { toAnthropicTool, toOpenAITool, toGoogleTool } from './types';
+import {
+  toAnthropicTool,
+  toOpenAITool,
+  toGoogleTool,
+  zodToJsonSchema,
+  type ToolDefinition,
+  type AnthropicTool,
+  type OpenAITool,
+  type GoogleTool,
+} from './types';
 
 // ---------------------------------------------------------------------------
 // Re-exports -- individual converters and provider-specific types
 // ---------------------------------------------------------------------------
 
-export { toAnthropicTool, toOpenAITool, toGoogleTool, zodToJsonSchema } from './types';
-export type { AnthropicTool, OpenAITool, GoogleTool } from './types';
+export { toAnthropicTool, toOpenAITool, toGoogleTool, zodToJsonSchema };
+export type { AnthropicTool, OpenAITool, GoogleTool };
 
 // ---------------------------------------------------------------------------
 // Provider Discriminator
@@ -48,12 +56,6 @@ export type Provider =
   | 'openrouter'
   | 'bedrock'
   | 'openai-compatible';
-
-// ---------------------------------------------------------------------------
-// Re-import provider-specific return types for use in signatures
-// ---------------------------------------------------------------------------
-
-import type { AnthropicTool, OpenAITool, GoogleTool } from './types';
 
 // ---------------------------------------------------------------------------
 // Batch Conversion Functions
@@ -127,7 +129,7 @@ export function toGoogleFormat(tools: ToolDefinition[]): GoogleTool {
  */
 export function toProviderFormat(
   tools: ToolDefinition[],
-  provider: Provider,
+  provider: Provider
 ): AnthropicTool[] | OpenAITool[] | GoogleTool {
   switch (provider) {
     case 'anthropic':
@@ -178,5 +180,5 @@ export function toProviderFormat(
  * ```
  */
 export function getToolNames(tools: ToolDefinition[]): string[] {
-  return tools.map((t) => t.name);
+  return tools.map(t => t.name);
 }

@@ -46,24 +46,17 @@ export class ValidationError extends NimbusError {
 
 export class ServiceUnavailableError extends NimbusError {
   constructor(serviceName: string, details?: unknown) {
-    super(
-      `Service ${serviceName} is unavailable`,
-      'SERVICE_UNAVAILABLE',
-      'nimbus',
-      details
-    );
+    super(`Service ${serviceName} is unavailable`, 'SERVICE_UNAVAILABLE', 'nimbus', details);
     this.name = 'ServiceUnavailableError';
   }
 }
 
 export class TimeoutError extends NimbusError {
   constructor(operation: string, service: string, timeoutMs: number) {
-    super(
-      `Operation ${operation} timed out after ${timeoutMs}ms`,
-      'TIMEOUT_ERROR',
-      service,
-      { operation, timeoutMs }
-    );
+    super(`Operation ${operation} timed out after ${timeoutMs}ms`, 'TIMEOUT_ERROR', service, {
+      operation,
+      timeoutMs,
+    });
     this.name = 'TimeoutError';
   }
 }

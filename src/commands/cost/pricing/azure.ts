@@ -16,46 +16,46 @@ const HOURS_PER_MONTH = 730;
 // ------------------------------------------------------------------
 const VM_PRICING: Record<string, number> = {
   // B-series burstable
-  'Standard_B1ls': 3.80,
-  'Standard_B1s': 7.59,
-  'Standard_B1ms': 15.18,
-  'Standard_B2s': 30.37,
-  'Standard_B2ms': 60.74,
-  'Standard_B4ms': 121.47,
-  'Standard_B8ms': 242.94,
+  Standard_B1ls: 3.8,
+  Standard_B1s: 7.59,
+  Standard_B1ms: 15.18,
+  Standard_B2s: 30.37,
+  Standard_B2ms: 60.74,
+  Standard_B4ms: 121.47,
+  Standard_B8ms: 242.94,
   // D-series general purpose
-  'Standard_D2s_v3': 69.35,
-  'Standard_D4s_v3': 138.70,
-  'Standard_D8s_v3': 277.40,
-  'Standard_D16s_v3': 554.79,
-  'Standard_D2s_v4': 69.35,
-  'Standard_D4s_v4': 138.70,
-  'Standard_D8s_v4': 277.40,
-  'Standard_D2s_v5': 69.35,
-  'Standard_D4s_v5': 138.70,
-  'Standard_D8s_v5': 277.40,
+  Standard_D2s_v3: 69.35,
+  Standard_D4s_v3: 138.7,
+  Standard_D8s_v3: 277.4,
+  Standard_D16s_v3: 554.79,
+  Standard_D2s_v4: 69.35,
+  Standard_D4s_v4: 138.7,
+  Standard_D8s_v4: 277.4,
+  Standard_D2s_v5: 69.35,
+  Standard_D4s_v5: 138.7,
+  Standard_D8s_v5: 277.4,
   // D-series (non-premium storage)
-  'Standard_D2_v3': 65.70,
-  'Standard_D4_v3': 131.40,
-  'Standard_D2_v5': 65.70,
-  'Standard_D4_v5': 131.40,
+  Standard_D2_v3: 65.7,
+  Standard_D4_v3: 131.4,
+  Standard_D2_v5: 65.7,
+  Standard_D4_v5: 131.4,
   // E-series memory optimized
-  'Standard_E2s_v3': 91.98,
-  'Standard_E4s_v3': 183.96,
-  'Standard_E8s_v3': 367.92,
-  'Standard_E16s_v3': 735.84,
-  'Standard_E2s_v5': 91.98,
-  'Standard_E4s_v5': 183.96,
-  'Standard_E8s_v5': 367.92,
+  Standard_E2s_v3: 91.98,
+  Standard_E4s_v3: 183.96,
+  Standard_E8s_v3: 367.92,
+  Standard_E16s_v3: 735.84,
+  Standard_E2s_v5: 91.98,
+  Standard_E4s_v5: 183.96,
+  Standard_E8s_v5: 367.92,
   // F-series compute optimized
-  'Standard_F2s_v2': 60.59,
-  'Standard_F4s_v2': 121.18,
-  'Standard_F8s_v2': 242.36,
-  'Standard_F16s_v2': 484.72,
+  Standard_F2s_v2: 60.59,
+  Standard_F4s_v2: 121.18,
+  Standard_F8s_v2: 242.36,
+  Standard_F16s_v2: 484.72,
   // A-series basic
-  'Standard_A1_v2': 29.20,
-  'Standard_A2_v2': 61.32,
-  'Standard_A4_v2': 128.48,
+  Standard_A1_v2: 29.2,
+  Standard_A2_v2: 61.32,
+  Standard_A4_v2: 128.48,
 };
 
 // ------------------------------------------------------------------
@@ -63,11 +63,11 @@ const VM_PRICING: Record<string, number> = {
 // ------------------------------------------------------------------
 const DISK_PRICING: Record<string, { price: number; type: 'fixed' | 'per-gb' }> = {
   // Premium SSD managed disks (fixed per tier)
-  'Premium_LRS': { price: 0.132, type: 'per-gb' },
-  'StandardSSD_LRS': { price: 0.075, type: 'per-gb' },
-  'Standard_LRS': { price: 0.04, type: 'per-gb' },
-  'UltraSSD_LRS': { price: 0.12, type: 'per-gb' },
-  'PremiumV2_LRS': { price: 0.12, type: 'per-gb' },
+  Premium_LRS: { price: 0.132, type: 'per-gb' },
+  StandardSSD_LRS: { price: 0.075, type: 'per-gb' },
+  Standard_LRS: { price: 0.04, type: 'per-gb' },
+  UltraSSD_LRS: { price: 0.12, type: 'per-gb' },
+  PremiumV2_LRS: { price: 0.12, type: 'per-gb' },
 };
 
 /**
@@ -118,27 +118,31 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
     // ----- Database -----
     case 'azurerm_mssql_server': {
       // SQL Server logical server has no direct cost
-      return { monthlyCost: 0, hourlyCost: 0, description: 'SQL Server logical server (no direct cost)' };
+      return {
+        monthlyCost: 0,
+        hourlyCost: 0,
+        description: 'SQL Server logical server (no direct cost)',
+      };
     }
 
     case 'azurerm_mssql_database': {
       // Estimate based on sku_name
       const sku = attributes.sku_name || 'S0';
       const sqlPricing: Record<string, number> = {
-        'Basic': 4.90,
-        'S0': 14.72,
-        'S1': 29.43,
-        'S2': 73.58,
-        'S3': 147.17,
-        'P1': 460.80,
-        'P2': 921.60,
-        'P4': 1843.20,
-        'GP_S_Gen5_1': 38.35,
-        'GP_S_Gen5_2': 76.70,
-        'GP_Gen5_2': 307.68,
-        'GP_Gen5_4': 615.36,
-        'BC_Gen5_2': 716.80,
-        'BC_Gen5_4': 1433.60,
+        Basic: 4.9,
+        S0: 14.72,
+        S1: 29.43,
+        S2: 73.58,
+        S3: 147.17,
+        P1: 460.8,
+        P2: 921.6,
+        P4: 1843.2,
+        GP_S_Gen5_1: 38.35,
+        GP_S_Gen5_2: 76.7,
+        GP_Gen5_2: 307.68,
+        GP_Gen5_4: 615.36,
+        BC_Gen5_2: 716.8,
+        BC_Gen5_4: 1433.6,
       };
       const price = sqlPricing[sku] || 14.72;
       return {
@@ -154,14 +158,14 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
       const dbType = type.includes('mysql') ? 'MySQL' : 'PostgreSQL';
       // Approximate pricing for flexible server
       const flexPricing: Record<string, number> = {
-        'B_Standard_B1s': 12.26,
-        'B_Standard_B1ms': 15.33,
-        'B_Standard_B2s': 30.66,
-        'GP_Standard_D2s_v3': 101.47,
-        'GP_Standard_D4s_v3': 202.94,
-        'GP_Standard_D8s_v3': 405.88,
-        'MO_Standard_E2s_v3': 128.11,
-        'MO_Standard_E4s_v3': 256.23,
+        B_Standard_B1s: 12.26,
+        B_Standard_B1ms: 15.33,
+        B_Standard_B2s: 30.66,
+        GP_Standard_D2s_v3: 101.47,
+        GP_Standard_D4s_v3: 202.94,
+        GP_Standard_D8s_v3: 405.88,
+        MO_Standard_E2s_v3: 128.11,
+        MO_Standard_E4s_v3: 256.23,
       };
       const price = flexPricing[sku] || 15.33;
       const storageGB = attributes.storage_mb ? attributes.storage_mb / 1024 : 32;
@@ -190,17 +194,17 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
       const capacity = attributes.capacity || 0;
       // Basic tier pricing
       const redisPricing: Record<string, number> = {
-        'C0': 16.06,
-        'C1': 40.15,
-        'C2': 60.22,
-        'C3': 120.45,
-        'C4': 240.90,
-        'C5': 481.80,
-        'C6': 963.60,
-        'P1': 200.75,
-        'P2': 401.50,
-        'P3': 803.00,
-        'P4': 1606.00,
+        C0: 16.06,
+        C1: 40.15,
+        C2: 60.22,
+        C3: 120.45,
+        C4: 240.9,
+        C5: 481.8,
+        C6: 963.6,
+        P1: 200.75,
+        P2: 401.5,
+        P3: 803.0,
+        P4: 1606.0,
       };
       const key = `${family}${capacity}`;
       const price = redisPricing[key] || 16.06;
@@ -246,7 +250,7 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
       }
       // Standard LB: ~$0.025/hr + rules
       return {
-        monthlyCost: 18.25 + 7.30,
+        monthlyCost: 18.25 + 7.3,
         hourlyCost: 0.025,
         description: 'Load Balancer Standard (fixed + estimated rules)',
       };
@@ -255,7 +259,7 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
     case 'azurerm_application_gateway': {
       // App Gateway v2: ~$0.246/hr + capacity units
       return {
-        monthlyCost: 179.58 + 43.80,
+        monthlyCost: 179.58 + 43.8,
         hourlyCost: 0.246,
         description: 'Application Gateway v2 (fixed + estimated CU)',
       };
@@ -264,7 +268,11 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
     case 'azurerm_public_ip': {
       const sku = attributes.sku || 'Standard';
       if (sku === 'Basic') {
-        return { monthlyCost: 0, hourlyCost: 0, description: 'Public IP Basic (free when associated)' };
+        return {
+          monthlyCost: 0,
+          hourlyCost: 0,
+          description: 'Public IP Basic (free when associated)',
+        };
       }
       // Standard: $0.005/hr
       return {
@@ -294,7 +302,7 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
 
     case 'azurerm_vpn_gateway': {
       return {
-        monthlyCost: 138.70,
+        monthlyCost: 138.7,
         hourlyCost: 0.19,
         description: 'VPN Gateway (VpnGw1)',
       };
@@ -303,7 +311,7 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
     case 'azurerm_express_route_circuit': {
       // ExpressRoute: varies wildly, estimate Standard 50Mbps Metered
       return {
-        monthlyCost: 29.20,
+        monthlyCost: 29.2,
         hourlyCost: 0.04,
         description: 'ExpressRoute (estimated Standard 50Mbps)',
       };
@@ -314,7 +322,7 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
       // AKS control plane is free for standard tier
       // Cost comes from node pools
       const sku = attributes.sku_tier || 'Free';
-      const cost = sku === 'Standard' ? 73.00 : 0;
+      const cost = sku === 'Standard' ? 73.0 : 0;
       return {
         monthlyCost: cost,
         hourlyCost: cost / HOURS_PER_MONTH,
@@ -338,12 +346,12 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
     case 'azurerm_container_registry': {
       const sku = attributes.sku || 'Basic';
       const acrPricing: Record<string, number> = {
-        'Basic': 5.00,
-        'Standard': 20.00,
-        'Premium': 50.00,
+        Basic: 5.0,
+        Standard: 20.0,
+        Premium: 50.0,
       };
       return {
-        monthlyCost: acrPricing[sku] || 5.00,
+        monthlyCost: acrPricing[sku] || 5.0,
         hourlyCost: 0,
         description: `Container Registry ${sku}`,
       };
@@ -377,9 +385,9 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
     case 'azurerm_servicebus_namespace': {
       const sku = attributes.sku || 'Basic';
       const sbPricing: Record<string, number> = {
-        'Basic': 0.05,
-        'Standard': 9.81,
-        'Premium': 668.26,
+        Basic: 0.05,
+        Standard: 9.81,
+        Premium: 668.26,
       };
       return {
         monthlyCost: sbPricing[sku] || 0.05,
@@ -392,9 +400,9 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
       const sku = attributes.sku || 'Basic';
       const capacity = attributes.capacity || 1;
       const ehPricing: Record<string, number> = {
-        'Basic': 10.95,
-        'Standard': 21.90,
-        'Premium': 876.00,
+        Basic: 10.95,
+        Standard: 21.9,
+        Premium: 876.0,
       };
       const base = ehPricing[sku] || 10.95;
       return {
@@ -410,20 +418,20 @@ export function getAzurePrice(resource: TerraformResource): PricingResult | null
     case 'azurerm_service_plan': {
       const skuName = attributes.sku_name || 'B1';
       const aspPricing: Record<string, number> = {
-        'F1': 0,
-        'D1': 9.49,
-        'B1': 13.14,
-        'B2': 26.28,
-        'B3': 52.56,
-        'S1': 73.00,
-        'S2': 146.00,
-        'S3': 292.00,
-        'P1v2': 73.00,
-        'P2v2': 146.00,
-        'P3v2': 292.00,
-        'P1v3': 102.20,
-        'P2v3': 204.40,
-        'P3v3': 408.80,
+        F1: 0,
+        D1: 9.49,
+        B1: 13.14,
+        B2: 26.28,
+        B3: 52.56,
+        S1: 73.0,
+        S2: 146.0,
+        S3: 292.0,
+        P1v2: 73.0,
+        P2v2: 146.0,
+        P3v2: 292.0,
+        P1v3: 102.2,
+        P2v3: 204.4,
+        P3v3: 408.8,
       };
       return {
         monthlyCost: aspPricing[skuName] || 13.14,

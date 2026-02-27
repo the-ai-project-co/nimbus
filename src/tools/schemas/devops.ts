@@ -39,19 +39,13 @@ function err(message: string): ToolResult {
  * properties that provide richer context than `message` alone.
  */
 function errorMessage(error: unknown): string {
-  if (
-    error !== null &&
-    typeof error === 'object' &&
-    'stdout' in error
-  ) {
+  if (error !== null && typeof error === 'object' && 'stdout' in error) {
     const execErr = error as {
       stdout?: string;
       stderr?: string;
       message?: string;
     };
-    const combined = [execErr.stdout, execErr.stderr]
-      .filter(Boolean)
-      .join('\n');
+    const combined = [execErr.stdout, execErr.stderr].filter(Boolean).join('\n');
     return combined || execErr.message || 'Command failed';
   }
   return error instanceof Error ? error.message : String(error);
@@ -133,8 +127,7 @@ const kubectlSchema = z.object({
 
 export const kubectlTool: ToolDefinition = {
   name: 'kubectl',
-  description:
-    'Execute kubectl operations against a Kubernetes cluster.',
+  description: 'Execute kubectl operations against a Kubernetes cluster.',
   inputSchema: kubectlSchema,
   permissionTier: 'always_ask',
   category: 'devops',
@@ -188,8 +181,7 @@ const helmSchema = z.object({
 
 export const helmTool: ToolDefinition = {
   name: 'helm',
-  description:
-    'Execute Helm operations for Kubernetes package management.',
+  description: 'Execute Helm operations for Kubernetes package management.',
   inputSchema: helmSchema,
   permissionTier: 'always_ask',
   category: 'devops',
@@ -236,9 +228,7 @@ export const helmTool: ToolDefinition = {
 // ---------------------------------------------------------------------------
 
 const cloudDiscoverSchema = z.object({
-  provider: z
-    .enum(['aws', 'gcp', 'azure'])
-    .describe('Cloud provider to discover resources from'),
+  provider: z.enum(['aws', 'gcp', 'azure']).describe('Cloud provider to discover resources from'),
   resource_type: z
     .string()
     .describe('Resource type to discover (e.g., "ec2", "compute instances", "vm")'),
@@ -294,20 +284,13 @@ export const cloudDiscoverTool: ToolDefinition = {
 // ---------------------------------------------------------------------------
 
 const costEstimateSchema = z.object({
-  plan_file: z
-    .string()
-    .optional()
-    .describe('Path to a saved Terraform plan file'),
-  workdir: z
-    .string()
-    .optional()
-    .describe('Working directory containing Terraform configuration'),
+  plan_file: z.string().optional().describe('Path to a saved Terraform plan file'),
+  workdir: z.string().optional().describe('Working directory containing Terraform configuration'),
 });
 
 export const costEstimateTool: ToolDefinition = {
   name: 'cost_estimate',
-  description:
-    'Estimate infrastructure costs based on a Terraform plan or working directory.',
+  description: 'Estimate infrastructure costs based on a Terraform plan or working directory.',
   inputSchema: costEstimateSchema,
   permissionTier: 'auto_allow',
   category: 'devops',
@@ -348,7 +331,7 @@ export const costEstimateTool: ToolDefinition = {
         // If JSON parsing fails, fall back to a basic output.
         return ok(
           `Cost estimate (raw plan output):\n${stdout.slice(0, 5000)}` +
-            '\n\nNote: Full cost estimation requires integration with a pricing API (e.g., Infracost).',
+            '\n\nNote: Full cost estimation requires integration with a pricing API (e.g., Infracost).'
         );
       }
 
@@ -384,8 +367,7 @@ const driftDetectSchema = z.object({
 
 export const driftDetectTool: ToolDefinition = {
   name: 'drift_detect',
-  description:
-    'Detect infrastructure drift between desired state (IaC) and actual state.',
+  description: 'Detect infrastructure drift between desired state (IaC) and actual state.',
   inputSchema: driftDetectSchema,
   permissionTier: 'auto_allow',
   category: 'devops',
@@ -415,9 +397,7 @@ export const driftDetectTool: ToolDefinition = {
               (planError as { code: number }).code === 2
             ) {
               const execErr = planError as { stdout?: string; stderr?: string };
-              const output = [execErr.stdout, execErr.stderr]
-                .filter(Boolean)
-                .join('\n');
+              const output = [execErr.stdout, execErr.stderr].filter(Boolean).join('\n');
               return ok(`DRIFT DETECTED\n\n${output}`);
             }
             throw planError;
@@ -445,7 +425,9 @@ export const driftDetectTool: ToolDefinition = {
             timeout: 120_000,
             maxBuffer: 10 * 1024 * 1024,
           });
-          return ok(`Helm releases:\n${stdout}\n\nNote: Install the helm-diff plugin for detailed drift detection.`);
+          return ok(
+            `Helm releases:\n${stdout}\n\nNote: Install the helm-diff plugin for detailed drift detection.`
+          );
         }
       }
     } catch (error: unknown) {
@@ -467,8 +449,7 @@ const deployPreviewSchema = z.object({
 
 export const deployPreviewTool: ToolDefinition = {
   name: 'deploy_preview',
-  description:
-    'Generate a dry-run preview of infrastructure changes with blast radius analysis.',
+  description: 'Generate a dry-run preview of infrastructure changes with blast radius analysis.',
   inputSchema: deployPreviewSchema,
   permissionTier: 'auto_allow',
   category: 'devops',
@@ -489,8 +470,7 @@ export const deployPreviewTool: ToolDefinition = {
         command = `helm template ${input.workdir}`;
       } else {
         return err(
-          `Unsupported action: ${input.action}. ` +
-            'Supported keywords: terraform, kubectl, helm.',
+          `Unsupported action: ${input.action}. ` + 'Supported keywords: terraform, kubectl, helm.'
         );
       }
 
@@ -603,7 +583,9 @@ export const taskTool: ToolDefinition = {
         `Turns: ${result.turns} | Tokens: ${result.totalTokens}`,
         result.interrupted ? '(interrupted)' : '',
         '---',
-      ].filter(Boolean).join('\n');
+      ]
+        .filter(Boolean)
+        .join('\n');
 
       return ok(`${header}\n${result.output}`);
     } catch (error: unknown) {

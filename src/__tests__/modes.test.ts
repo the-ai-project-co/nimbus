@@ -16,7 +16,6 @@ import {
   getModeLabel,
   getModeColor,
   MODE_CONFIGS,
-  type Mode,
 } from '../agent/modes';
 
 // ===========================================================================
@@ -29,7 +28,7 @@ describe('getToolsForMode', () => {
   // -----------------------------------------------------------------------
 
   describe('plan mode', () => {
-    const planToolNames = getToolsForMode('plan').map((t) => t.name);
+    const planToolNames = getToolsForMode('plan').map(t => t.name);
 
     test('returns only read-only tools', () => {
       const expected = [
@@ -79,7 +78,7 @@ describe('getToolsForMode', () => {
   // -----------------------------------------------------------------------
 
   describe('build mode', () => {
-    const buildToolNames = getToolsForMode('build').map((t) => t.name);
+    const buildToolNames = getToolsForMode('build').map(t => t.name);
 
     test('includes editing tools (edit_file, multi_edit, write_file, bash)', () => {
       expect(buildToolNames).toContain('edit_file');
@@ -95,7 +94,7 @@ describe('getToolsForMode', () => {
     });
 
     test('includes all plan mode tools as well', () => {
-      const planToolNames = getToolsForMode('plan').map((t) => t.name);
+      const planToolNames = getToolsForMode('plan').map(t => t.name);
       for (const name of planToolNames) {
         expect(buildToolNames).toContain(name);
       }
@@ -108,11 +107,11 @@ describe('getToolsForMode', () => {
 
   describe('deploy mode', () => {
     const deployTools = getToolsForMode('deploy');
-    const deployToolNames = deployTools.map((t) => t.name);
+    const deployToolNames = deployTools.map(t => t.name);
 
     test('includes all tools', () => {
       // Deploy mode should include every tool that exists across standard and devops
-      const buildToolNames = getToolsForMode('build').map((t) => t.name);
+      const buildToolNames = getToolsForMode('build').map(t => t.name);
       for (const name of buildToolNames) {
         expect(deployToolNames).toContain(name);
       }

@@ -763,7 +763,11 @@ export class KubernetesGenerator {
 
   private generateRole(): GeneratedManifest {
     const rules = this.config.rbac?.rules || [
-      { apiGroups: [''], resources: ['pods', 'services', 'configmaps'], verbs: ['get', 'list', 'watch'] },
+      {
+        apiGroups: [''],
+        resources: ['pods', 'services', 'configmaps'],
+        verbs: ['get', 'list', 'watch'],
+      },
     ];
 
     const manifest = {
@@ -816,7 +820,11 @@ export class KubernetesGenerator {
 
   private generateClusterRole(): GeneratedManifest {
     const rules = this.config.rbac?.rules || [
-      { apiGroups: [''], resources: ['pods', 'services', 'configmaps'], verbs: ['get', 'list', 'watch'] },
+      {
+        apiGroups: [''],
+        resources: ['pods', 'services', 'configmaps'],
+        verbs: ['get', 'list', 'watch'],
+      },
     ];
 
     const manifest = {

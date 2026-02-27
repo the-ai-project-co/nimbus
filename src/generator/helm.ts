@@ -132,7 +132,14 @@ export class HelmGenerator {
     };
 
     // Merge remaining config.values fields (env, volumes, etc.)
-    const { image: _img, serviceAccount: _sa, service: _svc, ingress: _ing, autoscaling: _as, ...restValues } = config.values;
+    const {
+      image: _img,
+      serviceAccount: _sa,
+      service: _svc,
+      ingress: _ing,
+      autoscaling: _as,
+      ...restValues
+    } = config.values;
 
     this.config = {
       version: '0.1.0',

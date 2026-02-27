@@ -188,8 +188,9 @@ export class DriftDetector {
         // so we extract resource addresses using regex rather than JSON parsing.
         const changeLines = planResult.output
           .split('\n')
-          .filter((line) =>
-            line.includes('will be') || line.includes('must be') || line.includes('resource "')
+          .filter(
+            line =>
+              line.includes('will be') || line.includes('must be') || line.includes('resource "')
           );
 
         for (const line of changeLines) {
@@ -203,9 +204,13 @@ export class DriftDetector {
             const resourceName = parts[1] || address;
 
             let driftType: DriftType = 'unchanged';
-            if (action.startsWith('destroy') || action.startsWith('delet')) driftType = 'removed';
-            else if (action.startsWith('creat')) driftType = 'added';
-            else if (action.startsWith('updat') || action.startsWith('replac')) driftType = 'modified';
+            if (action.startsWith('destroy') || action.startsWith('delet')) {
+              driftType = 'removed';
+            } else if (action.startsWith('creat')) {
+              driftType = 'added';
+            } else if (action.startsWith('updat') || action.startsWith('replac')) {
+              driftType = 'modified';
+            }
 
             if (driftType !== 'unchanged') {
               resources.push({
@@ -444,7 +449,7 @@ export class DriftDetector {
         return [];
       }
 
-      const yamlFiles = files.filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
+      const yamlFiles = files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
 
       // Build a KubernetesOperations instance scoped to the provided kubeconfig/context
       const k8sOps = new KubernetesOperations({
@@ -459,7 +464,9 @@ export class DriftDetector {
           const docs = jsYaml.loadAll(content) as any[];
 
           for (const doc of docs) {
-            if (!doc || !doc.kind || !doc.metadata?.name) continue;
+            if (!doc || !doc.kind || !doc.metadata?.name) {
+              continue;
+            }
 
             const namespace = doc.metadata.namespace || options.namespace || 'default';
 
@@ -529,11 +536,7 @@ export class DriftDetector {
         !Array.isArray(act)
       ) {
         differences.push(
-          ...this.deepCompare(
-            exp as Record<string, unknown>,
-            act as Record<string, unknown>,
-            path
-          )
+          ...this.deepCompare(exp as Record<string, unknown>, act as Record<string, unknown>, path)
         );
       } else if (JSON.stringify(exp) !== JSON.stringify(act)) {
         differences.push({ path, expected: exp, actual: act });
@@ -578,9 +581,7 @@ export class DriftDetector {
    * Compare Helm releases to local expected values.
    * Uses the embedded HelmOperations directly — no HTTP round-trip.
    */
-  private async compareHelmReleases(
-    options: DriftDetectionOptions
-  ): Promise<HelmReleaseDiff[]> {
+  private async compareHelmReleases(options: DriftDetectionOptions): Promise<HelmReleaseDiff[]> {
     const diffs: HelmReleaseDiff[] = [];
 
     try {
@@ -634,18 +635,20 @@ export class DriftDetector {
             namespace: release.namespace,
           });
 
-          if (!valuesResult.success || !valuesResult.output) continue;
+          if (!valuesResult.success || !valuesResult.output) {
+            continue;
+          }
 
           let actualValues: Record<string, unknown>;
           try {
-            actualValues = jsYaml.load(valuesResult.output) as Record<string, unknown> || {};
+            actualValues = (jsYaml.load(valuesResult.output) as Record<string, unknown>) || {};
           } catch {
             continue;
           }
 
           // Find matching local values file
           const valuesFile = localFiles.find(
-            (f) =>
+            f =>
               f === `${release.name}-values.yaml` ||
               f === `${release.name}.values.yaml` ||
               f === 'values.yaml'
@@ -653,14 +656,10 @@ export class DriftDetector {
 
           if (valuesFile) {
             const localContent = await readFile(join(options.workDir, valuesFile), 'utf-8');
-            const expectedValues =
-              (jsYaml.load(localContent) as Record<string, unknown>) || {};
+            const expectedValues = (jsYaml.load(localContent) as Record<string, unknown>) || {};
 
             const valuesDiff: Array<{ path: string; expected: unknown; actual: unknown }> = [];
-            const allKeys = new Set([
-              ...Object.keys(expectedValues),
-              ...Object.keys(actualValues),
-            ]);
+            const allKeys = new Set([...Object.keys(expectedValues), ...Object.keys(actualValues)]);
 
             for (const key of allKeys) {
               const exp = expectedValues[key];

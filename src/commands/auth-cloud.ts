@@ -38,7 +38,10 @@ async function isCliInstalled(cmd: string): Promise<boolean> {
 /**
  * Run a CLI command and capture output
  */
-async function runCommand(cmd: string, args: string[]): Promise<{ stdout: string; success: boolean }> {
+async function runCommand(
+  cmd: string,
+  args: string[]
+): Promise<{ stdout: string; success: boolean }> {
   const { execFile } = await import('child_process');
   const { promisify } = await import('util');
   const execFileAsync = promisify(execFile);
@@ -148,7 +151,12 @@ export async function authGcpCommand(options: AuthCloudOptions = {}): Promise<vo
   ui.startSpinner({ message: 'Validating GCP credentials...' });
 
   // Get current account
-  const account = await runCommand('gcloud', ['auth', 'list', '--filter=status:ACTIVE', '--format=value(account)']);
+  const account = await runCommand('gcloud', [
+    'auth',
+    'list',
+    '--filter=status:ACTIVE',
+    '--format=value(account)',
+  ]);
 
   if (!account.success || !account.stdout) {
     ui.stopSpinnerFail('GCP credentials validation failed');
@@ -166,7 +174,11 @@ export async function authGcpCommand(options: AuthCloudOptions = {}): Promise<vo
   ui.print(`  ${ui.bold('Account:')} ${account.stdout}`);
 
   // Check Application Default Credentials
-  const adcCheck = await runCommand('gcloud', ['auth', 'application-default', 'print-access-token']);
+  const adcCheck = await runCommand('gcloud', [
+    'auth',
+    'application-default',
+    'print-access-token',
+  ]);
   if (adcCheck.success) {
     ui.print(`  ${ui.bold('ADC:')}     ${ui.color('configured', 'green')}`);
   } else {
@@ -213,7 +225,9 @@ export async function authAzureCommand(options: AuthCloudOptions = {}): Promise<
     ui.newLine();
     ui.print('Install the Azure CLI:');
     ui.print(`  ${ui.dim('brew install azure-cli')} (macOS)`);
-    ui.print(`  ${ui.dim('https://learn.microsoft.com/en-us/cli/azure/install-azure-cli')} (official)`);
+    ui.print(
+      `  ${ui.dim('https://learn.microsoft.com/en-us/cli/azure/install-azure-cli')} (official)`
+    );
     return;
   }
 
@@ -254,7 +268,10 @@ export async function authAzureCommand(options: AuthCloudOptions = {}): Promise<
 /**
  * Cloud auth parent command router
  */
-export async function authCloudCommand(provider: string, options: AuthCloudOptions = {}): Promise<void> {
+export async function authCloudCommand(
+  provider: string,
+  options: AuthCloudOptions = {}
+): Promise<void> {
   switch (provider) {
     case 'aws':
       await authAwsCommand(options);

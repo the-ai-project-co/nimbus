@@ -27,7 +27,8 @@
 
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Breaking change (fix or feature that would cause existing functionality to
+      not work as expected)
 - [ ] Refactoring (no functional changes)
 - [ ] Documentation update
 - [ ] CI/CD or infrastructure change
@@ -62,7 +63,9 @@
 - [ ] Lint checks pass (`bun run lint`)
 - [ ] Type checks pass (`bun run typecheck`)
 - [ ] Documentation has been updated to reflect this change (if applicable)
-- [ ] The new commits follow [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/) conventions
+- [ ] The new commits follow
+      [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/)
+      conventions
 
 ## Testing
 

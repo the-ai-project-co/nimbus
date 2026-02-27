@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, afterEach } from 'bun:test';
-import { initApp, shutdownApp, getAppContext, type AppContext } from '../app';
+import { initApp, shutdownApp, getAppContext } from '../app';
 
 describe('app lifecycle', () => {
   afterEach(async () => {

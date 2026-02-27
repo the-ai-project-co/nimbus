@@ -15,7 +15,14 @@ import { logger } from '../utils';
 
 export interface BestPracticeRule {
   id: string;
-  category: 'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance';
+  category:
+    | 'security'
+    | 'tagging'
+    | 'cost'
+    | 'reliability'
+    | 'performance'
+    | 'networking'
+    | 'compliance';
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
   title: string;
   description: string;
@@ -89,10 +96,10 @@ export const securityRules: BestPracticeRule[] = [
     description: 'All data stores should have encryption at rest enabled',
     recommendation: 'Enable encryption at rest using AWS KMS for all data storage services',
     applies_to: ['rds', 's3', 'ebs', 'efs'],
-    check: (config) => {
+    check: config => {
       return config.storage_encrypted === true || config.encryption_enabled === true;
     },
-    autofix: (config) => ({
+    autofix: config => ({
       ...config,
       storage_encrypted: true,
       encryption_enabled: true,
@@ -106,8 +113,8 @@ export const securityRules: BestPracticeRule[] = [
     description: 'VPC should have flow logs enabled for security monitoring',
     recommendation: 'Enable VPC flow logs to monitor and troubleshoot network traffic',
     applies_to: ['vpc'],
-    check: (config) => config.enable_flow_logs === true,
-    autofix: (config) => ({
+    check: config => config.enable_flow_logs === true,
+    autofix: config => ({
       ...config,
       enable_flow_logs: true,
       flow_logs_retention_days: 30,
@@ -121,7 +128,7 @@ export const securityRules: BestPracticeRule[] = [
     description: 'S3 buckets should block all public access unless explicitly required',
     recommendation: 'Enable all S3 public access block settings',
     applies_to: ['s3'],
-    check: (config) => {
+    check: config => {
       return (
         config.block_public_acls === true &&
         config.block_public_policy === true &&
@@ -129,7 +136,7 @@ export const securityRules: BestPracticeRule[] = [
         config.restrict_public_buckets === true
       );
     },
-    autofix: (config) => ({
+    autofix: config => ({
       ...config,
       block_public_acls: true,
       block_public_policy: true,
@@ -145,8 +152,8 @@ export const securityRules: BestPracticeRule[] = [
     description: 'S3 buckets should have versioning enabled for data protection',
     recommendation: 'Enable S3 versioning to protect against accidental deletion',
     applies_to: ['s3'],
-    check: (config) => config.enable_versioning === true,
-    autofix: (config) => ({
+    check: config => config.enable_versioning === true,
+    autofix: config => ({
       ...config,
       enable_versioning: true,
     }),
@@ -159,8 +166,8 @@ export const securityRules: BestPracticeRule[] = [
     description: 'Databases should not be publicly accessible',
     recommendation: 'Deploy RDS instances in private subnets only',
     applies_to: ['rds'],
-    check: (config) => config.publicly_accessible === false,
-    autofix: (config) => ({
+    check: config => config.publicly_accessible === false,
+    autofix: config => ({
       ...config,
       publicly_accessible: false,
     }),
@@ -173,13 +180,13 @@ export const securityRules: BestPracticeRule[] = [
     description: 'Production databases should have deletion protection enabled',
     recommendation: 'Enable deletion protection for RDS instances',
     applies_to: ['rds'],
-    check: (config) => {
+    check: config => {
       if (config.environment === 'production') {
         return config.deletion_protection === true;
       }
       return true; // Not required for non-production
     },
-    autofix: (config) => {
+    autofix: config => {
       if (config.environment === 'production') {
         return { ...config, deletion_protection: true };
       }
@@ -194,8 +201,8 @@ export const securityRules: BestPracticeRule[] = [
     description: 'EKS clusters should have control plane logging enabled',
     recommendation: 'Enable all EKS cluster log types for auditing and troubleshooting',
     applies_to: ['eks'],
-    check: (config) => config.enable_cluster_logs === true,
-    autofix: (config) => ({
+    check: config => config.enable_cluster_logs === true,
+    autofix: config => ({
       ...config,
       enable_cluster_logs: true,
       cluster_log_types: ['api', 'audit', 'authenticator', 'controllerManager', 'scheduler'],
@@ -210,8 +217,8 @@ export const securityRules: BestPracticeRule[] = [
     description: 'EKS should encrypt Kubernetes secrets at rest',
     recommendation: 'Configure KMS key for EKS secret encryption',
     applies_to: ['eks'],
-    check: (config) => config.enable_secret_encryption === true,
-    autofix: (config) => ({
+    check: config => config.enable_secret_encryption === true,
+    autofix: config => ({
       ...config,
       enable_secret_encryption: true,
     }),
@@ -224,8 +231,10 @@ export const securityRules: BestPracticeRule[] = [
     description: 'EKS API endpoint should not be publicly accessible without restrictions',
     recommendation: 'Limit public access CIDR blocks or use private endpoint only',
     applies_to: ['eks'],
-    check: (config) => {
-      if (config.endpoint_public_access === false) return true;
+    check: config => {
+      if (config.endpoint_public_access === false) {
+        return true;
+      }
       return Array.isArray(config.public_access_cidrs) && config.public_access_cidrs.length > 0;
     },
   },
@@ -237,8 +246,8 @@ export const securityRules: BestPracticeRule[] = [
     description: 'RDS instances should have enhanced monitoring enabled',
     recommendation: 'Enable enhanced monitoring with 60-second granularity',
     applies_to: ['rds'],
-    check: (config) => config.enable_enhanced_monitoring === true,
-    autofix: (config) => ({
+    check: config => config.enable_enhanced_monitoring === true,
+    autofix: config => ({
       ...config,
       enable_enhanced_monitoring: true,
     }),
@@ -257,8 +266,8 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'CloudTrail should be enabled for all API calls',
     recommendation: 'Enable CloudTrail logging in all regions for audit and compliance',
     applies_to: ['cloudtrail', 'account'],
-    check: (config) => config.enable_cloudtrail === true,
-    autofix: (config) => ({
+    check: config => config.enable_cloudtrail === true,
+    autofix: config => ({
       ...config,
       enable_cloudtrail: true,
       cloudtrail_multi_region: true,
@@ -272,8 +281,8 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'Application Load Balancers should only use HTTPS listeners',
     recommendation: 'Configure ALB listeners to use HTTPS with valid SSL certificates',
     applies_to: ['alb', 'elb', 'ecs'],
-    check: (config) => config.listener_protocol === 'HTTPS' || config.redirect_http_to_https === true,
-    autofix: (config) => ({
+    check: config => config.listener_protocol === 'HTTPS' || config.redirect_http_to_https === true,
+    autofix: config => ({
       ...config,
       redirect_http_to_https: true,
     }),
@@ -286,9 +295,11 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'SSH access should not be open to 0.0.0.0/0',
     recommendation: 'Restrict SSH (port 22) access to known CIDR ranges only',
     applies_to: ['security_group', 'vpc'],
-    check: (config) => {
+    check: config => {
       const rules = config.ingress_rules as Array<{ port: number; cidr: string }> | undefined;
-      if (!rules) return true;
+      if (!rules) {
+        return true;
+      }
       return !rules.some(r => r.port === 22 && r.cidr === '0.0.0.0/0');
     },
   },
@@ -300,8 +311,8 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'Public-facing ALBs should have WAF enabled',
     recommendation: 'Attach AWS WAF to public-facing Application Load Balancers',
     applies_to: ['alb', 'ecs'],
-    check: (config) => config.enable_waf === true || config.internal === true,
-    autofix: (config) => {
+    check: config => config.enable_waf === true || config.internal === true,
+    autofix: config => {
       if (!config.internal) {
         return { ...config, enable_waf: true };
       }
@@ -316,8 +327,8 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'GuardDuty should be enabled for threat detection',
     recommendation: 'Enable Amazon GuardDuty for intelligent threat detection',
     applies_to: ['account', 'guardduty'],
-    check: (config) => config.enable_guardduty === true,
-    autofix: (config) => ({
+    check: config => config.enable_guardduty === true,
+    autofix: config => ({
       ...config,
       enable_guardduty: true,
     }),
@@ -330,7 +341,7 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'Prefer IAM roles over long-lived access keys',
     recommendation: 'Use IAM roles for EC2/ECS/EKS instead of embedding access keys',
     applies_to: ['iam', 'ec2', 'ecs', 'eks'],
-    check: (config) => config.use_iam_role === true || config.access_key_id === undefined,
+    check: config => config.use_iam_role === true || config.access_key_id === undefined,
   },
   {
     id: 'sec-017',
@@ -340,7 +351,7 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'S3 buckets should have MFA delete enabled for critical data',
     recommendation: 'Enable MFA delete to prevent accidental or malicious deletion',
     applies_to: ['s3'],
-    check: (config) => {
+    check: config => {
       if (config.environment === 'production') {
         return config.mfa_delete === true;
       }
@@ -355,8 +366,8 @@ export const additionalSecurityRules: BestPracticeRule[] = [
     description: 'EBS volumes should be encrypted by default',
     recommendation: 'Enable default EBS encryption for all new volumes',
     applies_to: ['ebs', 'ec2'],
-    check: (config) => config.ebs_encryption === true || config.encrypted === true,
-    autofix: (config) => ({
+    check: config => config.ebs_encryption === true || config.encrypted === true,
+    autofix: config => ({
       ...config,
       ebs_encryption: true,
       encrypted: true,
@@ -376,17 +387,19 @@ export const taggingRules: BestPracticeRule[] = [
     description: 'All resources should have mandatory tags',
     recommendation: 'Include Environment, ManagedBy, Project, and Owner tags on all resources',
     applies_to: ['vpc', 'eks', 'rds', 's3', 'ecs', 'kms'],
-    check: (config) => {
+    check: config => {
       const tags = config.tags as Record<string, string> | undefined;
-      if (!tags) return false;
+      if (!tags) {
+        return false;
+      }
 
       const requiredTags = ['Environment', 'ManagedBy', 'Project'];
-      return requiredTags.every((tag) => tag in tags);
+      return requiredTags.every(tag => tag in tags);
     },
-    autofix: (config) => ({
+    autofix: config => ({
       ...config,
       tags: {
-        ...(config.tags as Record<string, string> || {}),
+        ...((config.tags as Record<string, string>) || {}),
         Environment: config.environment || 'development',
         ManagedBy: 'Terraform',
         Project: config.project_name,
@@ -401,9 +414,11 @@ export const taggingRules: BestPracticeRule[] = [
     description: 'Resources should include cost allocation tags',
     recommendation: 'Add CostCenter and Team tags for cost tracking',
     applies_to: ['vpc', 'eks', 'rds', 's3', 'ecs', 'kms'],
-    check: (config) => {
+    check: config => {
       const tags = config.tags as Record<string, string> | undefined;
-      if (!tags) return false;
+      if (!tags) {
+        return false;
+      }
       return 'CostCenter' in tags || 'Team' in tags;
     },
   },
@@ -415,9 +430,11 @@ export const taggingRules: BestPracticeRule[] = [
     description: 'Resources should follow a consistent naming convention',
     recommendation: 'Use format: {project}-{environment}-{component}-{resource_type}',
     applies_to: ['vpc', 'eks', 'rds', 's3', 'ec2', 'ecs', 'kms'],
-    check: (config) => {
+    check: config => {
       const name = config.name || config.resource_name;
-      if (!name) return true;
+      if (!name) {
+        return true;
+      }
       return /^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+/.test(name as string);
     },
   },
@@ -433,10 +450,11 @@ export const costRules: BestPracticeRule[] = [
     severity: 'medium',
     title: 'Enable S3 Lifecycle Policies',
     description: 'S3 buckets should have lifecycle policies to optimize storage costs',
-    recommendation: 'Configure lifecycle rules to transition old objects to cheaper storage classes',
+    recommendation:
+      'Configure lifecycle rules to transition old objects to cheaper storage classes',
     applies_to: ['s3'],
-    check: (config) => config.enable_lifecycle_rules === true,
-    autofix: (config) => ({
+    check: config => config.enable_lifecycle_rules === true,
+    autofix: config => ({
       ...config,
       enable_lifecycle_rules: true,
       transition_to_ia_days: 30,
@@ -452,11 +470,13 @@ export const costRules: BestPracticeRule[] = [
     description: 'Non-production environments can use a single NAT gateway to reduce costs',
     recommendation: 'Use single_nat_gateway = true for development/staging environments',
     applies_to: ['vpc'],
-    check: (config) => {
-      if (config.environment === 'production') return true;
+    check: config => {
+      if (config.environment === 'production') {
+        return true;
+      }
       return config.single_nat_gateway === true;
     },
-    autofix: (config) => {
+    autofix: config => {
       if (config.environment !== 'production') {
         return {
           ...config,
@@ -473,10 +493,13 @@ export const costRules: BestPracticeRule[] = [
     severity: 'medium',
     title: 'Use Spot Instances for EKS Node Groups',
     description: 'Consider using Spot instances for non-production EKS workloads',
-    recommendation: 'Set capacity_type = "SPOT" for development environments to reduce costs by up to 90%',
+    recommendation:
+      'Set capacity_type = "SPOT" for development environments to reduce costs by up to 90%',
     applies_to: ['eks'],
-    check: (config) => {
-      if (config.environment === 'production') return true;
+    check: config => {
+      if (config.environment === 'production') {
+        return true;
+      }
       return config.node_capacity_type === 'SPOT';
     },
   },
@@ -489,7 +512,9 @@ export const costRules: BestPracticeRule[] = [
     recommendation: 'Set max_allocated_storage to enable storage autoscaling',
     applies_to: ['rds'],
     check: (config): boolean => {
-      if (config.create_cluster) return true; // Aurora handles this differently
+      if (config.create_cluster) {
+        return true;
+      } // Aurora handles this differently
       return Boolean(
         config.max_allocated_storage &&
         Number(config.max_allocated_storage) > Number(config.db_allocated_storage || 0)
@@ -504,8 +529,8 @@ export const costRules: BestPracticeRule[] = [
     description: 'S3 should automatically clean up incomplete multipart uploads',
     recommendation: 'Add lifecycle rule to abort incomplete uploads after 7 days',
     applies_to: ['s3'],
-    check: (config) => config.abort_incomplete_multipart_days !== undefined,
-    autofix: (config) => ({
+    check: config => config.abort_incomplete_multipart_days !== undefined,
+    autofix: config => ({
       ...config,
       enable_lifecycle_rules: true,
       abort_incomplete_multipart_days: 7,
@@ -525,7 +550,7 @@ export const additionalCostRules: BestPracticeRule[] = [
     description: 'Production workloads should consider reserved capacity',
     recommendation: 'Use Reserved Instances or Savings Plans for predictable production workloads',
     applies_to: ['ec2', 'rds', 'eks'],
-    check: (config) => {
+    check: config => {
       if (config.environment === 'production') {
         return config.reserved_capacity === true || config.savings_plan === true;
       }
@@ -540,8 +565,8 @@ export const additionalCostRules: BestPracticeRule[] = [
     description: 'S3 buckets should use Intelligent-Tiering for cost optimization',
     recommendation: 'Enable S3 Intelligent-Tiering to automatically move data to cheaper tiers',
     applies_to: ['s3'],
-    check: (config) => config.intelligent_tiering === true,
-    autofix: (config) => ({
+    check: config => config.intelligent_tiering === true,
+    autofix: config => ({
       ...config,
       intelligent_tiering: true,
     }),
@@ -554,7 +579,7 @@ export const additionalCostRules: BestPracticeRule[] = [
     description: 'EKS node groups should have appropriate min/max/desired counts',
     recommendation: 'Set min, max, and desired node counts to avoid over-provisioning',
     applies_to: ['eks'],
-    check: (config) => {
+    check: config => {
       const min = Number(config.node_min_size || 0);
       const max = Number(config.node_max_size || 0);
       return min > 0 && max > 0 && max >= min;
@@ -568,8 +593,8 @@ export const additionalCostRules: BestPracticeRule[] = [
     description: 'AWS Budget alerts should be configured for cost monitoring',
     recommendation: 'Set up AWS Budgets with alerts at 80% and 100% of expected spend',
     applies_to: ['account', 'budget'],
-    check: (config) => config.enable_budget_alerts === true,
-    autofix: (config) => ({
+    check: config => config.enable_budget_alerts === true,
+    autofix: config => ({
       ...config,
       enable_budget_alerts: true,
     }),
@@ -588,11 +613,13 @@ export const reliabilityRules: BestPracticeRule[] = [
     description: 'Production databases should be deployed across multiple availability zones',
     recommendation: 'Enable multi_az = true for production RDS instances',
     applies_to: ['rds'],
-    check: (config) => {
-      if (config.environment !== 'production') return true;
+    check: config => {
+      if (config.environment !== 'production') {
+        return true;
+      }
       return config.enable_multi_az === true || config.create_cluster === true;
     },
-    autofix: (config) => {
+    autofix: config => {
       if (config.environment === 'production' && !config.create_cluster) {
         return { ...config, enable_multi_az: true };
       }
@@ -607,14 +634,14 @@ export const reliabilityRules: BestPracticeRule[] = [
     description: 'RDS should have automated backups with sufficient retention',
     recommendation: 'Set backup retention to at least 7 days for production',
     applies_to: ['rds'],
-    check: (config) => {
+    check: config => {
       const retentionDays = Number(config.backup_retention_days || 0);
       if (config.environment === 'production') {
         return retentionDays >= 7;
       }
       return retentionDays >= 1;
     },
-    autofix: (config) => ({
+    autofix: config => ({
       ...config,
       backup_retention_days: config.environment === 'production' ? 7 : 3,
     }),
@@ -627,7 +654,7 @@ export const reliabilityRules: BestPracticeRule[] = [
     description: 'EKS should be deployed across at least 2 availability zones',
     recommendation: 'Use at least 2 private subnets in different AZs',
     applies_to: ['eks'],
-    check: (config) => {
+    check: config => {
       const subnetCount = Number(config.private_subnet_count || 0);
       return subnetCount >= 2;
     },
@@ -640,8 +667,8 @@ export const reliabilityRules: BestPracticeRule[] = [
     description: 'Enable automatic minor version upgrades for security patches',
     recommendation: 'Set auto_minor_version_upgrade = true for RDS',
     applies_to: ['rds'],
-    check: (config) => config.auto_minor_version_upgrade === true,
-    autofix: (config) => ({
+    check: config => config.auto_minor_version_upgrade === true,
+    autofix: config => ({
       ...config,
       auto_minor_version_upgrade: true,
     }),
@@ -660,8 +687,8 @@ export const additionalReliabilityRules: BestPracticeRule[] = [
     description: 'ALB target groups should have health checks configured',
     recommendation: 'Configure health check path, interval, and thresholds for target groups',
     applies_to: ['alb', 'target_group', 'ecs'],
-    check: (config) => config.health_check_path !== undefined,
-    autofix: (config) => ({
+    check: config => config.health_check_path !== undefined,
+    autofix: config => ({
       ...config,
       health_check_path: config.health_check_path || '/health',
       health_check_interval: config.health_check_interval || 30,
@@ -677,13 +704,13 @@ export const additionalReliabilityRules: BestPracticeRule[] = [
     description: 'Production instances should have termination protection enabled',
     recommendation: 'Enable termination protection to prevent accidental instance termination',
     applies_to: ['ec2', 'rds'],
-    check: (config) => {
+    check: config => {
       if (config.environment === 'production') {
         return config.disable_api_termination === true || config.deletion_protection === true;
       }
       return true;
     },
-    autofix: (config) => {
+    autofix: config => {
       if (config.environment === 'production') {
         return { ...config, disable_api_termination: true, deletion_protection: true };
       }
@@ -698,7 +725,7 @@ export const additionalReliabilityRules: BestPracticeRule[] = [
     description: 'Production RDS instances should have cross-region backups',
     recommendation: 'Enable cross-region automated backups for disaster recovery',
     applies_to: ['rds'],
-    check: (config) => {
+    check: config => {
       if (config.environment === 'production') {
         return config.enable_cross_region_backup === true;
       }
@@ -713,7 +740,7 @@ export const additionalReliabilityRules: BestPracticeRule[] = [
     description: 'Kubernetes deployments should have Pod Disruption Budgets',
     recommendation: 'Set PodDisruptionBudget to ensure minimum availability during disruptions',
     applies_to: ['eks', 'kubernetes', 'deployment'],
-    check: (config) => config.pod_disruption_budget !== undefined,
+    check: config => config.pod_disruption_budget !== undefined,
   },
 ];
 
@@ -729,8 +756,8 @@ export const performanceRules: BestPracticeRule[] = [
     description: 'Enable Performance Insights for database performance monitoring',
     recommendation: 'Enable performance_insights for RDS instances',
     applies_to: ['rds'],
-    check: (config) => config.enable_performance_insights === true,
-    autofix: (config) => ({
+    check: config => config.enable_performance_insights === true,
+    autofix: config => ({
       ...config,
       enable_performance_insights: true,
       performance_insights_retention: 7,
@@ -744,11 +771,13 @@ export const performanceRules: BestPracticeRule[] = [
     description: 'Use gp3 storage type for better price-performance ratio',
     recommendation: 'Set storage_type = "gp3" for RDS instances',
     applies_to: ['rds'],
-    check: (config) => {
-      if (config.create_cluster) return true; // Aurora uses cluster storage
+    check: config => {
+      if (config.create_cluster) {
+        return true;
+      } // Aurora uses cluster storage
       return config.db_storage_type === 'gp3';
     },
-    autofix: (config) => {
+    autofix: config => {
       if (!config.create_cluster) {
         return { ...config, db_storage_type: 'gp3' };
       }
@@ -773,7 +802,7 @@ export const performanceRules: BestPracticeRule[] = [
     description: 'Use CloudFront CDN for serving static assets to reduce latency',
     recommendation: 'Configure CloudFront distribution for S3 static content delivery',
     applies_to: ['s3', 'cloudfront'],
-    check: (config) => config.enable_cdn === true || config.is_private_bucket === true,
+    check: config => config.enable_cdn === true || config.is_private_bucket === true,
   },
 ];
 
@@ -787,10 +816,11 @@ export const networkingRules: BestPracticeRule[] = [
     severity: 'high',
     title: 'Use Private Subnets for Application Workloads',
     description: 'Application workloads should be deployed in private subnets',
-    recommendation: 'Deploy application servers, databases, and backend services in private subnets',
+    recommendation:
+      'Deploy application servers, databases, and backend services in private subnets',
     applies_to: ['vpc', 'subnet', 'eks', 'rds', 'ecs'],
-    check: (config) => config.use_private_subnets === true || config.publicly_accessible === false,
-    autofix: (config) => ({
+    check: config => config.use_private_subnets === true || config.publicly_accessible === false,
+    autofix: config => ({
       ...config,
       use_private_subnets: true,
       publicly_accessible: false,
@@ -804,9 +834,11 @@ export const networkingRules: BestPracticeRule[] = [
     description: 'Security groups should not allow 0.0.0.0/0 ingress',
     recommendation: 'Restrict security group ingress rules to specific CIDR ranges',
     applies_to: ['security_group', 'vpc'],
-    check: (config) => {
+    check: config => {
       const rules = config.ingress_rules as Array<{ cidr: string }> | undefined;
-      if (!rules) return true;
+      if (!rules) {
+        return true;
+      }
       return !rules.some(r => r.cidr === '0.0.0.0/0');
     },
   },
@@ -818,7 +850,7 @@ export const networkingRules: BestPracticeRule[] = [
     description: 'Network ACLs provide an additional layer of security',
     recommendation: 'Configure Network ACLs in addition to security groups for defense in depth',
     applies_to: ['vpc', 'subnet'],
-    check: (config) => config.enable_network_acls === true,
+    check: config => config.enable_network_acls === true,
   },
   {
     id: 'net-004',
@@ -828,8 +860,8 @@ export const networkingRules: BestPracticeRule[] = [
     description: 'VPCs should have DNS hostnames and resolution enabled',
     recommendation: 'Enable enable_dns_hostnames and enable_dns_support in VPC',
     applies_to: ['vpc'],
-    check: (config) => config.enable_dns_hostnames === true && config.enable_dns_support === true,
-    autofix: (config) => ({
+    check: config => config.enable_dns_hostnames === true && config.enable_dns_support === true,
+    autofix: config => ({
       ...config,
       enable_dns_hostnames: true,
       enable_dns_support: true,
@@ -843,8 +875,8 @@ export const networkingRules: BestPracticeRule[] = [
     description: 'Use VPC endpoints to access AWS services without internet gateway',
     recommendation: 'Create VPC endpoints for S3, DynamoDB, and other frequently accessed services',
     applies_to: ['vpc'],
-    check: (config) => config.enable_vpc_endpoints === true,
-    autofix: (config) => ({
+    check: config => config.enable_vpc_endpoints === true,
+    autofix: config => ({
       ...config,
       enable_vpc_endpoints: true,
     }),
@@ -863,8 +895,8 @@ export const complianceRules: BestPracticeRule[] = [
     description: 'S3 buckets should have access logging enabled',
     recommendation: 'Enable server access logging for S3 buckets to track requests',
     applies_to: ['s3'],
-    check: (config) => config.enable_access_logging === true,
-    autofix: (config) => ({
+    check: config => config.enable_access_logging === true,
+    autofix: config => ({
       ...config,
       enable_access_logging: true,
     }),
@@ -877,8 +909,8 @@ export const complianceRules: BestPracticeRule[] = [
     description: 'RDS instances should have audit logging enabled',
     recommendation: 'Enable audit logging for database activity tracking',
     applies_to: ['rds'],
-    check: (config) => config.enable_audit_logging === true,
-    autofix: (config) => ({
+    check: config => config.enable_audit_logging === true,
+    autofix: config => ({
       ...config,
       enable_audit_logging: true,
     }),
@@ -891,11 +923,11 @@ export const complianceRules: BestPracticeRule[] = [
     description: 'CloudWatch log groups should retain logs for at least 90 days',
     recommendation: 'Set CloudWatch log retention to at least 90 days for compliance',
     applies_to: ['cloudwatch', 'eks', 'rds', 'vpc', 'ecs'],
-    check: (config) => {
+    check: config => {
       const retention = Number(config.log_retention_days || 0);
       return retention >= 90;
     },
-    autofix: (config) => ({
+    autofix: config => ({
       ...config,
       log_retention_days: Math.max(Number(config.log_retention_days || 0), 90),
     }),
@@ -908,7 +940,7 @@ export const complianceRules: BestPracticeRule[] = [
     description: 'All resources should be tagged with compliance framework identifier',
     recommendation: 'Add a ComplianceFramework tag (e.g., SOC2, HIPAA, PCI-DSS) to all resources',
     applies_to: ['vpc', 'eks', 'rds', 's3', 'ec2', 'ecs', 'kms'],
-    check: (config) => {
+    check: config => {
       const tags = config.tags as Record<string, string> | undefined;
       return tags !== undefined && 'ComplianceFramework' in tags;
     },
@@ -921,8 +953,8 @@ export const complianceRules: BestPracticeRule[] = [
     description: 'AWS Config should be enabled to record resource configurations',
     recommendation: 'Enable AWS Config recording for drift detection and compliance auditing',
     applies_to: ['account', 'config'],
-    check: (config) => config.enable_config_recording === true,
-    autofix: (config) => ({
+    check: config => config.enable_config_recording === true,
+    autofix: config => ({
       ...config,
       enable_config_recording: true,
     }),
@@ -935,8 +967,8 @@ export const complianceRules: BestPracticeRule[] = [
     description: 'S3 buckets containing sensitive data should use SSE-KMS encryption',
     recommendation: 'Use SSE-KMS instead of SSE-S3 for buckets with sensitive or regulated data',
     applies_to: ['s3'],
-    check: (config) => config.sse_algorithm === 'aws:kms' || config.kms_key_id !== undefined,
-    autofix: (config) => ({
+    check: config => config.sse_algorithm === 'aws:kms' || config.kms_key_id !== undefined,
+    autofix: config => ({
       ...config,
       sse_algorithm: 'aws:kms',
     }),
@@ -953,9 +985,10 @@ export const ecsRules: BestPracticeRule[] = [
     severity: 'high',
     title: 'Use Fargate for Serverless Containers',
     description: 'Prefer Fargate launch type for serverless container management',
-    recommendation: 'Use Fargate to eliminate the need to manage EC2 instances for container workloads',
+    recommendation:
+      'Use Fargate to eliminate the need to manage EC2 instances for container workloads',
     applies_to: ['ecs'],
-    check: (config) => config.launch_type === 'FARGATE' || config.launch_type === undefined,
+    check: config => config.launch_type === 'FARGATE' || config.launch_type === undefined,
   },
   {
     id: 'ecs-002',
@@ -963,10 +996,11 @@ export const ecsRules: BestPracticeRule[] = [
     severity: 'high',
     title: 'Deploy ECS Tasks in Private Subnets',
     description: 'ECS tasks should run in private subnets behind a load balancer',
-    recommendation: 'Configure ECS service networking to use private subnets with assign_public_ip = false',
+    recommendation:
+      'Configure ECS service networking to use private subnets with assign_public_ip = false',
     applies_to: ['ecs'],
-    check: (config) => config.assign_public_ip === false || config.assign_public_ip === undefined,
-    autofix: (config) => ({
+    check: config => config.assign_public_ip === false || config.assign_public_ip === undefined,
+    autofix: config => ({
       ...config,
       assign_public_ip: false,
     }),
@@ -977,10 +1011,11 @@ export const ecsRules: BestPracticeRule[] = [
     severity: 'high',
     title: 'Enable ECS Deployment Circuit Breaker',
     description: 'ECS services should have deployment circuit breaker enabled',
-    recommendation: 'Enable deployment circuit breaker with rollback to prevent failed deployments from impacting availability',
+    recommendation:
+      'Enable deployment circuit breaker with rollback to prevent failed deployments from impacting availability',
     applies_to: ['ecs'],
-    check: (config) => config.enable_circuit_breaker === true,
-    autofix: (config) => ({
+    check: config => config.enable_circuit_breaker === true,
+    autofix: config => ({
       ...config,
       enable_circuit_breaker: true,
     }),
@@ -993,8 +1028,8 @@ export const ecsRules: BestPracticeRule[] = [
     description: 'ECS clusters should have Container Insights enabled for monitoring',
     recommendation: 'Enable CloudWatch Container Insights for detailed container-level metrics',
     applies_to: ['ecs'],
-    check: (config) => config.enable_container_insights === true,
-    autofix: (config) => ({
+    check: config => config.enable_container_insights === true,
+    autofix: config => ({
       ...config,
       enable_container_insights: true,
     }),
@@ -1007,13 +1042,13 @@ export const ecsRules: BestPracticeRule[] = [
     description: 'ECS services should have auto scaling configured for production workloads',
     recommendation: 'Enable target tracking scaling on CPU and memory utilization',
     applies_to: ['ecs'],
-    check: (config) => {
+    check: config => {
       if (config.environment === 'production') {
         return config.enable_autoscaling === true;
       }
       return true;
     },
-    autofix: (config) => {
+    autofix: config => {
       if (config.environment === 'production') {
         return {
           ...config,
@@ -1033,10 +1068,13 @@ export const ecsRules: BestPracticeRule[] = [
     severity: 'low',
     title: 'Use Fargate Spot for Non-Production ECS',
     description: 'Non-production ECS workloads can use Fargate Spot for cost savings',
-    recommendation: 'Configure FARGATE_SPOT capacity provider for development and staging environments',
+    recommendation:
+      'Configure FARGATE_SPOT capacity provider for development and staging environments',
     applies_to: ['ecs'],
-    check: (config) => {
-      if (config.environment === 'production') return true;
+    check: config => {
+      if (config.environment === 'production') {
+        return true;
+      }
       return config.use_fargate_spot === true;
     },
   },
@@ -1046,9 +1084,10 @@ export const ecsRules: BestPracticeRule[] = [
     severity: 'medium',
     title: 'Set Read-Only Root Filesystem',
     description: 'ECS task containers should use read-only root filesystems where possible',
-    recommendation: 'Set readonlyRootFilesystem = true in container definitions to prevent filesystem modifications',
+    recommendation:
+      'Set readonlyRootFilesystem = true in container definitions to prevent filesystem modifications',
     applies_to: ['ecs'],
-    check: (config) => config.readonly_root_filesystem === true,
+    check: config => config.readonly_root_filesystem === true,
   },
 ];
 
@@ -1064,8 +1103,8 @@ export const kmsRules: BestPracticeRule[] = [
     description: 'KMS keys should have automatic key rotation enabled',
     recommendation: 'Enable automatic annual key rotation for all customer-managed KMS keys',
     applies_to: ['kms'],
-    check: (config) => config.enable_key_rotation === true,
-    autofix: (config) => ({
+    check: config => config.enable_key_rotation === true,
+    autofix: config => ({
       ...config,
       enable_key_rotation: true,
     }),
@@ -1076,16 +1115,17 @@ export const kmsRules: BestPracticeRule[] = [
     severity: 'high',
     title: 'Set Appropriate KMS Deletion Window',
     description: 'KMS keys should have a sufficient deletion waiting period',
-    recommendation: 'Set deletion_window_in_days to at least 14 days (30 for production) to allow recovery from accidental deletion',
+    recommendation:
+      'Set deletion_window_in_days to at least 14 days (30 for production) to allow recovery from accidental deletion',
     applies_to: ['kms'],
-    check: (config) => {
+    check: config => {
       const window = Number(config.deletion_window_in_days || 0);
       if (config.environment === 'production') {
         return window >= 30;
       }
       return window >= 7;
     },
-    autofix: (config) => ({
+    autofix: config => ({
       ...config,
       deletion_window_in_days: config.environment === 'production' ? 30 : 14,
     }),
@@ -1098,7 +1138,7 @@ export const kmsRules: BestPracticeRule[] = [
     description: 'KMS key policies should follow the principle of least privilege',
     recommendation: 'Define explicit key admins and key users instead of granting broad access',
     applies_to: ['kms'],
-    check: (config) => {
+    check: config => {
       return (
         (Array.isArray(config.key_admins) && config.key_admins.length > 0) ||
         (Array.isArray(config.key_users) && config.key_users.length > 0)
@@ -1113,7 +1153,7 @@ export const kmsRules: BestPracticeRule[] = [
     description: 'KMS keys should have descriptive aliases for identification',
     recommendation: 'Create meaningful aliases for all KMS keys to improve manageability',
     applies_to: ['kms'],
-    check: (config) => config.key_alias !== undefined && config.key_alias !== '',
+    check: config => config.key_alias !== undefined && config.key_alias !== '',
   },
   {
     id: 'kms-005',
@@ -1121,9 +1161,10 @@ export const kmsRules: BestPracticeRule[] = [
     severity: 'medium',
     title: 'Consider Multi-Region KMS Keys for DR',
     description: 'Production KMS keys should consider multi-region replication',
-    recommendation: 'Enable multi-region for KMS keys used by services that need cross-region disaster recovery',
+    recommendation:
+      'Enable multi-region for KMS keys used by services that need cross-region disaster recovery',
     applies_to: ['kms'],
-    check: (config) => {
+    check: config => {
       if (config.environment === 'production') {
         return config.multi_region === true || config.cross_region_not_needed === true;
       }
@@ -1161,7 +1202,7 @@ export class BestPracticesEngine {
     this.rules = new Map();
 
     // Load default rules
-    [...allRules, ...customRules].forEach((rule) => {
+    [...allRules, ...customRules].forEach(rule => {
       this.rules.set(rule.id, rule);
     });
 
@@ -1175,7 +1216,15 @@ export class BestPracticesEngine {
     component: string,
     config: Record<string, unknown>,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
+      categories?: Array<
+        | 'security'
+        | 'tagging'
+        | 'cost'
+        | 'reliability'
+        | 'performance'
+        | 'networking'
+        | 'compliance'
+      >;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       includeInfo?: boolean;
     }
@@ -1232,7 +1281,15 @@ export class BestPracticesEngine {
   analyzeAll(
     configs: Array<{ component: string; config: Record<string, unknown> }>,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
+      categories?: Array<
+        | 'security'
+        | 'tagging'
+        | 'cost'
+        | 'reliability'
+        | 'performance'
+        | 'networking'
+        | 'compliance'
+      >;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
     }
   ): BestPracticeReport {
@@ -1263,7 +1320,15 @@ export class BestPracticesEngine {
     component: string,
     config: Record<string, unknown>,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
+      categories?: Array<
+        | 'security'
+        | 'tagging'
+        | 'cost'
+        | 'reliability'
+        | 'performance'
+        | 'networking'
+        | 'compliance'
+      >;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       ruleIds?: string[];
     }
@@ -1280,9 +1345,7 @@ export class BestPracticesEngine {
 
     // Filter by rule IDs if specified
     if (options?.ruleIds) {
-      applicableRules = applicableRules.filter((rule) =>
-        options.ruleIds!.includes(rule.id)
-      );
+      applicableRules = applicableRules.filter(rule => options.ruleIds!.includes(rule.id));
     }
 
     // Apply fixes
@@ -1304,7 +1367,9 @@ export class BestPracticesEngine {
     // Re-analyze to find remaining violations
     const report = this.analyze(component, fixedConfig, options);
 
-    logger.info(`Applied ${appliedFixes.length} autofixes, ${report.violations.length} violations remaining`);
+    logger.info(
+      `Applied ${appliedFixes.length} autofixes, ${report.violations.length} violations remaining`
+    );
 
     return {
       fixed_config: fixedConfig,
@@ -1316,7 +1381,9 @@ export class BestPracticesEngine {
   /**
    * Get rules by category
    */
-  getRulesByCategory(category: 'security' | 'tagging' | 'cost' | 'reliability' | 'performance'): BestPracticeRule[] {
+  getRulesByCategory(
+    category: 'security' | 'tagging' | 'cost' | 'reliability' | 'performance'
+  ): BestPracticeRule[] {
     const ruleMap = {
       security: securityRules,
       tagging: taggingRules,
@@ -1364,28 +1431,34 @@ export class BestPracticesEngine {
   private getApplicableRules(
     component: string,
     options?: {
-      categories?: Array<'security' | 'tagging' | 'cost' | 'reliability' | 'performance' | 'networking' | 'compliance'>;
+      categories?: Array<
+        | 'security'
+        | 'tagging'
+        | 'cost'
+        | 'reliability'
+        | 'performance'
+        | 'networking'
+        | 'compliance'
+      >;
       severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
       includeInfo?: boolean;
     }
   ): BestPracticeRule[] {
-    let rules = Array.from(this.rules.values()).filter((rule) =>
-      rule.applies_to.includes(component)
-    );
+    let rules = Array.from(this.rules.values()).filter(rule => rule.applies_to.includes(component));
 
     // Filter by categories
     if (options?.categories && options.categories.length > 0) {
-      rules = rules.filter((rule) => options.categories!.includes(rule.category));
+      rules = rules.filter(rule => options.categories!.includes(rule.category));
     }
 
     // Filter by severities
     if (options?.severities && options.severities.length > 0) {
-      rules = rules.filter((rule) => options.severities!.includes(rule.severity));
+      rules = rules.filter(rule => options.severities!.includes(rule.severity));
     }
 
     // Exclude info severity unless explicitly included
     if (!options?.includeInfo) {
-      rules = rules.filter((rule) => rule.severity !== 'info');
+      rules = rules.filter(rule => rule.severity !== 'info');
     }
 
     return rules;
@@ -1437,7 +1510,9 @@ export class BestPracticesEngine {
    * Get compliance score (percentage of passed rules)
    */
   getComplianceScore(report: BestPracticeReport): number {
-    if (report.summary.total_rules_checked === 0) return 100;
+    if (report.summary.total_rules_checked === 0) {
+      return 100;
+    }
 
     const passed = report.summary.total_rules_checked - report.summary.violations_found;
     return Math.round((passed / report.summary.total_rules_checked) * 100);
@@ -1447,10 +1522,12 @@ export class BestPracticesEngine {
    * Get security score (based on security violations)
    */
   getSecurityScore(report: BestPracticeReport): number {
-    const securityViolations = report.violations.filter((v) => v.category === 'security');
+    const securityViolations = report.violations.filter(v => v.category === 'security');
     const totalSecurityRules = this.getRulesByCategory('security').length;
 
-    if (totalSecurityRules === 0) return 100;
+    if (totalSecurityRules === 0) {
+      return 100;
+    }
 
     const passed = totalSecurityRules - securityViolations.length;
     return Math.round((passed / totalSecurityRules) * 100);
@@ -1493,17 +1570,24 @@ export class BestPracticesEngine {
       markdown += '## Violations\n\n';
 
       // Group by severity
-      const groupedBySeverity = report.violations.reduce((acc, v) => {
-        if (!acc[v.severity]) acc[v.severity] = [];
-        acc[v.severity].push(v);
-        return acc;
-      }, {} as Record<string, BestPracticeViolation[]>);
+      const groupedBySeverity = report.violations.reduce(
+        (acc, v) => {
+          if (!acc[v.severity]) {
+            acc[v.severity] = [];
+          }
+          acc[v.severity].push(v);
+          return acc;
+        },
+        {} as Record<string, BestPracticeViolation[]>
+      );
 
       const severityOrder = ['critical', 'high', 'medium', 'low', 'info'];
 
       for (const severity of severityOrder) {
         const violations = groupedBySeverity[severity];
-        if (!violations || violations.length === 0) continue;
+        if (!violations || violations.length === 0) {
+          continue;
+        }
 
         markdown += `### ${severity.toUpperCase()} Severity\n\n`;
 

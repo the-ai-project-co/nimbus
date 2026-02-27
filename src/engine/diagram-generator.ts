@@ -40,7 +40,7 @@ export class DiagramGenerator {
   generate(
     components: DiagramComponent[],
     connections: DiagramConnection[],
-    title?: string,
+    title?: string
   ): string {
     if (components.length === 0) {
       return '(no components)';
@@ -69,7 +69,7 @@ export class DiagramGenerator {
 
     // Topological sort (Kahn's algorithm) to determine row placement
     const rows: DiagramComponent[][] = [];
-    let queue = components.filter((c) => (inDegree.get(c.id) || 0) === 0);
+    let queue = components.filter(c => (inDegree.get(c.id) || 0) === 0);
     const placed = new Set<string>();
 
     while (queue.length > 0) {
@@ -77,11 +77,13 @@ export class DiagramGenerator {
       const nextQueue: DiagramComponent[] = [];
       for (const node of queue) {
         placed.add(node.id);
-        for (const neighbor of (adj.get(node.id) || [])) {
+        for (const neighbor of adj.get(node.id) || []) {
           inDegree.set(neighbor, (inDegree.get(neighbor) || 0) - 1);
           if (inDegree.get(neighbor) === 0 && !placed.has(neighbor)) {
-            const comp = components.find((c) => c.id === neighbor);
-            if (comp) nextQueue.push(comp);
+            const comp = components.find(c => c.id === neighbor);
+            if (comp) {
+              nextQueue.push(comp);
+            }
           }
         }
       }
@@ -91,7 +93,9 @@ export class DiagramGenerator {
     // Add any unplaced components (cycles) to the last row
     for (const c of components) {
       if (!placed.has(c.id)) {
-        if (rows.length === 0) rows.push([]);
+        if (rows.length === 0) {
+          rows.push([]);
+        }
         rows[rows.length - 1].push(c);
       }
     }
@@ -123,8 +127,8 @@ export class DiagramGenerator {
       lines.push('');
       lines.push('Connections:');
       for (const conn of connections) {
-        const fromComp = components.find((c) => c.id === conn.from);
-        const toComp = components.find((c) => c.id === conn.to);
+        const fromComp = components.find(c => c.id === conn.from);
+        const toComp = components.find(c => c.id === conn.to);
         if (fromComp && toComp) {
           const label = conn.label ? ` (${conn.label})` : '';
           lines.push(`  ${fromComp.label} --> ${toComp.label}${label}`);
@@ -140,8 +144,8 @@ export class DiagramGenerator {
    */
   private renderBoxRow(components: DiagramComponent[], colWidth: number): string[] {
     const w = this.boxWidth;
-    const top = '+' + '-'.repeat(w) + '+';
-    const bot = '+' + '-'.repeat(w) + '+';
+    const top = `+${'-'.repeat(w)}+`;
+    const bot = `+${'-'.repeat(w)}+`;
 
     const topLine: string[] = [];
     const labelLine: string[] = [];
@@ -155,21 +159,17 @@ export class DiagramGenerator {
       topLine.push(pad + top + pad);
 
       const truncLabel =
-        comp.label.length > w - 2 ? comp.label.substring(0, w - 5) + '...' : comp.label;
-      const labelPadded = truncLabel
-        .padStart(Math.floor((w + truncLabel.length) / 2))
-        .padEnd(w);
-      labelLine.push(pad + '|' + labelPadded + '|' + pad);
+        comp.label.length > w - 2 ? `${comp.label.substring(0, w - 5)}...` : comp.label;
+      const labelPadded = truncLabel.padStart(Math.floor((w + truncLabel.length) / 2)).padEnd(w);
+      labelLine.push(`${pad}|${labelPadded}|${pad}`);
 
       if (comp.type) {
         const truncType =
-          comp.type.length > w - 2 ? comp.type.substring(0, w - 5) + '...' : comp.type;
-        const typePadded = truncType
-          .padStart(Math.floor((w + truncType.length) / 2))
-          .padEnd(w);
-        typeLine.push(pad + '|' + typePadded + '|' + pad);
+          comp.type.length > w - 2 ? `${comp.type.substring(0, w - 5)}...` : comp.type;
+        const typePadded = truncType.padStart(Math.floor((w + truncType.length) / 2)).padEnd(w);
+        typeLine.push(`${pad}|${typePadded}|${pad}`);
       } else {
-        typeLine.push(pad + '|' + ' '.repeat(w) + '|' + pad);
+        typeLine.push(`${pad}|${' '.repeat(w)}|${pad}`);
       }
 
       botLine.push(pad + bot + pad);
@@ -185,17 +185,15 @@ export class DiagramGenerator {
     fromRow: DiagramComponent[],
     toRow: DiagramComponent[],
     connections: DiagramConnection[],
-    colWidth: number,
+    colWidth: number
   ): string[] {
     const totalCols = Math.max(fromRow.length, toRow.length);
     const lineWidth = totalCols * colWidth;
 
     // Find which connections go between these rows
-    const fromIds = new Set(fromRow.map((c) => c.id));
-    const toIds = new Set(toRow.map((c) => c.id));
-    const activeConns = connections.filter(
-      (c) => fromIds.has(c.from) && toIds.has(c.to),
-    );
+    const fromIds = new Set(fromRow.map(c => c.id));
+    const toIds = new Set(toRow.map(c => c.id));
+    const activeConns = connections.filter(c => fromIds.has(c.from) && toIds.has(c.to));
 
     if (activeConns.length === 0) {
       return [''];
@@ -207,7 +205,7 @@ export class DiagramGenerator {
     const arrowRow3 = new Array(lineWidth).fill(' ');
 
     for (const conn of activeConns) {
-      const fromIdx = fromRow.findIndex((c) => c.id === conn.from);
+      const fromIdx = fromRow.findIndex(c => c.id === conn.from);
       if (fromIdx >= 0) {
         const center = Math.floor(fromIdx * colWidth + colWidth / 2);
         if (center < lineWidth) {
@@ -229,11 +227,8 @@ export class DiagramGenerator {
    * Generate a diagram for infrastructure components.
    * Convenience method that maps common infra component names to diagram elements.
    */
-  generateInfrastructureDiagram(
-    componentNames: string[],
-    provider: string = 'aws',
-  ): string {
-    const components: DiagramComponent[] = componentNames.map((name) => ({
+  generateInfrastructureDiagram(componentNames: string[], provider: string = 'aws'): string {
+    const components: DiagramComponent[] = componentNames.map(name => ({
       id: name,
       label: name.toUpperCase(),
       type: provider.toUpperCase(),
@@ -255,7 +250,7 @@ export class DiagramGenerator {
     return this.generate(
       components,
       connections,
-      `${provider.toUpperCase()} Infrastructure Architecture`,
+      `${provider.toUpperCase()} Infrastructure Architecture`
     );
   }
 }

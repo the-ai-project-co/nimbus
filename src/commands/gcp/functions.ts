@@ -89,11 +89,9 @@ async function listFunctions(options: GcpCommandOptions): Promise<void> {
     // Display table
     ui.print(
       ui.color(
-        'Name'.padEnd(30) +
-          'Region'.padEnd(15) +
-          'Runtime'.padEnd(15) +
-          'Trigger'.padEnd(15) +
-          'State',
+        `${
+          'Name'.padEnd(30) + 'Region'.padEnd(15) + 'Runtime'.padEnd(15) + 'Trigger'.padEnd(15)
+        }State`,
         'cyan'
       )
     );
@@ -130,10 +128,7 @@ async function listFunctions(options: GcpCommandOptions): Promise<void> {
 /**
  * Describe a specific function
  */
-async function describeFunction(
-  functionName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function describeFunction(functionName: string, options: GcpCommandOptions): Promise<void> {
   ui.header(`Function: ${functionName}`);
   ui.newLine();
 
@@ -178,7 +173,7 @@ async function describeFunction(
     ui.newLine();
 
     ui.print(ui.bold('Timestamps:'));
-    ui.print(`  Created:        ${fn.buildId ? 'Build ID: ' + fn.buildId : 'N/A'}`);
+    ui.print(`  Created:        ${fn.buildId ? `Build ID: ${fn.buildId}` : 'N/A'}`);
     ui.print(`  Updated:        ${fn.updateTime}`);
   } catch (error: unknown) {
     ui.stopSpinnerFail('Failed to fetch details');
@@ -233,10 +228,7 @@ async function callFunction(
 /**
  * Get function logs
  */
-async function getFunctionLogs(
-  functionName: string,
-  options: GcpCommandOptions
-): Promise<void> {
+async function getFunctionLogs(functionName: string, options: GcpCommandOptions): Promise<void> {
   ui.header(`Logs for ${functionName}`);
   ui.newLine();
 

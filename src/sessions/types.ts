@@ -23,7 +23,14 @@ export interface SessionRecord {
 
 /** Event emitted by the session manager. */
 export interface SessionEvent {
-  type: 'created' | 'switched' | 'suspended' | 'resumed' | 'completed' | 'destroyed' | 'file_conflict';
+  type:
+    | 'created'
+    | 'switched'
+    | 'suspended'
+    | 'resumed'
+    | 'completed'
+    | 'destroyed'
+    | 'file_conflict';
   sessionId: string;
   timestamp: Date;
   details?: string;

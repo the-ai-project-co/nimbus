@@ -21,10 +21,7 @@ import {
   type SafetyCheckResult,
 } from '../../config/safety-policy';
 import { promptForApproval } from '../../wizard/approval';
-import {
-  estimateCloudCost,
-  formatCostWarning,
-} from '../cost/cloud-cost-estimator';
+import { estimateCloudCost, formatCostWarning } from '../cost/cloud-cost-estimator';
 import type { AwsCommandOptions } from './index';
 
 interface EC2Instance {
@@ -185,7 +182,9 @@ function displayCostWarning(instanceType: string): void {
     ui.newLine();
     ui.print(ui.bold('  Estimated Cost:'));
     ui.print(`    Hourly:  ${ui.color(`$${estimate.hourly.toFixed(4)}/hr`, color)}`);
-    ui.print(`    Monthly: ${ui.color(`$${estimate.monthly.toFixed(2)}/mo`, color)} (on-demand, approximate)`);
+    ui.print(
+      `    Monthly: ${ui.color(`$${estimate.monthly.toFixed(2)}/mo`, color)} (on-demand, approximate)`
+    );
     ui.newLine();
   }
 }
@@ -229,10 +228,7 @@ async function startInstance(instanceId: string, options: AwsCommandOptions): Pr
   ui.startSpinner({ message: 'Starting instance...' });
 
   try {
-    await runAwsCommand(
-      `ec2 start-instances --instance-ids ${instanceId}`,
-      options
-    );
+    await runAwsCommand(`ec2 start-instances --instance-ids ${instanceId}`, options);
 
     ui.stopSpinnerSuccess('Instance started');
     ui.info(`Instance ${instanceId} is now starting`);
@@ -297,10 +293,7 @@ async function stopInstance(instanceId: string, options: AwsCommandOptions): Pro
   ui.startSpinner({ message: 'Stopping instance...' });
 
   try {
-    await runAwsCommand(
-      `ec2 stop-instances --instance-ids ${instanceId}`,
-      options
-    );
+    await runAwsCommand(`ec2 stop-instances --instance-ids ${instanceId}`, options);
 
     ui.stopSpinnerSuccess('Instance stopped');
     ui.info(`Instance ${instanceId} is now stopping`);
@@ -361,10 +354,7 @@ async function terminateInstance(instanceId: string, options: AwsCommandOptions)
   ui.startSpinner({ message: 'Terminating instance...' });
 
   try {
-    await runAwsCommand(
-      `ec2 terminate-instances --instance-ids ${instanceId}`,
-      options
-    );
+    await runAwsCommand(`ec2 terminate-instances --instance-ids ${instanceId}`, options);
 
     ui.stopSpinnerSuccess('Instance terminated');
     ui.info(`Instance ${instanceId} has been terminated`);
@@ -441,24 +431,28 @@ function displayInstanceTable(instances: EC2Instance[]): void {
   });
 
   // Print header
-  const headerRow = headers.map((h, i) => {
-    const maxWidth = Math.max(h.length, ...rows.map(r => r[i].length));
-    return h.padEnd(maxWidth);
-  }).join('  ');
+  const headerRow = headers
+    .map((h, i) => {
+      const maxWidth = Math.max(h.length, ...rows.map(r => r[i].length));
+      return h.padEnd(maxWidth);
+    })
+    .join('  ');
 
   ui.print(ui.bold(headerRow));
   ui.print('-'.repeat(headerRow.length));
 
   // Print rows
   for (const row of rows) {
-    const formattedRow = row.map((cell, i) => {
-      const maxWidth = Math.max(headers[i].length, ...rows.map(r => r[i].length));
-      if (i === 3) {
-        // State column - colorize
-        return formatState(cell).padEnd(maxWidth + 10); // Extra for color codes
-      }
-      return cell.padEnd(maxWidth);
-    }).join('  ');
+    const formattedRow = row
+      .map((cell, i) => {
+        const maxWidth = Math.max(headers[i].length, ...rows.map(r => r[i].length));
+        if (i === 3) {
+          // State column - colorize
+          return formatState(cell).padEnd(maxWidth + 10); // Extra for color codes
+        }
+        return cell.padEnd(maxWidth);
+      })
+      .join('  ');
 
     ui.print(formattedRow);
   }

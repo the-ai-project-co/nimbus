@@ -15,7 +15,17 @@ import { logger } from '../utils';
 // ==========================================
 
 /** Known infrastructure components with a base monthly cost. */
-export type KnownComponent = 'vpc' | 'eks' | 'rds' | 's3' | 'ecs' | 'lambda' | 'cloudfront' | 'elasticache' | 'sqs' | 'sns';
+export type KnownComponent =
+  | 'vpc'
+  | 'eks'
+  | 'rds'
+  | 's3'
+  | 'ecs'
+  | 'lambda'
+  | 'cloudfront'
+  | 'elasticache'
+  | 'sqs'
+  | 'sns';
 
 /** The environment tier affects cost multipliers and recommendations. */
 export type EnvironmentTier = 'development' | 'staging' | 'production';
@@ -86,16 +96,16 @@ export interface CostEstimate {
  *   s3:  Minimal storage estimate (< 100GB) ~= $5
  */
 const BASE_COMPONENT_COSTS: Record<string, number> = {
-  vpc: 32,          // NAT Gateway
-  eks: 73,          // Control plane
-  rds: 50,          // db.t3.micro + storage
-  s3: 5,            // Minimal storage
-  ecs: 30,          // Fargate minimal
-  lambda: 2,        // < 1M invocations/month
-  cloudfront: 10,   // < 1TB transfer/month
-  elasticache: 25,  // cache.t3.micro
-  sqs: 1,           // < 1M requests/month
-  sns: 1,           // < 1M notifications/month
+  vpc: 32, // NAT Gateway
+  eks: 73, // Control plane
+  rds: 50, // db.t3.micro + storage
+  s3: 5, // Minimal storage
+  ecs: 30, // Fargate minimal
+  lambda: 2, // < 1M invocations/month
+  cloudfront: 10, // < 1TB transfer/month
+  elasticache: 25, // cache.t3.micro
+  sqs: 1, // < 1M requests/month
+  sns: 1, // < 1M notifications/month
 };
 
 /**
@@ -108,12 +118,12 @@ const REGIONAL_MULTIPLIERS: Record<string, number> = {
   'us-west-1': 1.08,
   'us-west-2': 1.0,
   'eu-west-1': 1.06,
-  'eu-west-2': 1.10,
+  'eu-west-2': 1.1,
   'eu-central-1': 1.08,
   'ap-southeast-1': 1.14,
   'ap-northeast-1': 1.16,
   'ap-south-1': 1.05,
-  'sa-east-1': 1.20,
+  'sa-east-1': 1.2,
   'ca-central-1': 1.06,
   // GCP regions (approximate relative costs)
   'us-central1': 1.0,
@@ -121,10 +131,10 @@ const REGIONAL_MULTIPLIERS: Record<string, number> = {
   'europe-west1': 1.08,
   'asia-east1': 1.12,
   // Azure regions
-  'eastus': 1.0,
-  'westus': 1.05,
-  'westeurope': 1.10,
-  'southeastasia': 1.12,
+  eastus: 1.0,
+  westus: 1.05,
+  westeurope: 1.1,
+  southeastasia: 1.12,
 };
 
 /**
@@ -190,19 +200,18 @@ export class CostEstimator {
         adjustedMonthlyCost: adjustedCost,
         environmentMultiplier: envMultiplier,
         regionalMultiplier: regionMultiplier,
-        notes: COMPONENT_NOTES[component] || `Estimate for ${component}; verify against provider pricing`,
+        notes:
+          COMPONENT_NOTES[component] ||
+          `Estimate for ${component}; verify against provider pricing`,
       });
     }
 
-    const totalMonthlyCost = Math.round(
-      breakdown.reduce((sum, b) => sum + b.adjustedMonthlyCost, 0) * 100
-    ) / 100;
+    const totalMonthlyCost =
+      Math.round(breakdown.reduce((sum, b) => sum + b.adjustedMonthlyCost, 0) * 100) / 100;
 
     const totalAnnualCost = Math.round(totalMonthlyCost * 12 * 100) / 100;
 
-    const withinBudget = budgetLimit !== undefined
-      ? totalMonthlyCost <= budgetLimit
-      : true;
+    const withinBudget = budgetLimit !== undefined ? totalMonthlyCost <= budgetLimit : true;
 
     const recommendations = this.generateRecommendations(input, breakdown, totalMonthlyCost);
 
@@ -303,11 +312,11 @@ export class CostEstimator {
   ): string[] {
     const recommendations: string[] = [];
     const env = (input.environment || 'production').toLowerCase();
-    const components = input.components.map((c) => c.toLowerCase());
+    const components = input.components.map(c => c.toLowerCase());
 
     // Production: Reserved instances
     if (env === 'production' || env === 'prod') {
-      const hasExpensive = components.some((c) => ['eks', 'rds', 'elasticache'].includes(c));
+      const hasExpensive = components.some(c => ['eks', 'rds', 'elasticache'].includes(c));
       if (hasExpensive) {
         recommendations.push(
           'Consider Reserved Instances or Savings Plans for EKS nodes, RDS, and ElastiCache — ' +
@@ -333,7 +342,7 @@ export class CostEstimator {
 
     // Development: spot instances
     if (env === 'development' || env === 'dev') {
-      if (components.some((c) => ['eks', 'ecs'].includes(c))) {
+      if (components.some(c => ['eks', 'ecs'].includes(c))) {
         recommendations.push(
           'Use Spot Instances for development EKS node groups and ECS Fargate Spot — ' +
             'up to 90% savings with appropriate interruption handling.'
@@ -351,7 +360,11 @@ export class CostEstimator {
     }
 
     // Lambda: evaluate if replacing always-on compute
-    if (components.includes('lambda') && !components.includes('ecs') && !components.includes('eks')) {
+    if (
+      components.includes('lambda') &&
+      !components.includes('ecs') &&
+      !components.includes('eks')
+    ) {
       recommendations.push(
         'Lambda-only architecture is cost-efficient at low request volumes. ' +
           'Monitor concurrency limits and cold-start latency as traffic grows.'
@@ -372,10 +385,7 @@ export class CostEstimator {
   /**
    * Resolve base cost for a component, respecting custom overrides.
    */
-  private resolveBaseCost(
-    component: string,
-    customCosts?: Record<string, number>
-  ): number {
+  private resolveBaseCost(component: string, customCosts?: Record<string, number>): number {
     if (customCosts && component in customCosts) {
       return customCosts[component];
     }

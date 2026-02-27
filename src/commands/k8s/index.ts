@@ -30,7 +30,10 @@ export interface K8sCommandOptions {
 /**
  * Get Kubernetes resources
  */
-export async function k8sGetCommand(resource: string, options: K8sCommandOptions = {}): Promise<void> {
+export async function k8sGetCommand(
+  resource: string,
+  options: K8sCommandOptions = {}
+): Promise<void> {
   ui.header(`Kubernetes Get ${resource}`);
 
   if (options.namespace) {
@@ -68,13 +71,14 @@ export async function k8sGetCommand(resource: string, options: K8sCommandOptions
             { key: 'kind', header: 'Kind' },
             { key: 'labels', header: 'Labels' },
           ],
-          data: result.items.map((item) => ({
+          data: result.items.map(item => ({
             name: item.metadata.name,
             namespace: item.metadata.namespace || 'default',
             kind: item.kind,
-            labels: Object.entries(item.metadata.labels || {})
-              .map(([k, v]) => `${k}=${v}`)
-              .join(', ') || '-',
+            labels:
+              Object.entries(item.metadata.labels || {})
+                .map(([k, v]) => `${k}=${v}`)
+                .join(', ') || '-',
           })),
         });
       }
@@ -119,12 +123,12 @@ export async function k8sApplyCommand(
 
       if (result.created && result.created.length > 0) {
         ui.info('Created:');
-        result.created.forEach((r) => ui.info(`  - ${r}`));
+        result.created.forEach(r => ui.info(`  - ${r}`));
       }
 
       if (result.configured && result.configured.length > 0) {
         ui.info('Configured:');
-        result.configured.forEach((r) => ui.info(`  - ${r}`));
+        result.configured.forEach(r => ui.info(`  - ${r}`));
       }
 
       if (result.output) {
@@ -163,7 +167,9 @@ export async function k8sDeleteCommand(
   ui.print(`  ${ui.color('Name:', 'yellow')} ${name}`);
   ui.print(`  ${ui.color('Namespace:', 'yellow')} ${options.namespace || 'default'}`);
   ui.print(`  ${ui.color('Resources affected:', 'yellow')} 1 ${resource}`);
-  ui.print(`  ${ui.color('Impact:', 'red')} This will permanently remove the ${resource} and any dependent resources.`);
+  ui.print(
+    `  ${ui.color('Impact:', 'red')} This will permanently remove the ${resource} and any dependent resources.`
+  );
 
   // Show cost warning before destructive operation
   await showDestructionCostWarning(process.cwd());
@@ -196,7 +202,7 @@ export async function k8sDeleteCommand(
 
       if (result.deleted && result.deleted.length > 0) {
         ui.info('Deleted:');
-        result.deleted.forEach((r) => ui.info(`  - ${r}`));
+        result.deleted.forEach(r => ui.info(`  - ${r}`));
       }
     } else {
       ui.stopSpinnerFail(`Failed to delete ${resource}/${name}`);
@@ -213,7 +219,10 @@ export async function k8sDeleteCommand(
 /**
  * Get pod logs
  */
-export async function k8sLogsCommand(podName: string, options: K8sCommandOptions = {}): Promise<void> {
+export async function k8sLogsCommand(
+  podName: string,
+  options: K8sCommandOptions = {}
+): Promise<void> {
   ui.header(`Kubernetes Logs - ${podName}`);
 
   if (options.namespace) {
@@ -479,7 +488,7 @@ export async function k8sEventsCommand(options: K8sCommandOptions = {}): Promise
             { key: 'message', header: 'Message' },
             { key: 'age', header: 'Age' },
           ],
-          data: result.events.map((event) => ({
+          data: result.events.map(event => ({
             type: event.type || '-',
             reason: event.reason || '-',
             object: event.object || '-',
@@ -578,7 +587,7 @@ export async function k8sNamespaceCommand(
         if (result.namespaces.length > 0) {
           ui.table({
             columns: [{ key: 'name', header: 'Name' }],
-            data: result.namespaces.map((ns) => ({ name: ns })),
+            data: result.namespaces.map(ns => ({ name: ns })),
           });
         }
       } else {
@@ -634,7 +643,9 @@ export async function k8sNamespaceCommand(
     ui.newLine();
     ui.warning(`Destructive operation: deleting namespace ${name}`);
     ui.print(`  ${ui.color('Namespace:', 'yellow')} ${name}`);
-    ui.print(`  ${ui.color('Impact:', 'red')} This will permanently remove the namespace and all resources within it.`);
+    ui.print(
+      `  ${ui.color('Impact:', 'red')} This will permanently remove the namespace and all resources within it.`
+    );
 
     await showDestructionCostWarning(process.cwd());
 
@@ -1015,7 +1026,13 @@ export async function k8sCommand(subcommand: string, args: string[]): Promise<vo
           ui.info('Actions: status, history, restart, undo, pause, resume');
           return;
         }
-        const rolloutAction = positionalArgs[0] as 'status' | 'history' | 'restart' | 'undo' | 'pause' | 'resume';
+        const rolloutAction = positionalArgs[0] as
+          | 'status'
+          | 'history'
+          | 'restart'
+          | 'undo'
+          | 'pause'
+          | 'resume';
         const resourceParts = positionalArgs[1].split('/');
         const rolloutResource = resourceParts.length > 1 ? resourceParts[0] : 'deployment';
         const rolloutName = resourceParts.length > 1 ? resourceParts[1] : resourceParts[0];
@@ -1105,12 +1122,16 @@ export async function k8sCommand(subcommand: string, args: string[]): Promise<vo
       }
       default:
         ui.error(`Unknown k8s subcommand: ${subcommand}`);
-        ui.info('Available commands: get, apply, delete, logs, describe, scale, exec, rollout, events, generate, port-forward, namespace, top, patch, label, annotate');
+        ui.info(
+          'Available commands: get, apply, delete, logs, describe, scale, exec, rollout, events, generate, port-forward, namespace, top, patch, label, annotate'
+        );
     }
 
     historyManager.completeEntry(entry.id, 'success', Date.now() - startTime);
   } catch (error: any) {
-    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, { error: error.message });
+    historyManager.completeEntry(entry.id, 'failure', Date.now() - startTime, {
+      error: error.message,
+    });
     throw error;
   }
 }

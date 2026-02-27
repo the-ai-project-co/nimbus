@@ -104,7 +104,7 @@ export class GeneratorClient {
       throw new Error(`Generator service error: ${response.status}`);
     }
 
-    const data = await response.json() as { success: boolean; data: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data: any; error?: string };
     if (!data.success) {
       throw new Error(data.error || 'Failed to process conversation');
     }
@@ -149,7 +149,7 @@ export class GeneratorClient {
       throw new Error(`Generator service error: ${response.status}`);
     }
 
-    const data = await response.json() as { success: boolean; data: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data: any; error?: string };
     if (!data.success) {
       throw new Error(data.error || 'Failed to generate infrastructure');
     }
@@ -192,7 +192,7 @@ export class GeneratorClient {
       throw new Error(`Generator service error: ${response.status}`);
     }
 
-    const data = await response.json() as { success: boolean; data: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data: any; error?: string };
     if (!data.success) {
       return null;
     }
@@ -244,7 +244,7 @@ export class GeneratorClient {
       throw new Error(`Generator service error: ${response.status}`);
     }
 
-    const data = await response.json() as { success: boolean; data: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data: any; error?: string };
     if (!data.success) {
       throw new Error(data.error || 'Failed to start questionnaire');
     }
@@ -270,7 +270,7 @@ export class GeneratorClient {
       throw new Error(`Generator service error: ${response.status}`);
     }
 
-    const data = await response.json() as { success: boolean; data: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data: any; error?: string };
     if (!data.success) {
       throw new Error(data.error || 'Failed to submit answer');
     }
@@ -299,7 +299,7 @@ export class GeneratorClient {
       throw new Error(`Generator service error: ${response.status}`);
     }
 
-    const data = await response.json() as { success: boolean; data: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data: any; error?: string };
     if (!data.success) {
       throw new Error(data.error || 'Failed to generate from questionnaire');
     }
@@ -319,13 +319,15 @@ export class GeneratorClient {
   /**
    * List available templates
    */
-  async listTemplates(type?: 'terraform' | 'kubernetes'): Promise<Array<{
-    id: string;
-    name: string;
-    type: string;
-    provider: string;
-    component: string;
-  }>> {
+  async listTemplates(type?: 'terraform' | 'kubernetes'): Promise<
+    Array<{
+      id: string;
+      name: string;
+      type: string;
+      provider: string;
+      component: string;
+    }>
+  > {
     const url = type
       ? `${this.baseUrl}/api/templates/type/${type}`
       : `${this.baseUrl}/api/templates`;
@@ -336,7 +338,7 @@ export class GeneratorClient {
       throw new Error(`Generator service error: ${response.status}`);
     }
 
-    const data = await response.json() as { success: boolean; data: any; error?: string };
+    const data = (await response.json()) as { success: boolean; data: any; error?: string };
     if (!data.success) {
       throw new Error(data.error || 'Failed to list templates');
     }

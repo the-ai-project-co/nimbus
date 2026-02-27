@@ -69,7 +69,19 @@ function detectExplainType(target: string, content?: string): ExplainType {
   }
 
   // Check for code file extensions
-  const codeExtensions = ['.ts', '.js', '.py', '.go', '.java', '.rs', '.rb', '.php', '.c', '.cpp', '.cs'];
+  const codeExtensions = [
+    '.ts',
+    '.js',
+    '.py',
+    '.go',
+    '.java',
+    '.rs',
+    '.rb',
+    '.php',
+    '.c',
+    '.cpp',
+    '.cs',
+  ];
   if (codeExtensions.some(ext => targetLower.endsWith(ext))) {
     return 'code';
   }
@@ -185,13 +197,12 @@ export async function explainCommand(target: string, options: ExplainOptions = {
   const maxLength = 10000;
   if (content.length > maxLength) {
     ui.warning(`Content truncated to ${maxLength} characters`);
-    content = content.slice(0, maxLength) + '\n... (content truncated)';
+    content = `${content.slice(0, maxLength)}\n... (content truncated)`;
   }
 
   // Detect or use specified type
-  const type = options.type === 'auto' || !options.type
-    ? detectExplainType(target, content)
-    : options.type;
+  const type =
+    options.type === 'auto' || !options.type ? detectExplainType(target, content) : options.type;
 
   // Display header
   ui.header('Nimbus Explain');
@@ -243,13 +254,18 @@ export async function explainCommand(target: string, options: ExplainOptions = {
 
     // JSON output mode
     if (options.json) {
-      console.log(JSON.stringify({
-        type,
-        file: filePath,
-        explanation: response,
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            type,
+            file: filePath,
+            explanation: response,
+          },
+          null,
+          2
+        )
+      );
     }
-
   } catch (error: any) {
     ui.stopSpinnerFail('Failed');
     ui.error(error.message);
