@@ -3,7 +3,7 @@
 # Usage: curl -fsSL https://nimbus.dev/install.sh | bash
 #
 # Installation methods (in priority order):
-#   1. bun install -g @astron/nimbus  — Full features including rich TUI
+#   1. bun install -g @build-astron-co/nimbus  — Full features including rich TUI
 #   2. Pre-built binary       — Lighter weight, readline chat only (no Ink TUI)
 #
 # Environment variables:
@@ -120,7 +120,7 @@ install_via_bun() {
     fi
 
     info "Installing Nimbus via Bun (includes rich terminal UI)..."
-    if bun install -g @astron/nimbus@"$VERSION" 2>/dev/null; then
+    if bun install -g @build-astron-co/nimbus@"$VERSION" 2>/dev/null; then
         success "Nimbus installed via Bun!"
         return 0
     fi
@@ -145,7 +145,7 @@ install_via_npm() {
         return 1
     fi
 
-    if npm install -g @astron/nimbus@"$VERSION" 2>/dev/null; then
+    if npm install -g @build-astron-co/nimbus@"$VERSION" 2>/dev/null; then
         success "Nimbus installed via npm!"
         return 0
     fi
@@ -184,7 +184,7 @@ install_binary() {
 
     info "Downloading Nimbus binary..."
     warn "Note: Pre-built binary does not include the rich Ink terminal UI."
-    warn "For the full experience, install via: bun install -g @astron/nimbus"
+    warn "For the full experience, install via: bun install -g @build-astron-co/nimbus"
 
     if download "$download_url" "$temp_dir/$archive_name" 2>/dev/null; then
         info "Extracting..."
@@ -342,7 +342,7 @@ main() {
     fi
 
     if [ "$installed" = false ]; then
-        error "Installation failed. Please install manually: bun install -g @astron/nimbus"
+        error "Installation failed. Please install manually: bun install -g @build-astron-co/nimbus"
     fi
 
     verify_installation

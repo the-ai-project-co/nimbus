@@ -117,28 +117,44 @@ jobs:
     needs: test
 
     steps:
+      - name: Check for NPM token
+        id: check-token
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "::warning::NPM_TOKEN secret not configured — skipping npm publish"
+          else
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout code
+        if: steps.check-token.outputs.has_token == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: steps.check-token.outputs.has_token == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
       - name: Setup Bun
+        if: steps.check-token.outputs.has_token == 'true'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install dependencies
+        if: steps.check-token.outputs.has_token == 'true'
         run: bun install
 
       - name: Extract version from tag
+        if: steps.check-token.outputs.has_token == 'true'
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Prepare package.json for npm publish
+        if: steps.check-token.outputs.has_token == 'true'
         run: |
           # Sync version from the git tag and remove private flag for publishing.
           node -e "
@@ -172,6 +188,7 @@ jobs:
           "
 
       - name: Verify package contents
+        if: steps.check-token.outputs.has_token == 'true'
         run: |
           echo "Checking entry point exists..."
           test -f src/nimbus.ts || (echo "ERROR: src/nimbus.ts not found" && exit 1)
@@ -182,6 +199,7 @@ jobs:
           echo "Verification passed."
 
       - name: Publish to npm
+        if: steps.check-token.outputs.has_token == 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -191,10 +209,22 @@ jobs:
     needs: github-release
 
     steps:
+      - name: Check for Homebrew tap token
+        id: check-token
+        run: |
+          if [ -z "${{ secrets.HOMEBREW_TAP_TOKEN }}" ]; then
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "::warning::HOMEBREW_TAP_TOKEN secret not configured — skipping homebrew update"
+          else
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout nimbus repo
+        if: steps.check-token.outputs.has_token == 'true'
         uses: actions/checkout@v4
 
       - name: Checkout homebrew-tap
+        if: steps.check-token.outputs.has_token == 'true'
         uses: actions/checkout@v4
         with:
           repository: the-ai-project-co/homebrew-tap
@@ -202,16 +232,19 @@ jobs:
           path: homebrew-tap
 
       - name: Download binary artifacts
+        if: steps.check-token.outputs.has_token == 'true'
         uses: actions/download-artifact@v4
         with:
           name: binaries
           path: dist/
 
       - name: Extract version from tag
+        if: steps.check-token.outputs.has_token == 'true'
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Update Homebrew formula
+        if: steps.check-token.outputs.has_token == 'true'
         run: |
           # The build step already wrote dist/checksums.txt with SHA256 hashes
           # for all platform tarballs. The update script reads from there
@@ -221,9 +254,11 @@ jobs:
             "homebrew-tap/Formula/nimbus.rb"
 
       - name: Validate formula syntax
+        if: steps.check-token.outputs.has_token == 'true'
         run: ruby -c homebrew-tap/Formula/nimbus.rb
 
       - name: Commit and push formula update
+        if: steps.check-token.outputs.has_token == 'true'
         run: |
           cd homebrew-tap
           git config user.name "github-actions[bot]"

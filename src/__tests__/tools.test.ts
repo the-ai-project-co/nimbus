@@ -39,7 +39,7 @@ describe('FileSystemOperations', () => {
     expect(content.length).toBeGreaterThan(0);
     // Verify it is valid JSON containing expected nimbus fields
     const pkg = JSON.parse(content);
-    expect(pkg.name).toBe('@astron/nimbus');
+    expect(pkg.name).toBe('@build-astron-co/nimbus');
   });
 
   it('exists() returns true for a known file', async () => {

@@ -1,6 +1,6 @@
 # Nimbus
 
-[![npm version](https://img.shields.io/npm/v/@astron/nimbus.svg)](https://www.npmjs.com/package/@astron/nimbus)
+[![npm version](https://img.shields.io/npm/v/@build-astron-co/nimbus.svg)](https://www.npmjs.com/package/@build-astron-co/nimbus)
 [![license](https://img.shields.io/github/license/the-ai-project-co/nimbus)](https://github.com/the-ai-project-co/nimbus/blob/main/LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/the-ai-project-co/nimbus)](https://github.com/the-ai-project-co/nimbus/releases)
 [![CI](https://github.com/the-ai-project-co/nimbus/actions/workflows/ci.yml/badge.svg)](https://github.com/the-ai-project-co/nimbus/actions)
@@ -82,9 +82,9 @@ three-mode safety system that separates reading, building, and deploying.
 
 ```bash
 # Install
-npm install -g @astron/nimbus
+npm install -g @build-astron-co/nimbus
 # or
-bun install -g @astron/nimbus
+bun install -g @build-astron-co/nimbus
 # or via Homebrew
 brew tap the-ai-project-co/tap
 brew install nimbus
@@ -107,7 +107,7 @@ the interactive chat.
 ### Bun (recommended -- fastest, native SQLite)
 
 ```bash
-bun install -g @astron/nimbus
+bun install -g @build-astron-co/nimbus
 ```
 
 Bun provides the best experience: native `bun:sqlite` for state management,
@@ -116,7 +116,7 @@ faster startup, and the full Ink TUI out of the box.
 ### npm
 
 ```bash
-npm install -g @astron/nimbus
+npm install -g @build-astron-co/nimbus
 ```
 
 Works with Node.js >= 18. Uses `better-sqlite3` as the SQLite backend when
@@ -621,7 +621,7 @@ src/
 
 ## Links
 
-- [npm Package](https://www.npmjs.com/package/@astron/nimbus)
+- [npm Package](https://www.npmjs.com/package/@build-astron-co/nimbus)
 - [GitHub](https://github.com/the-ai-project-co/nimbus)
 - [Issues](https://github.com/the-ai-project-co/nimbus/issues)
 - [Releases](https://github.com/the-ai-project-co/nimbus/releases)

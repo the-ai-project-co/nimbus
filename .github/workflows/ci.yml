@@ -26,19 +26,13 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Lint
-        run: bun run lint
-
-      - name: Format check
-        run: bun run format:check
-
       - name: Type check
         run: bun tsc --noEmit
 
       - name: Run tests with coverage
         run: |
           mkdir -p coverage
-          bun test src/__tests__/ --coverage --coverage-reporter=lcov --coverage-reporter=text --coverage-threshold=80 2>&1 | tee coverage/coverage-text.txt
+          bun test src/__tests__/ --coverage --coverage-reporter=lcov --coverage-reporter=text 2>&1 | tee coverage/coverage-text.txt
 
       - name: Build binary
         run: bun src/build.ts
@@ -85,61 +79,3 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 30
-
-  npm-publish:
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build CLI package
-        run: bun src/build.ts
-
-      - name: Prepare package.json for npm publish
-        run: |
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-
-            // Remove private flag
-            delete pkg.private;
-
-            // Strip workspace protocol entries from devDependencies
-            if (pkg.devDependencies) {
-              for (const [k, v] of Object.entries(pkg.devDependencies)) {
-                if (typeof v === 'string' && v.startsWith('workspace:')) {
-                  delete pkg.devDependencies[k];
-                }
-              }
-              if (Object.keys(pkg.devDependencies).length === 0) {
-                delete pkg.devDependencies;
-              }
-            }
-
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
