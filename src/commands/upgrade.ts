@@ -14,7 +14,7 @@ import { VERSION } from '../version';
 const GITHUB_REPO = 'the-ai-project-co/nimbus';
 
 /** npm package name (may not be published yet). */
-const NPM_PACKAGE = '@nimbus-ai/cli';
+const NPM_PACKAGE = '@astron/nimbus';
 
 /** Homebrew tap name for the formula. */
 const HOMEBREW_TAP = 'the-ai-project-co/tap/nimbus';
