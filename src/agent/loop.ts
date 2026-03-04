@@ -36,6 +36,12 @@ import { runCompaction } from './compaction-agent';
 import type { LSPManager } from '../lsp/manager';
 import { SnapshotManager } from '../snapshots/manager';
 import { calculateCost } from '../llm/cost-calculator';
+import {
+  HookEngine,
+  runPreToolHooks,
+  runPostToolHooks,
+  type HookContext,
+} from '../hooks/engine';
 
 // ---------------------------------------------------------------------------
 // Public Types
@@ -104,6 +110,10 @@ export interface AgentLoopOptions {
    *  When provided, a snapshot is captured before each file-modifying tool
    *  call so users can undo/redo changes. */
   snapshotManager?: SnapshotManager;
+
+  /** Optional hook engine for PreToolUse/PostToolUse/PermissionRequest hooks.
+   *  When provided, matching hook scripts are executed around each tool call. */
+  hookEngine?: HookEngine;
 
   /** Callback fired after each LLM turn with accumulated usage and cost.
    *  Allows the TUI to update cost/token display in real-time during
@@ -363,7 +373,8 @@ export async function runAgentLoop(
           options.lspManager,
           options.snapshotManager,
           options.sessionId,
-          signal
+          signal,
+          options.hookEngine
         );
 
         // Append each tool result as a separate message so the LLM can
@@ -507,7 +518,8 @@ async function executeToolCall(
   lspManager?: LSPManager,
   snapshotManager?: SnapshotManager,
   sessionId?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  hookEngine?: HookEngine
 ): Promise<ToolResult> {
   const toolName = toolCall.function.name;
 
@@ -547,6 +559,31 @@ async function executeToolCall(
   // Notify start
   if (onStart) {
     onStart(callInfo);
+  }
+
+  // Build shared hook context for PreToolUse and PostToolUse
+  const hookContext: HookContext = {
+    tool: toolName,
+    input: parsedArgs && typeof parsedArgs === 'object' ? (parsedArgs as Record<string, unknown>) : {},
+    sessionId: sessionId ?? 'default',
+    agent: 'build',
+    timestamp: new Date().toISOString(),
+  };
+
+  // PreToolUse hooks — may block the tool call
+  if (hookEngine) {
+    const preResult = await runPreToolHooks(hookEngine, hookContext);
+    if (!preResult.allowed) {
+      const result: ToolResult = {
+        output: '',
+        error: `Tool '${toolName}' blocked by hook: ${preResult.message ?? 'no reason given'}`,
+        isError: true,
+      };
+      if (onEnd) {
+        onEnd(callInfo, result);
+      }
+      return result;
+    }
   }
 
   // Permission check
@@ -639,6 +676,17 @@ async function executeToolCall(
         };
       }
     }
+  }
+
+  // PostToolUse hooks — fire-and-forget (audit, auto-format, etc.)
+  if (hookEngine) {
+    await runPostToolHooks(hookEngine, {
+      ...hookContext,
+      result: {
+        output: result.isError ? (result.error ?? '') : result.output,
+        isError: result.isError,
+      },
+    });
   }
 
   // Notify end

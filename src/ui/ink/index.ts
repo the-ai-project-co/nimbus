@@ -20,7 +20,7 @@ import {
   type OnModeChangeCallback,
   type SessionSummary,
 } from '../App';
-import type { UIMessage, UIToolCall } from '../types';
+import type { UIMessage, UIToolCall, DeployPreviewData } from '../types';
 import { getAppContext } from '../../app';
 import { runAgentLoop, type AgentLoopResult } from '../../agent/loop';
 import { buildSystemPrompt, type AgentMode } from '../../agent/system-prompt';
@@ -37,6 +37,7 @@ import {
   type PermissionSessionState,
 } from '../../agent/permissions';
 import { FileWatcher } from '../../watcher';
+import { HookEngine } from '../../hooks/engine';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -90,6 +91,9 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
       }
     }
   }
+
+  // Initialize hook engine with project dir (loads .nimbus/hooks.yaml if present)
+  const hookEngine = new HookEngine(process.cwd());
 
   // Start filesystem watcher for external change awareness
   const watcher = new FileWatcher(process.cwd());
@@ -234,6 +238,44 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   }
 
   /**
+   * Infrastructure tools that require a deploy preview confirmation in deploy mode.
+   */
+  const DEPLOY_PREVIEW_TOOLS = new Set(['terraform', 'kubectl', 'helm']);
+
+  /**
+   * Show the deploy preview modal and wait for user confirmation.
+   * Returns true if the user approves, false if they cancel.
+   */
+  function promptDeployPreview(tool: string, input: Record<string, unknown>): Promise<boolean> {
+    return new Promise(resolve => {
+      if (!api) {
+        resolve(true); // API not ready — allow by default
+        return;
+      }
+
+      const action = typeof input.action === 'string' ? input.action : 'apply';
+      const changeAction: 'create' | 'modify' | 'destroy' | 'replace' =
+        action.includes('destroy') || action.includes('delete') ? 'destroy' : 'modify';
+
+      const preview: DeployPreviewData = {
+        tool,
+        changes: [
+          {
+            action: changeAction,
+            resourceType: tool,
+            resourceName: typeof input.command === 'string' ? input.command : action,
+            details: typeof input.args === 'string' ? input.args : undefined,
+          },
+        ],
+      };
+
+      api.requestDeployPreview(preview, decision => {
+        resolve(decision === 'approve');
+      });
+    });
+  }
+
+  /**
    * Handle a user message: run the agent loop and stream results back
    * into the TUI.
    */
@@ -271,6 +313,7 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
         signal: abortController.signal,
         contextManager,
         snapshotManager,
+        hookEngine,
         onText: chunk => {
           // Stream text incrementally into the TUI
           if (!streamingMessageId) {
@@ -327,6 +370,16 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
           });
         },
         checkPermission: async (tool, input) => {
+          // In deploy mode, show a preview confirmation before infra-mutating tools
+          if (currentMode === 'deploy' && DEPLOY_PREVIEW_TOOLS.has(tool.name)) {
+            const toolInput =
+              input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+            const approved = await promptDeployPreview(tool.name, toolInput);
+            if (!approved) {
+              return 'deny';
+            }
+          }
+
           const decision = checkPermission(tool, input, permissionState);
           if (decision === 'allow') {
             return 'allow';

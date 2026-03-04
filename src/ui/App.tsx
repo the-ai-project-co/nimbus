@@ -223,7 +223,9 @@ export function App({
 
   const [permissionRequest, setPermissionRequest] = useState(null as PermissionRequest | null);
 
-  const [deployPreview, setDeployPreview] = useState(null as DeployPreviewData | null);
+  const [deployPreview, setDeployPreview] = useState(
+    null as (DeployPreviewData & { onDecide?: (d: DeployDecision) => void }) | null
+  );
 
   const [isProcessing, setIsProcessing] = useState(false as boolean);
   const [processingStartTime, setProcessingStartTime] = useState(null as number | null);
@@ -243,6 +245,8 @@ export function App({
         setToolCalls: setActiveToolCalls,
         requestPermission: (req: PermissionRequest) => setPermissionRequest(req),
         showDeployPreview: (preview: DeployPreviewData) => setDeployPreview(preview),
+        requestDeployPreview: (preview: DeployPreviewData, onDecide: (d: DeployDecision) => void) =>
+          setDeployPreview({ ...preview, onDecide }),
         setProcessing: (v: boolean) => {
           setIsProcessing(v);
           setProcessingStartTime(v ? Date.now() : null);
@@ -813,11 +817,12 @@ export function App({
   );
 
   /** Handle deploy preview decisions. */
-  const handleDeployDecision = useCallback((_decision: DeployDecision) => {
-    // The parent orchestrator handles the actual decision; we just
-    // close the overlay here.
+  const handleDeployDecision = useCallback((decision: DeployDecision) => {
+    if (deployPreview?.onDecide) {
+      deployPreview.onDecide(decision);
+    }
     setDeployPreview(null);
-  }, []);
+  }, [deployPreview]);
 
   /* -- Global keyboard shortcuts ----------------------------------------- */
 
@@ -945,6 +950,7 @@ export interface AppImperativeAPI {
   setToolCalls: (calls: UIToolCall[]) => void;
   requestPermission: (req: PermissionRequest) => void;
   showDeployPreview: (preview: DeployPreviewData) => void;
+  requestDeployPreview: (preview: DeployPreviewData, onDecide: (d: DeployDecision) => void) => void;
   setProcessing: (value: boolean) => void;
 }
 
