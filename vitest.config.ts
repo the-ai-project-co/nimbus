@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/__tests__/**/*.test.ts'],
+    env: {
+      LOG_LEVEL: 'warn',
+    },
 
     // forks pool isolates globalThis.fetch mutations between test files
     // but can cause EPIPE in CI when child processes write after stdout closes.

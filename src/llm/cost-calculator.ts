@@ -138,13 +138,13 @@ export function calculateCost(
 
   const providerPricing = PRICING[provider];
   if (!providerPricing) {
-    logger.warn(`No pricing data for provider "${provider}", returning zero cost`);
+    logger.debug(`No pricing data for provider "${provider}", returning zero cost`);
     return { costUSD: 0, breakdown: { input: 0, output: 0 } };
   }
 
   const entry = providerPricing[model];
   if (!entry) {
-    logger.warn(
+    logger.debug(
       `No pricing data for model "${model}" on provider "${provider}", returning zero cost`
     );
     return { costUSD: 0, breakdown: { input: 0, output: 0 } };

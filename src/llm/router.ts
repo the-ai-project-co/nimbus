@@ -143,8 +143,8 @@ export class LLMRouter {
       isConfigured = bridge.isProviderConfigured;
       getApiKey = bridge.getProviderApiKey;
     } catch (err) {
-      // Auth-bridge unavailable (e.g., test environment) — fall back to env-only
-      logger.warn(
+      // Auth-bridge unavailable (open-source build) — fall back to env-only
+      logger.debug(
         'Auth-bridge unavailable, using environment variables only:',
         err instanceof Error ? err.message : String(err)
       );
