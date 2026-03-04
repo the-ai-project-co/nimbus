@@ -242,13 +242,14 @@ export class HookEngine {
       }
 
       // Write context JSON to stdin
-      try {
-        if (child.stdin) {
+      if (child.stdin) {
+        child.stdin.on('error', () => { /* EPIPE or other write errors — ignore */ });
+        try {
           child.stdin.write(JSON.stringify(context));
           child.stdin.end();
+        } catch {
+          // stdin may already be closed -- ignore
         }
-      } catch {
-        // stdin may already be closed -- ignore
       }
 
       // Collect stdout and stderr
