@@ -5,13 +5,18 @@ export default defineConfig({
     environment: 'node',
     include: ['src/__tests__/**/*.test.ts'],
 
-    // Forked processes prevent globalThis.fetch mutations (stream-with-tools.test.ts)
-    // from leaking between test files.
-    pool: 'forks',
+    // forks pool isolates globalThis.fetch mutations between test files
+    // but can cause EPIPE in CI when child processes write after stdout closes.
+    // Using threads with isolate:true gives the same module isolation without EPIPE.
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        isolate: true,
+      },
+    },
 
     globals: false,
     testTimeout: 30000,
-    reporter: ['default'],
 
     coverage: {
       provider: 'v8',
