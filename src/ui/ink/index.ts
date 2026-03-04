@@ -75,20 +75,33 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   // Concurrent message guard: prevent overlapping agent loop runs
   let isRunning = false;
 
-  // Eagerly load NIMBUS.md for explicit pass-through to the agent loop
+  // Eagerly load NIMBUS.md for explicit pass-through to the agent loop.
+  // On the first run (no NIMBUS.md found), auto-run `nimbus init --quiet`
+  // to generate one with detected project context.
   let nimbusInstructions: string | undefined;
   const nimbusMdPaths = [
     join(process.cwd(), 'NIMBUS.md'),
     join(process.cwd(), '.nimbus', 'NIMBUS.md'),
   ];
-  for (const p of nimbusMdPaths) {
-    if (existsSync(p)) {
-      try {
-        nimbusInstructions = readFileSync(p, 'utf-8');
-        break;
-      } catch {
-        /* skip */
+
+  const foundNimbusMd = nimbusMdPaths.find(p => existsSync(p));
+  if (foundNimbusMd) {
+    try {
+      nimbusInstructions = readFileSync(foundNimbusMd, 'utf-8');
+    } catch {
+      /* skip */
+    }
+  } else if (!options.resumeSessionId) {
+    // Fresh session with no NIMBUS.md — silently auto-generate one
+    try {
+      const { runInit } = await import('../../cli/init');
+      const result = await runInit({ cwd: process.cwd(), quiet: true });
+      // Load the freshly generated NIMBUS.md
+      if (result.nimbusmdPath && existsSync(result.nimbusmdPath)) {
+        nimbusInstructions = readFileSync(result.nimbusmdPath, 'utf-8');
       }
+    } catch {
+      /* init failure is non-critical — proceed without project context */
     }
   }
 
@@ -708,7 +721,7 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   };
 
   // Convert restored LLM history into UIMessages for the TUI
-  const initialMessages: UIMessage[] = history
+  const restoredMessages: UIMessage[] = history
     .filter(m => m.role === 'user' || m.role === 'assistant')
     .map(m => ({
       id: crypto.randomUUID(),
@@ -716,6 +729,34 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
       content: getTextContent(m.content),
       timestamp: new Date(),
     }));
+
+  // Show a welcome message on fresh sessions (no prior history)
+  const isNewSession = restoredMessages.length === 0;
+  const welcomeMessage: UIMessage | null = isNewSession
+    ? {
+        id: crypto.randomUUID(),
+        role: 'system',
+        content: [
+          'Welcome to Nimbus — your AI coding & infrastructure agent.',
+          '',
+          'Key commands:',
+          '  /help       — show all commands',
+          '  /mode       — switch between plan / build / deploy',
+          '  /model      — change LLM model',
+          '  /undo /redo — revert or re-apply file changes',
+          '  Tab         — cycle modes  |  Esc — cancel  |  Ctrl+C — exit',
+          '',
+          nimbusInstructions
+            ? 'NIMBUS.md loaded — project context active.'
+            : 'Tip: run `nimbus init` to generate a NIMBUS.md with project context.',
+        ].join('\n'),
+        timestamp: new Date(),
+      }
+    : null;
+
+  const initialMessages: UIMessage[] = welcomeMessage
+    ? [welcomeMessage, ...restoredMessages]
+    : restoredMessages;
 
   // Build props for the App component
   const appProps: AppProps = {

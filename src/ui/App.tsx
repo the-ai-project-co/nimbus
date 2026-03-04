@@ -20,6 +20,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
+import Spinner from 'ink-spinner';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AgentMode, UIMessage, UIToolCall, SessionInfo, DeployPreviewData } from './types';
@@ -897,6 +898,18 @@ export function App({
       <Box flexDirection="column" flexGrow={1}>
         <MessageList messages={messages} mode={session.mode} />
       </Box>
+
+      {/* Thinking spinner — shown between message submit and first LLM token/tool */}
+      {isProcessing && visibleToolCalls.length === 0 && messages.every(m => m.role !== 'assistant' || m.content === '') && (
+        <Box paddingX={1} paddingY={0}>
+          <Text color="cyan">
+            <Spinner type="dots" />
+          </Text>
+          <Text color="cyan" dimColor>
+            {' '}Thinking...
+          </Text>
+        </Box>
+      )}
 
       {/* Inline tool call display (when tools are active) */}
       {visibleToolCalls.length > 0 && (

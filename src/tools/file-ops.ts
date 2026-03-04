@@ -127,6 +127,26 @@ export class FileSystemOperations {
     const resolvedPath = this.resolvePath(filePath);
     logger.info(`Reading file: ${resolvedPath}`);
 
+    // Guard against large files that would overflow the context window.
+    // Warn and truncate at 500 KB — enough for most source files.
+    const MAX_READ_BYTES = 500 * 1024;
+    const stat = await fs.stat(resolvedPath);
+    if (stat.size > MAX_READ_BYTES) {
+      const buffer = Buffer.alloc(MAX_READ_BYTES);
+      const fd = await fs.open(resolvedPath, 'r');
+      try {
+        await fd.read(buffer, 0, MAX_READ_BYTES, 0);
+      } finally {
+        await fd.close();
+      }
+      const truncated = buffer.toString(encoding);
+      return (
+        truncated +
+        `\n\n[File truncated: ${(stat.size / 1024).toFixed(1)} KB total, showing first 500 KB. ` +
+        `Use line range parameters to read specific sections.]`
+      );
+    }
+
     const content = await fs.readFile(resolvedPath, encoding);
     return content;
   }

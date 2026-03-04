@@ -129,14 +129,71 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
       }
       ui.newLine();
 
-      apiKey = await input({
-        message: `Enter your ${providerInfo.displayName} API key`,
-      });
+      // Retry loop: re-prompt on invalid key (up to 3 attempts)
+      const MAX_ATTEMPTS = 3;
+      let attempt = 0;
+      let validated = false;
 
-      if (!apiKey) {
+      while (attempt < MAX_ATTEMPTS) {
+        attempt++;
+
+        apiKey = await input({
+          message:
+            attempt === 1
+              ? `Enter your ${providerInfo.displayName} API key`
+              : `Enter your ${providerInfo.displayName} API key (attempt ${attempt}/${MAX_ATTEMPTS})`,
+        });
+
+        if (!apiKey) {
+          ui.newLine();
+          ui.warning('No API key entered. You can run "nimbus login" later to set up.');
+          ui.newLine();
+          return;
+        }
+
+        // Validate credentials
         ui.newLine();
-        ui.warning('No API key entered. You can run "nimbus login" later to set up.');
-        ui.newLine();
+        ui.startSpinner({ message: `Validating ${providerInfo.displayName} credentials...` });
+
+        let validation: { valid: boolean; error?: string };
+        try {
+          validation = await validateProviderApiKey(provider, apiKey, baseUrl);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          ui.stopSpinnerFail(`Validation error: ${msg}`);
+          if (attempt < MAX_ATTEMPTS) {
+            ui.warning('Please check your key and try again.');
+            ui.newLine();
+            continue;
+          }
+          ui.newLine();
+          ui.info('You can retry with "nimbus login" or set the API key via environment variable.');
+          ui.newLine();
+          return;
+        }
+
+        if (!validation.valid) {
+          ui.stopSpinnerFail(`Invalid key: ${validation.error}`);
+          if (attempt < MAX_ATTEMPTS) {
+            ui.warning('Please check your key and try again.');
+            ui.newLine();
+            continue;
+          }
+          ui.newLine();
+          ui.info('You can retry with "nimbus login" or set the API key via environment variable:');
+          if (providerInfo.envVarName) {
+            ui.info(`  export ${providerInfo.envVarName}=your-key`);
+          }
+          ui.newLine();
+          return;
+        }
+
+        ui.stopSpinnerSuccess(`${providerInfo.displayName} credentials verified!`);
+        validated = true;
+        break;
+      }
+
+      if (!validated) {
         return;
       }
     } else if (providerInfo.supportsBaseUrl) {
@@ -147,35 +204,6 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
         defaultValue: providerInfo.defaultBaseUrl || 'http://localhost:11434',
       });
     }
-
-    // Validate credentials
-    ui.newLine();
-    ui.startSpinner({ message: `Validating ${providerInfo.displayName} credentials...` });
-
-    let validation: { valid: boolean; error?: string };
-    try {
-      validation = await validateProviderApiKey(provider, apiKey, baseUrl);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      ui.stopSpinnerFail(`Validation error: ${msg}`);
-      ui.newLine();
-      ui.info('You can retry with "nimbus login" or set the API key via environment variable.');
-      ui.newLine();
-      return;
-    }
-
-    if (!validation.valid) {
-      ui.stopSpinnerFail(`Validation failed: ${validation.error}`);
-      ui.newLine();
-      ui.info('You can retry with "nimbus login" or set the API key via environment variable:');
-      if (providerInfo.envVarName) {
-        ui.info(`  export ${providerInfo.envVarName}=your-key`);
-      }
-      ui.newLine();
-      return;
-    }
-
-    ui.stopSpinnerSuccess(`${providerInfo.displayName} credentials verified!`);
 
     // Save credentials
     const defaultModel = getDefaultModel(provider);
