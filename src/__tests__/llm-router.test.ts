@@ -9,7 +9,7 @@
  * (no I/O, no network) and execute synchronously.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { resolveModelAlias, getAliases } from '../llm/model-aliases';
 import { detectProvider } from '../llm/provider-registry';
 import { calculateCost, getPricingData, type CostResult } from '../llm/cost-calculator';

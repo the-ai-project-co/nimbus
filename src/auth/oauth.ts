@@ -4,6 +4,12 @@
  * Fallback: Browser-based OAuth with local callback server
  */
 
+import {
+  createServer,
+  type Server as HttpServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
 import type {
   GitHubDeviceCodeResponse,
   GitHubAccessTokenResponse,
@@ -229,7 +235,7 @@ export async function completeGitHubAuth(accessToken: string): Promise<GitHubIde
  * Creates a temporary local server to receive the OAuth callback
  */
 export class BrowserOAuthServer {
-  private server: ReturnType<typeof Bun.serve> | null = null;
+  private server: HttpServer | null = null;
   private clientId: string;
   private codePromise: Promise<string> | null = null;
   private codeResolve: ((code: string) => void) | null = null;
@@ -250,10 +256,14 @@ export class BrowserOAuthServer {
     });
 
     // Start the server
-    this.server = Bun.serve({
-      port: CALLBACK_PORT,
-      fetch: request => this.handleRequest(request),
+    this.server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      const url = new URL(req.url || '/', `http://localhost:${CALLBACK_PORT}`);
+      const webReq = new Request(url, { method: req.method || 'GET' });
+      const webRes = this.handleRequest(webReq);
+      res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
+      webRes.text().then(body => res.end(body));
     });
+    this.server.listen(CALLBACK_PORT);
 
     // Build authorization URL
     const params = new URLSearchParams({
@@ -292,7 +302,7 @@ export class BrowserOAuthServer {
    */
   stop(): void {
     if (this.server) {
-      this.server.stop();
+      this.server.close();
       this.server = null;
     }
   }

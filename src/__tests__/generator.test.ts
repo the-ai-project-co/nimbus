@@ -9,7 +9,7 @@
  * tests run entirely in-memory and complete in milliseconds.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { TerraformProjectGenerator, type TerraformProjectConfig } from '../generator/terraform';
 import {
   KubernetesGenerator,

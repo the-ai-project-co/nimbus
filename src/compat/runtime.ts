@@ -6,7 +6,7 @@
  */
 
 /** Whether the current runtime is Bun. */
-export const isBun = typeof globalThis.Bun !== 'undefined';
+export const isBun = typeof (globalThis as any).Bun !== 'undefined';
 
 /** Whether the current runtime is Node.js (without Bun). */
 export const isNode = !isBun && typeof process !== 'undefined' && !!process.versions?.node;

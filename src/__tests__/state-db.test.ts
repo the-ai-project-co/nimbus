@@ -10,7 +10,7 @@
  * is never touched, and tests are fully isolated and fast.
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type { Database } from '../compat/sqlite';
 import { getTestDb } from '../state/db';
 import {

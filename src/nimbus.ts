@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * Nimbus CLI — Main Entry Point
  *
@@ -185,23 +185,9 @@ async function main() {
     }
   } catch (error: any) {
     const msg = error.message || String(error);
-    if (msg.includes('bun:sqlite') || msg.includes('bun:')) {
-      console.error(
-        'Error: Nimbus requires the Bun runtime (for bun:sqlite and other built-in APIs).'
-      );
-      console.error('');
-      console.error('If you have Bun installed, run:');
-      console.error('  bun src/nimbus.ts');
-      console.error('');
-      console.error('To install Bun:');
-      console.error('  curl -fsSL https://bun.sh/install | bash');
-      console.error('');
-      console.error('Or install the pre-built binary (no Bun required):');
-      console.error('  brew install the-ai-project-co/tap/nimbus');
-      console.error('  # or download from GitHub Releases');
-    } else if (error.code === 'MODULE_NOT_FOUND') {
+    if (error.code === 'MODULE_NOT_FOUND') {
       console.error(`Error: Missing module — ${msg}`);
-      console.error('Run "bun install" to install dependencies.');
+      console.error('Run "npm install" to install dependencies.');
     } else {
       console.error(`Error: ${msg}`);
     }

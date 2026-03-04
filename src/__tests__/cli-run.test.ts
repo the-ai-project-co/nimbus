@@ -5,7 +5,7 @@
  * structured RunOptions for the non-interactive nimbus run command.
  */
 
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { parseRunArgs } from '../cli/run';
 
 // ===========================================================================

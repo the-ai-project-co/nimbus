@@ -1,7 +1,7 @@
 /**
  * Tests for Session Sharing
  */
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import {
   shareSession,
   getSharedSession,
@@ -39,7 +39,58 @@ const mockMessages = [
 // Inject test dependencies (no module-level mocks — avoids cross-file leaks)
 // ---------------------------------------------------------------------------
 
+/** Minimal in-memory DB that mimics the SQLite API used by sharing/sync.ts */
+function makeInMemoryDb() {
+  const rows = new Map<string, any>();
+
+  return {
+    run(sql: string, params: any[]) {
+      if (/INSERT INTO shares/.test(sql)) {
+        const [id, session_id, name, messages, model, mode, cost_usd, token_count, is_live, write_token, created_at, expires_at] = params;
+        rows.set(id, { id, session_id, name, messages, model, mode, cost_usd, token_count, is_live, write_token, created_at, expires_at });
+        return { changes: 1 };
+      } else if (/UPDATE shares SET messages/.test(sql)) {
+        const [messages, id] = params;
+        const row = rows.get(id);
+        if (row) { row.messages = messages; return { changes: 1 }; }
+        return { changes: 0 };
+      } else if (/DELETE FROM shares WHERE expires_at/.test(sql)) {
+        const [now] = params;
+        let count = 0;
+        for (const [id, row] of rows) {
+          if (row.expires_at <= now) { rows.delete(id); count++; }
+        }
+        return { changes: count };
+      } else if (/DELETE FROM shares WHERE id/.test(sql)) {
+        const [id] = params;
+        const existed = rows.has(id);
+        rows.delete(id);
+        return { changes: existed ? 1 : 0 };
+      }
+      return { changes: 0 };
+    },
+    query(sql: string) {
+      return {
+        get(...params: any[]) {
+          if (/WHERE id = \? AND expires_at/.test(sql)) {
+            const [id, now] = params;
+            const row = rows.get(id);
+            return row && row.expires_at > now ? row : undefined;
+          }
+          return undefined;
+        },
+        all(..._params: any[]) {
+          // listShares uses DELETE first then SELECT with ORDER BY (no WHERE params)
+          return [...rows.values()];
+        },
+      };
+    },
+  };
+}
+
 beforeEach(() => {
+  const db = makeInMemoryDb();
+  _deps.getDb = () => db;
   _deps.getConversation = (id: string) =>
     id === 'test-session-id' ? { messages: mockMessages } : null;
   _deps.getSessionManager = () => ({
@@ -48,6 +99,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  _deps.getDb = undefined;
   _deps.getConversation = undefined;
   _deps.getSessionManager = undefined;
 });

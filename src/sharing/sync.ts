@@ -18,6 +18,7 @@ import type { LLMMessage } from '../llm/types';
 export const _deps = {
   getConversation: undefined as ((id: string) => any) | undefined,
   getSessionManager: undefined as (() => { get: (id: string) => any }) | undefined,
+  getDb: undefined as (() => any) | undefined,
 };
 
 function getConversation(id: string) {
@@ -60,6 +61,9 @@ export interface SharedSession {
  * Lazily import the DB to avoid circular dependency.
  */
 function getDb() {
+  if (_deps.getDb) {
+    return _deps.getDb();
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { getDb: _getDb } = require('../state/db');

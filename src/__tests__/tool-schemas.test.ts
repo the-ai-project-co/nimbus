@@ -5,7 +5,7 @@
  * structures for both standard and DevOps tools.
  */
 
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 import {
   ToolRegistry,

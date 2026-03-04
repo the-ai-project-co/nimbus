@@ -110,7 +110,7 @@ const boxChars = {
 export class WizardUI {
   private terminalWidth: number;
   private spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  private spinnerInterval?: Timer;
+  private spinnerInterval?: ReturnType<typeof setTimeout>;
 
   constructor() {
     this.terminalWidth = process.stdout.columns || 80;

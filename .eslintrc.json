@@ -60,5 +60,5 @@
       }
     }
   ],
-  "ignorePatterns": ["node_modules", "dist", "build", "coverage", "*.js", "*.d.ts", ".bun-cache"]
+  "ignorePatterns": ["node_modules", "dist", "build", "coverage", "*.js", "*.d.ts", ".bun-cache", "vitest.config.ts", "src/build.ts"]
 }

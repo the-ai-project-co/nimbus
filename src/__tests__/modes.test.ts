@@ -5,7 +5,7 @@
  * mode cycling, mode state management, and mode metadata (labels, colors).
  */
 
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import {
   getToolsForMode,
   cycleMode,

@@ -10,7 +10,7 @@
  * in parallel test runs.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { getOpenAPISpec } from '../cli/openapi-spec';
 import { createAuthMiddleware } from '../cli/serve-auth';
 

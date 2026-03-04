@@ -8,7 +8,7 @@
  * - shutdownApp() is idempotent (safe to call when already shut down)
  */
 
-import { describe, it, expect, afterEach } from 'bun:test';
+import { describe, it, expect, afterEach } from 'vitest';
 import { initApp, shutdownApp, getAppContext } from '../app';
 
 describe('app lifecycle', () => {

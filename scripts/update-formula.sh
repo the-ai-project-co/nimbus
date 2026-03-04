@@ -63,11 +63,9 @@ elif [ -n "${HOMEBREW_TAP_REPO:-}" ]; then
     "${TEMP_DIR}/homebrew-tap"
   FORMULA_PATH="${TEMP_DIR}/homebrew-tap/Formula/nimbus.rb"
 else
-  # Try common local paths
+  # Try the sibling homebrew-tap repo (standard local dev layout)
   if [ -f "$ROOT_DIR/../homebrew-tap/Formula/nimbus.rb" ]; then
     FORMULA_PATH="$ROOT_DIR/../homebrew-tap/Formula/nimbus.rb"
-  elif [ -f "$ROOT_DIR/Formula/nimbus.rb" ]; then
-    FORMULA_PATH="$ROOT_DIR/Formula/nimbus.rb"
   else
     echo "Error: Cannot find formula file. Pass path as second argument."
     echo "  e.g., $0 $VERSION /path/to/homebrew-tap/Formula/nimbus.rb"

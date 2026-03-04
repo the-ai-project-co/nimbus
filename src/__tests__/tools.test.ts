@@ -9,13 +9,14 @@
  * tests fast and hermetic.
  */
 
-import { describe, it, expect } from 'bun:test';
-import { join } from 'node:path';
+import { describe, it, expect } from 'vitest';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
 import { FileSystemOperations } from '../tools/file-ops';
 import { GitOperations } from '../tools/git-ops';
 
 // The repository root is two levels above this test file: src/__tests__/ -> src/ -> repo-root
-const REPO_ROOT = join(import.meta.dir, '..', '..');
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // ---------------------------------------------------------------------------
 // FileSystemOperations

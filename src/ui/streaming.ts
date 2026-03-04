@@ -24,7 +24,7 @@ export class StreamingDisplay {
   private options: Required<StreamingDisplayOptions>;
   private buffer: string = '';
   private lineStarted: boolean = false;
-  private cursorInterval?: Timer;
+  private cursorInterval?: ReturnType<typeof setTimeout>;
 
   constructor(options: StreamingDisplayOptions = {}) {
     this.options = {

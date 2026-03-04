@@ -1,6 +1,6 @@
 {
   "name": "@build-astron-co/nimbus",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AI-Powered Cloud Engineering Agent",
   "main": "src/nimbus.ts",
   "bin": {
@@ -16,34 +16,35 @@
     "access": "public"
   },
   "scripts": {
-    "test": "bun test src/__tests__/",
-    "test:coverage": "bun test src/__tests__/ --coverage --coverage-reporter=lcov --coverage-reporter=text --coverage-threshold=80",
-    "test:watch": "bun test src/__tests__/ --watch",
+    "test": "vitest run src/__tests__/",
+    "test:coverage": "vitest run src/__tests__/ --coverage",
+    "test:watch": "vitest src/__tests__/ --watch",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "type-check": "bun tsc --noEmit",
-    "build": "bun src/build.ts",
+    "type-check": "tsc --noEmit",
+    "build": "./scripts/build-binary.sh",
     "build:binary": "./scripts/build-binary.sh",
     "build:binary:all": "./scripts/build-binary.sh all",
-    "nimbus": "bun src/nimbus.ts",
-    "precommit": "bun run lint && bun run format:check && bun run type-check"
+    "nimbus": "node --loader ./node_modules/tsx/dist/esm/index.mjs src/nimbus.ts",
+    "precommit": "npm run lint && npm run format:check && npm run type-check"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
-    "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.0.0",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
+    "@vitest/coverage-v8": "^2.0.0",
     "eslint": "^8.57.0",
     "prettier": "^3.2.5",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^2.0.0"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "bun": ">=1.0.0"
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

@@ -5,7 +5,7 @@
  * non-empty BUILD_DATE string.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { VERSION, BUILD_DATE } from '../version';
 
 describe('version', () => {

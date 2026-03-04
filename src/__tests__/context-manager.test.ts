@@ -7,7 +7,7 @@
  * @module __tests__/context-manager
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextManager, estimateTokens, estimateMessageTokens } from '../agent/context-manager';
 import type { LLMMessage } from '../llm/types';
 

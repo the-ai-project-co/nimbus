@@ -5,7 +5,7 @@
  * format converters (Anthropic, OpenAI, Google).
  */
 
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { z } from 'zod';
 import {
   zodToJsonSchema,

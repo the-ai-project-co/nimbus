@@ -13,7 +13,7 @@
  * each test group and reset the db singleton afterwards via `closeDb()`.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getTestDb, closeDb } from '../state/db';
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 /**
  * Tests for Multi-Session Manager
  */
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Database } from '../compat/sqlite';
 import { SessionManager } from '../sessions/manager';
 import type { SessionEvent } from '../sessions/types';

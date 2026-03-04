@@ -14,7 +14,7 @@
  * All tests use mocks -- no real API calls are made.
  */
 
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
 import type { ToolCompletionRequest, StreamChunk } from '../llm/types';
 
 // ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ describe('OllamaProvider.streamWithTools', () => {
       'data: [DONE]\n\n',
     ];
 
-    globalThis.fetch = mock(() =>
+    globalThis.fetch = vi.fn(() =>
       Promise.resolve(
         new Response(buildReadableStream(sseLines), {
           status: 200,
@@ -170,7 +170,7 @@ describe('OllamaProvider.streamWithTools', () => {
       'data: [DONE]\n\n',
     ];
 
-    globalThis.fetch = mock(() =>
+    globalThis.fetch = vi.fn(() =>
       Promise.resolve(
         new Response(buildReadableStream(sseLines), {
           status: 200,
@@ -202,7 +202,7 @@ describe('OllamaProvider.streamWithTools', () => {
   test('fallback: when native streaming fails, falls back to completeWithTools', async () => {
     let _callCount = 0;
 
-    globalThis.fetch = mock((url: string | URL | Request) => {
+    globalThis.fetch = vi.fn((url: string | URL | Request) => {
       _callCount++;
       const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url;
 
@@ -268,7 +268,7 @@ describe('OllamaProvider.streamWithTools', () => {
       'data: [DONE]\n\n',
     ];
 
-    globalThis.fetch = mock(() =>
+    globalThis.fetch = vi.fn(() =>
       Promise.resolve(
         new Response(buildReadableStream(sseLines), {
           status: 200,
@@ -311,7 +311,7 @@ describe('OpenRouterProvider.streamWithTools', () => {
       },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
     const { OpenRouterProvider } = await import('../llm/providers/openrouter');
     const provider = new OpenRouterProvider('test-api-key');
@@ -392,7 +392,7 @@ describe('OpenRouterProvider.streamWithTools', () => {
       },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
     const { OpenRouterProvider } = await import('../llm/providers/openrouter');
     const provider = new OpenRouterProvider('test-api-key');
@@ -415,7 +415,7 @@ describe('OpenRouterProvider.streamWithTools', () => {
   });
 
   test('fallback: when SDK stream creation throws, the generator yields nothing', async () => {
-    const mockCreate = mock(() => Promise.reject(new Error('API unavailable')));
+    const mockCreate = vi.fn(() => Promise.reject(new Error('API unavailable')));
 
     const { OpenRouterProvider } = await import('../llm/providers/openrouter');
     const provider = new OpenRouterProvider('test-api-key');
@@ -462,7 +462,7 @@ describe('OpenRouterProvider.streamWithTools', () => {
       },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
     const { OpenRouterProvider } = await import('../llm/providers/openrouter');
     const provider = new OpenRouterProvider('test-api-key');
@@ -495,10 +495,8 @@ describe('OpenRouterProvider.streamWithTools', () => {
 // ===========================================================================
 
 describe('OpenAICompatibleProvider.streamWithTools', () => {
-  function createProvider() {
-    // Dynamic import to avoid module-level side effects
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { OpenAICompatibleProvider } = require('../llm/providers/openai-compatible');
+  async function createProvider() {
+    const { OpenAICompatibleProvider } = await import('../llm/providers/openai-compatible');
     return new OpenAICompatibleProvider({
       name: 'test-compat',
       apiKey: 'test-key',
@@ -517,9 +515,9 @@ describe('OpenAICompatibleProvider.streamWithTools', () => {
       },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
-    const provider = createProvider();
+    const provider = await createProvider();
     (provider as any).client = {
       chat: { completions: { create: mockCreate } },
     };
@@ -578,9 +576,9 @@ describe('OpenAICompatibleProvider.streamWithTools', () => {
       },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
-    const provider = createProvider();
+    const provider = await createProvider();
     (provider as any).client = {
       chat: { completions: { create: mockCreate } },
     };
@@ -600,9 +598,9 @@ describe('OpenAICompatibleProvider.streamWithTools', () => {
   });
 
   test('fallback: when SDK stream creation throws, the error propagates', async () => {
-    const mockCreate = mock(() => Promise.reject(new Error('Provider down')));
+    const mockCreate = vi.fn(() => Promise.reject(new Error('Provider down')));
 
-    const provider = createProvider();
+    const provider = await createProvider();
     (provider as any).client = {
       chat: { completions: { create: mockCreate } },
     };
@@ -655,9 +653,9 @@ describe('OpenAICompatibleProvider.streamWithTools', () => {
       },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
-    const provider = createProvider();
+    const provider = await createProvider();
     (provider as any).client = {
       chat: { completions: { create: mockCreate } },
     };
@@ -686,9 +684,9 @@ describe('OpenAICompatibleProvider.streamWithTools', () => {
       },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
-    const provider = createProvider();
+    const provider = await createProvider();
     (provider as any).client = {
       chat: { completions: { create: mockCreate } },
     };
@@ -709,9 +707,9 @@ describe('OpenAICompatibleProvider.streamWithTools', () => {
       { choices: [{ delta: { content: 'done' }, finish_reason: 'stop' }] },
     ]);
 
-    const mockCreate = mock(() => Promise.resolve(streamChunks));
+    const mockCreate = vi.fn(() => Promise.resolve(streamChunks));
 
-    const provider = createProvider();
+    const provider = await createProvider();
     (provider as any).client = {
       chat: { completions: { create: mockCreate } },
     };

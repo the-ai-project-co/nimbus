@@ -2,28 +2,44 @@
 # Nimbus CLI launcher — prefers Bun, falls back to Node.js (>=18).
 set -e
 
+# Resolve the real script location, following symlinks so this works when npm
+# installs the bin entry as a symlink (e.g. /opt/homebrew/bin/nimbus ->
+# .../node_modules/@build-astron-co/nimbus/bin/nimbus).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENTRY="$SCRIPT_DIR/../src/nimbus.ts"
+REAL_SCRIPT="$SCRIPT_DIR/nimbus"
+if [ -L "$REAL_SCRIPT" ]; then
+  LINK_TARGET="$(readlink "$REAL_SCRIPT")"
+  case "$LINK_TARGET" in
+    /*) REAL_SCRIPT="$LINK_TARGET" ;;
+    *)  REAL_SCRIPT="$SCRIPT_DIR/$LINK_TARGET" ;;
+  esac
+fi
+PKG_ROOT="$(cd "$(dirname "$REAL_SCRIPT")/.." && pwd)"
+ENTRY="$PKG_ROOT/src/nimbus.ts"
 
 # Prefer Bun for best performance (native bun:sqlite, fast startup)
 if command -v bun >/dev/null 2>&1; then
   exec bun "$ENTRY" "$@"
 fi
 
-# Fallback: Node.js with tsx for TypeScript execution
+# Fallback: Node.js with tsx for TypeScript execution.
+# We use `node --loader tsx/esm` rather than `tsx` directly to ensure ESM
+# output mode — required because yoga-layout (Ink dep) uses top-level await
+# which is incompatible with tsx's default CJS output.
 if command -v node >/dev/null 2>&1; then
   NODE_VERSION=$(node -e "console.log(process.versions.node.split('.')[0])")
   if [ "$NODE_VERSION" -ge 18 ] 2>/dev/null; then
-    # Use tsx (TypeScript eXecute) for Node.js — handles TS natively
-    TSX_BIN="$SCRIPT_DIR/../node_modules/.bin/tsx"
-    if [ -x "$TSX_BIN" ]; then
-      exec "$TSX_BIN" "$ENTRY" "$@"
+    # Prefer the tsx ESM loader bundled with this package
+    TSX_ESM="$PKG_ROOT/node_modules/tsx/dist/esm/index.mjs"
+    if [ -f "$TSX_ESM" ]; then
+      exec node --loader "$TSX_ESM" "$ENTRY" "$@"
     fi
-    # Try global tsx
-    if command -v tsx >/dev/null 2>&1; then
-      exec tsx "$ENTRY" "$@"
+    # Try global tsx ESM loader (npm global install)
+    TSX_GLOBAL_ESM="$(npm root -g 2>/dev/null)/tsx/dist/esm/index.mjs"
+    if [ -f "$TSX_GLOBAL_ESM" ]; then
+      exec node --loader "$TSX_GLOBAL_ESM" "$ENTRY" "$@"
     fi
-    # Last resort: use Node.js --import tsx (Node >= 18.19)
+    # Last resort: node --import tsx (Node >= 18.19, tsx must be globally installed)
     exec node --import tsx "$ENTRY" "$@"
   fi
 fi

@@ -28,7 +28,7 @@ export interface LSPStatus {
 
 export class LSPManager {
   private clients = new Map<string, LSPClient>();
-  private idleTimers = new Map<string, Timer>();
+  private idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private rootUri: string;
   private availabilityCache = new Map<string, boolean>();
   private fileVersions = new Map<string, number>();

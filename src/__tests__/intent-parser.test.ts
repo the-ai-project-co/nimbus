@@ -7,7 +7,7 @@
  * intentionally excluded from unit tests.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { IntentParser, type ConversationalIntent } from '../generator/intent-parser';
 
 // Helper: create a parser in pure-heuristic mode (no router)
