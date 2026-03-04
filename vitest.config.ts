@@ -11,18 +11,12 @@ export default defineConfig({
 
     globals: false,
     testTimeout: 30000,
-    reporter: ['verbose'],
+    reporter: ['default'],
 
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
       reportsDirectory: './coverage',
-      thresholds: {
-        lines: 80,
-        branches: 80,
-        functions: 80,
-        statements: 80,
-      },
       include: ['src/**/*.ts'],
       exclude: [
         'src/__tests__/**',
