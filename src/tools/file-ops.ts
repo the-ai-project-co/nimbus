@@ -134,15 +134,17 @@ export class FileSystemOperations {
     if (stat.size > MAX_READ_BYTES) {
       const buffer = Buffer.alloc(MAX_READ_BYTES);
       const fd = await fs.open(resolvedPath, 'r');
+      let bytesRead = 0;
       try {
-        await fd.read(buffer, 0, MAX_READ_BYTES, 0);
+        const result = await fd.read(buffer, 0, MAX_READ_BYTES, 0);
+        bytesRead = result.bytesRead;
       } finally {
         await fd.close();
       }
-      const truncated = buffer.toString(encoding);
+      const truncated = buffer.slice(0, bytesRead).toString(encoding);
       return (
         truncated +
-        `\n\n[File truncated: ${(stat.size / 1024).toFixed(1)} KB total, showing first 500 KB. ` +
+        `\n\n[File truncated: ${(stat.size / 1024).toFixed(1)} KB total, showing first ${(bytesRead / 1024).toFixed(0)} KB. ` +
         `Use line range parameters to read specific sections.]`
       );
     }

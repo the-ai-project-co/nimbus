@@ -374,7 +374,8 @@ export async function runAgentLoop(
           options.snapshotManager,
           options.sessionId,
           signal,
-          options.hookEngine
+          options.hookEngine,
+          mode
         );
 
         // Append each tool result as a separate message so the LLM can
@@ -519,7 +520,8 @@ async function executeToolCall(
   snapshotManager?: SnapshotManager,
   sessionId?: string,
   signal?: AbortSignal,
-  hookEngine?: HookEngine
+  hookEngine?: HookEngine,
+  mode?: AgentMode
 ): Promise<ToolResult> {
   const toolName = toolCall.function.name;
 
@@ -566,7 +568,7 @@ async function executeToolCall(
     tool: toolName,
     input: parsedArgs && typeof parsedArgs === 'object' ? (parsedArgs as Record<string, unknown>) : {},
     sessionId: sessionId ?? 'default',
-    agent: 'build',
+    agent: mode ?? 'build',
     timestamp: new Date().toISOString(),
   };
 

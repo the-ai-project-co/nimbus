@@ -174,7 +174,9 @@ const TOOL_USE_GUIDELINES = `# Tool-Use Guidelines
 - Use \`deploy_preview\` before any destructive infrastructure change.
 - Use the \`task\` tool to spawn subagents for parallel or specialized work.
 - When using \`terraform\`, always run \`terraform init\` before \`plan\` or \`apply\` if not already initialized.
-- For Kubernetes operations, be namespace-aware. Default to the current namespace context.`;
+- For Kubernetes operations, be namespace-aware. Default to the current namespace context.
+- Never read or search inside generated/dependency directories: \`node_modules/\`, \`dist/\`, \`build/\`, \`__pycache__/\`, \`.terraform/\`, \`.git/\`, \`coverage/\`, \`.next/\`, \`vendor/\`. These are never relevant to editing source code and will waste context window.
+- Respect \`.gitignore\` patterns — do not read files that would be gitignored unless the user explicitly asks for them.`;
 
 // ---------------------------------------------------------------------------
 // Mode Instructions
