@@ -1,6 +1,6 @@
 {
   "name": "@build-astron-co/nimbus",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "AI-Powered DevOps Engineering Agent",
   "main": "dist/src/nimbus.js",
   "bin": {
@@ -11,6 +11,8 @@
     "src/",
     "dist/",
     "completions/",
+    "README.md",
+    "CHANGELOG.md",
     "package.json",
     "tsconfig.json"
   ],

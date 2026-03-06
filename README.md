@@ -5,8 +5,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/the-ai-project-co/nimbus)](https://github.com/the-ai-project-co/nimbus/releases)
 [![CI](https://github.com/the-ai-project-co/nimbus/actions/workflows/ci.yml/badge.svg)](https://github.com/the-ai-project-co/nimbus/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
-[![Bun](https://img.shields.io/badge/Bun-%E2%89%A51.0-f472b6.svg)](https://bun.sh/)
-[![Tests](https://img.shields.io/badge/tests-693%20passing-brightgreen.svg)](https://github.com/the-ai-project-co/nimbus/actions)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518-brightgreen.svg)](https://nodejs.org/)
+[![Tests](https://img.shields.io/badge/tests-1408%20passing-brightgreen.svg)](https://github.com/the-ai-project-co/nimbus/actions)
 
 > AI-powered cloud engineering agent for your terminal
 
@@ -83,8 +83,6 @@ three-mode safety system that separates reading, building, and deploying.
 ```bash
 # Install
 npm install -g @build-astron-co/nimbus
-# or
-bun install -g @build-astron-co/nimbus
 # or via Homebrew
 brew tap the-ai-project-co/tap
 brew install nimbus
@@ -104,23 +102,13 @@ the interactive chat.
 
 ## Installation
 
-### Bun (recommended -- fastest, native SQLite)
-
-```bash
-bun install -g @build-astron-co/nimbus
-```
-
-Bun provides the best experience: native `bun:sqlite` for state management,
-faster startup, and the full Ink TUI out of the box.
-
-### npm
+### npm (recommended)
 
 ```bash
 npm install -g @build-astron-co/nimbus
 ```
 
-Works with Node.js >= 18. Uses `better-sqlite3` as the SQLite backend when
-running under Node.
+Works with Node.js >= 18. Uses `better-sqlite3` as the SQLite backend.
 
 ### Homebrew (macOS / Linux)
 
@@ -490,7 +478,7 @@ nimbus init --quiet      # suppress console output
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.0 or higher
+- Node.js >= 18
 - Git
 
 ### Setup
@@ -498,56 +486,50 @@ nimbus init --quiet      # suppress console output
 ```bash
 git clone https://github.com/the-ai-project-co/nimbus.git
 cd nimbus
-bun install
+npm install
 ```
 
 ### Run from source
 
 ```bash
 # Run directly
-bun src/nimbus.ts
+npm run nimbus
 
 # Run with arguments
-bun src/nimbus.ts --help
-bun src/nimbus.ts chat
-bun src/nimbus.ts ask "explain this project"
-
-# Or use the npm script
-bun run nimbus -- --help
+npm run nimbus -- --help
+npm run nimbus -- chat
+npm run nimbus -- ask "explain this project"
 ```
 
 ### Test
 
 ```bash
-# Run all tests (693 tests)
-bun test src/__tests__/
+# Run all tests (1408 tests)
+npm test
 
 # Run with coverage
-bun test src/__tests__/ --coverage
+npm run test:coverage
 
 # Watch mode
-bun test src/__tests__/ --watch
+npm run test:watch
 ```
 
 ### Lint and format
 
 ```bash
-bun run lint
-bun run format
-bun run type-check
+npm run lint
+npm run format
+npm run type-check
 ```
 
 ### Build
 
 ```bash
 # Build standalone binary for current platform
-bun src/build.ts
-
-# Build for all platforms
-bun src/build.ts --all
-
-# Or use the shell script
 ./scripts/build-binary.sh
+
+# Or
+npm run build
 ```
 
 The binary is output to `dist/nimbus` (~68 MB, bundles the Bun runtime).
@@ -556,15 +538,15 @@ The binary is output to `dist/nimbus` (~68 MB, bundles the Bun runtime).
 
 ## Architecture
 
-Nimbus is a single embedded binary built with [Bun](https://bun.sh/). All
-functionality runs in-process -- there are no HTTP microservices, no Docker
+Nimbus runs on Node.js >= 18 (with optional Bun support for compiled binaries).
+All functionality runs in-process -- there are no HTTP microservices, no Docker
 containers, and no external orchestrators. The entire application is a single
 TypeScript process that manages LLM routing, tool execution, state persistence,
 and the TUI.
 
 ```
 src/
-  nimbus.ts          Entry point (shebang: #!/usr/bin/env bun)
+  nimbus.ts          Entry point (shebang: #!/usr/bin/env node via tsx)
   cli.ts             CLI command router
   app.ts             App lifecycle (lazy DB + LLM router init)
   version.ts         Version and build date constants
@@ -593,7 +575,7 @@ src/
   watcher/           Filesystem watcher for live file tracking
 
   build.ts           Binary build script
-  __tests__/         693 tests
+  __tests__/         1408 tests
 ```
 
 ### Key design decisions
