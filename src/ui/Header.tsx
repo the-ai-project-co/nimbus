@@ -22,6 +22,13 @@ const MODE_COLORS: Record<AgentMode, string> = {
   deploy: 'red',
 };
 
+/** Prominent mode labels for visual distinction (Gap 11). */
+const MODE_LABELS: Record<AgentMode, string> = {
+  plan: '[P] PLAN',
+  build: '[B] BUILD',
+  deploy: '[D] DEPLOY',
+};
+
 /**
  * Truncate a session ID to a short prefix for display purposes.
  */
@@ -30,39 +37,95 @@ function shortId(id: string): string {
 }
 
 /**
+ * Determine if an environment name is production-like.
+ */
+function isProdEnvironment(name: string): boolean {
+  return /prod|production|live/i.test(name);
+}
+
+/**
  * Header renders a single-line banner containing the CLI version, the model
  * name, the abbreviated session ID, and a colour-coded mode badge.
  */
 export function Header({ session }: HeaderProps) {
   const modeColor = MODE_COLORS[session.mode];
+  const modeLabel = MODE_LABELS[session.mode];
+  // Gap 11: deploy mode gets a red border on the entire header for visual urgency
+  const borderColor = session.mode === 'deploy' ? 'red' : 'cyan';
+
+  const tfColor = session.terraformWorkspace && isProdEnvironment(session.terraformWorkspace)
+    ? 'yellow'
+    : 'green';
+  const k8sColor = session.kubectlContext && isProdEnvironment(session.kubectlContext)
+    ? 'yellow'
+    : 'green';
+
+  const isProd = isProdEnvironment(session.terraformWorkspace ?? '') || isProdEnvironment(session.kubectlContext ?? '');
+  const showProdWarning = session.mode === 'deploy' && isProd;
 
   return (
-    <Box
-      borderStyle="round"
-      borderColor="cyan"
-      paddingX={1}
-      justifyContent="space-between"
-      width="100%"
-    >
-      {/* Left: branding + version */}
-      <Box>
-        <Text bold color="cyan">
-          nimbus
-        </Text>
-        <Text dimColor> v{VERSION}</Text>
-        <Text dimColor> {' \u2014 '}</Text>
-        <Text>{session.model}</Text>
-        <Text dimColor> {' \u2014 '}</Text>
-        <Text dimColor>session: {shortId(session.id)}</Text>
-      </Box>
+    <Box flexDirection="column" width="100%">
+      <Box
+        borderStyle="round"
+        borderColor={borderColor}
+        paddingX={1}
+        justifyContent="space-between"
+        width="100%"
+      >
+        {/* Left: branding + version */}
+        <Box>
+          <Text bold color="cyan">
+            nimbus
+          </Text>
+          <Text dimColor> v{VERSION}</Text>
+          <Text dimColor> {' -- '}</Text>
+          <Text>{session.model}</Text>
+          <Text dimColor> {' -- '}</Text>
+          <Text dimColor>session: {shortId(session.id)}</Text>
+        </Box>
 
-      {/* Right: mode badge */}
-      <Box>
-        <Text color={modeColor} bold inverse>
-          {' '}
-          {session.mode.toUpperCase()}{' '}
-        </Text>
+        {/* Center: infra context badges */}
+        <Box>
+          {session.llmHealth === 'checking' && <Text color="yellow" dimColor> [~] </Text>}
+          {session.llmHealth === 'ok' && <Text color="green"> [+] </Text>}
+          {session.llmHealth === 'error' && <Text color="red"> [-] no LLM</Text>}
+          {session.terraformWorkspace && (
+            <>
+              <Text> </Text>
+              <Text color={tfColor} bold>tf:{session.terraformWorkspace}</Text>
+              {isProdEnvironment(session.terraformWorkspace) && (
+                <Text color="red" bold> [PROD]</Text>
+              )}
+            </>
+          )}
+          {session.kubectlContext && (
+            <>
+              <Text> </Text>
+              <Text color={k8sColor} bold>k8s:{session.kubectlContext}</Text>
+              {isProdEnvironment(session.kubectlContext) && (
+                <Text color="red" bold> [PROD]</Text>
+              )}
+            </>
+          )}
+          {/* M2: Context switcher shortcut hint when context is active */}
+          {(session.terraformWorkspace || session.kubectlContext) && (
+            <Text dimColor> [/k8s-ctx | /tf-ws to switch]</Text>
+          )}
+        </Box>
+
+        {/* Right: mode badge */}
+        <Box>
+          <Text color={modeColor} bold inverse>
+            {' '}
+            {modeLabel}{' '}
+          </Text>
+        </Box>
       </Box>
+      {showProdWarning && (
+        <Box paddingX={2}>
+          <Text color="red" bold>!! DEPLOY MODE — targeting production environment !!</Text>
+        </Box>
+      )}
     </Box>
   );
 }

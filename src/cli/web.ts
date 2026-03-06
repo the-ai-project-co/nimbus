@@ -23,6 +23,8 @@ export interface WebOptions {
   auth?: string;
   /** URL of the Web UI (default: http://localhost:6001/nimbus). */
   uiUrl?: string;
+  /** Skip opening browser (L3). */
+  noOpen?: boolean;
 }
 
 /**
@@ -51,12 +53,14 @@ export async function webCommand(options: WebOptions): Promise<void> {
   console.log(`Starting Nimbus API server on port ${port}...`);
   console.log(`Opening Web UI at ${uiUrl}\n`);
 
-  // Open browser after a short delay to let the server start
-  setTimeout(() => {
-    openBrowser(uiUrl).catch(() => {
-      console.log(`Could not open browser. Please visit: ${uiUrl}`);
-    });
-  }, 1500);
+  // Open browser after a short delay to let the server start (skipped with --no-open)
+  if (!options.noOpen) {
+    setTimeout(() => {
+      openBrowser(uiUrl).catch(() => {
+        console.log(`Could not open browser. Please visit: ${uiUrl}`);
+      });
+    }, 1500);
+  }
 
   // Start the server (this blocks)
   await serveCommand({

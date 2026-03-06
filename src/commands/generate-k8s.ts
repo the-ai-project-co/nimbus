@@ -7,7 +7,6 @@
  */
 
 import { logger } from '../utils';
-import { RestClient } from '../clients';
 import {
   createWizard,
   ui,
@@ -19,10 +18,6 @@ import {
   type WizardStep,
   type StepResult,
 } from '../wizard';
-
-// Generator Service client
-const generatorUrl = process.env.GENERATOR_SERVICE_URL || 'http://localhost:3003';
-const generatorClient = new RestClient(generatorUrl);
 
 /**
  * Workload types for Kubernetes
@@ -878,70 +873,23 @@ async function generateStep(ctx: K8sWizardContext): Promise<StepResult> {
   ui.startSpinner({ message: 'Generating Kubernetes manifests...' });
 
   try {
-    // Build the generation request
-    const request = buildGenerationRequest(ctx);
+    // Generate manifests locally using built-in generator
+    const files = generateManifestsLocally(ctx);
+    await writeFilesToDisk(files, ctx.outputPath!);
 
-    // Call generator service
-    const response = await generatorClient.post<{
-      success: boolean;
-      files: Array<{ name: string; content: string; path: string }>;
-      error?: string;
-    }>('/api/generate/k8s', request);
-
-    if (!response.success || !response.data?.success) {
-      // If generator service is not available, generate locally
-      ui.stopSpinnerFail('Generator service unavailable');
-      ui.info('Generating manifests locally...');
-
-      const files = generateManifestsLocally(ctx);
-      await writeFilesToDisk(files, ctx.outputPath!);
-
-      ui.newLine();
-      ui.success(`Generated ${files.length} manifest(s)`);
-
-      return {
-        success: true,
-        data: {
-          generatedFiles: files.map(f => f.path),
-        },
-      };
-    }
-
-    // Write files from generator service response
-    await writeFilesToDisk(response.data.files, ctx.outputPath!);
-
-    ui.stopSpinnerSuccess(`Generated ${response.data.files.length} manifest(s)`);
+    ui.stopSpinnerSuccess(`Generated ${files.length} manifest(s)`);
 
     return {
       success: true,
       data: {
-        generatedFiles: response.data.files.map(f => f.path),
+        generatedFiles: files.map(f => f.path),
       },
     };
   } catch (error: any) {
-    // Fall back to local generation
-    ui.stopSpinnerFail('Generator service error');
-    ui.info('Generating manifests locally...');
-
-    try {
-      const files = generateManifestsLocally(ctx);
-      await writeFilesToDisk(files, ctx.outputPath!);
-
-      ui.newLine();
-      ui.success(`Generated ${files.length} manifest(s)`);
-
-      return {
-        success: true,
-        data: {
-          generatedFiles: files.map(f => f.path),
-        },
-      };
-    } catch (localError: any) {
-      return {
-        success: false,
-        error: localError.message,
-      };
-    }
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 }
 

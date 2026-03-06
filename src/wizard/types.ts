@@ -152,6 +152,7 @@ export interface TerraformWizardContext {
   inventory?: any;
   generatedFiles?: any[];
   improvements?: any;
+  discoveredComponents?: string[];
 
   // Preferences
   savePreferences?: boolean;

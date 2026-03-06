@@ -68,6 +68,11 @@ export interface InitOptions {
   force?: boolean;
   /** Suppress all console output */
   quiet?: boolean;
+  /**
+   * Merge mode (M2): append a ## Local Overrides section to an existing
+   * NIMBUS.md and create .nimbus/local.md instead of overwriting the file.
+   */
+  merge?: boolean;
 }
 
 /** Value returned by {@link runInit} on success */
@@ -345,6 +350,167 @@ export function detectCloudProviders(dir: string): CloudProvider[] {
   return Array.from(found);
 }
 
+/** Live infrastructure context gathered by querying actual CLI tools */
+export interface InfraContext {
+  terraformWorkspace?: string;
+  terraformBackend?: string;
+  kubectlContext?: string;
+  kubectlClusters?: string[];
+  helmReleases?: string[];
+  awsAccount?: string;
+  awsRegion?: string;
+  /** G13: Named AWS profiles from ~/.aws/config (max 10) */
+  awsProfiles?: Array<{ profile: string; account?: string; region?: string }>;
+  gcpProject?: string;
+  /** G16: Number of Kubernetes namespaces in the current cluster */
+  k8sNamespaceCount?: number;
+  /** G16: Number of Kubernetes deployments across all namespaces */
+  k8sDeploymentCount?: number;
+  /** CI/CD pipeline system detected in the project directory (G9). */
+  cicdPipeline?: string;
+}
+
+/**
+ * Discover live infrastructure context by querying CLI tools.
+ * All queries are best-effort with short timeouts.
+ */
+export async function discoverInfraContext(dir: string): Promise<InfraContext> {
+  const { execFileSync } = await import('node:child_process');
+  const ctx: InfraContext = {};
+
+  // Terraform workspace (only if .terraform exists)
+  if (exists(path.join(dir, '.terraform'))) {
+    try {
+      ctx.terraformWorkspace = execFileSync('terraform', ['workspace', 'show'], {
+        cwd: dir, encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+    } catch { /* ignore */ }
+  }
+
+  // kubectl context
+  try {
+    ctx.kubectlContext = execFileSync('kubectl', ['config', 'current-context'], {
+      encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    const clustersOut = execFileSync('kubectl', ['config', 'get-clusters'], {
+      encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    ctx.kubectlClusters = clustersOut.split('\n').slice(1).map(s => s.trim()).filter(Boolean);
+  } catch { /* ignore */ }
+
+  // Helm releases
+  try {
+    const helmOut = execFileSync('helm', ['list', '-A', '--output=json'], {
+      encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const releases = JSON.parse(helmOut || '[]') as Array<{ name: string; namespace: string }>;
+    ctx.helmReleases = releases.map(r => `${r.name} (${r.namespace})`);
+  } catch { /* ignore */ }
+
+  // AWS account + region
+  try {
+    const awsIdOut = execFileSync('aws', ['sts', 'get-caller-identity', '--output=json'], {
+      encoding: 'utf-8', timeout: 8000, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const awsId = JSON.parse(awsIdOut);
+    ctx.awsAccount = awsId.Account;
+  } catch { /* ignore */ }
+
+  try {
+    ctx.awsRegion = execFileSync('aws', ['configure', 'get', 'region'], {
+      encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim() || process.env.AWS_DEFAULT_REGION;
+  } catch {
+    ctx.awsRegion = process.env.AWS_DEFAULT_REGION;
+  }
+
+  // G13: Discover all AWS profiles from ~/.aws/config
+  try {
+    const { readFileSync } = await import('node:fs');
+    const { homedir } = await import('node:os');
+    const awsConfigPath = path.join(homedir(), '.aws', 'config');
+    if (exists(awsConfigPath)) {
+      const awsConfig = readFileSync(awsConfigPath, 'utf-8');
+      const profiles: Array<{ profile: string; account?: string; region?: string }> = [];
+      const profileRegex = /^\[(?:profile\s+)?(\S+)\]/gm;
+      let match;
+      while ((match = profileRegex.exec(awsConfig)) !== null) {
+        const profileName = match[1];
+        if (profileName === 'default') continue; // handled separately
+        // Extract region from the profile block
+        const blockStart = match.index + match[0].length;
+        const nextBlock = awsConfig.indexOf('\n[', blockStart);
+        const block = awsConfig.slice(blockStart, nextBlock === -1 ? undefined : nextBlock);
+        const regionMatch = block.match(/^\s*region\s*=\s*(.+)$/m);
+        profiles.push({ profile: profileName, region: regionMatch?.[1]?.trim() });
+      }
+      if (profiles.length > 0) ctx.awsProfiles = profiles.slice(0, 10); // max 10 profiles
+    }
+  } catch { /* ignore */ }
+
+  // GCP project
+  try {
+    const proj = execFileSync('gcloud', ['config', 'get-value', 'project'], {
+      encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    if (proj && proj !== '(unset)') ctx.gcpProject = proj;
+  } catch { /* ignore */ }
+
+  // G16: Count K8s namespaces and deployments
+  if (ctx.kubectlContext) {
+    try {
+      const nsOut = execFileSync('kubectl', ['get', 'namespaces', '--no-headers'], {
+        encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const nsCount = nsOut.trim().split('\n').filter(Boolean).length;
+      ctx.k8sNamespaceCount = nsCount;
+    } catch { /* ignore */ }
+    try {
+      const deplOut = execFileSync('kubectl', ['get', 'deployments', '-A', '--no-headers'], {
+        encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const deplCount = deplOut.trim().split('\n').filter(Boolean).length;
+      ctx.k8sDeploymentCount = deplCount;
+    } catch { /* ignore */ }
+  }
+
+  // CI/CD pipeline detection (G9)
+  const cicdFiles: Array<[string, string]> = [
+    ['.github/workflows', 'GitHub Actions'],
+    ['.gitlab-ci.yml', 'GitLab CI'],
+    ['.circleci', 'CircleCI'],
+    ['Jenkinsfile', 'Jenkins'],
+    ['.buildkite', 'Buildkite'],
+    ['azure-pipelines.yml', 'Azure Pipelines'],
+  ];
+  for (const [file, name] of cicdFiles) {
+    if (exists(path.join(dir, file))) {
+      ctx.cicdPipeline = name;
+      break;
+    }
+  }
+
+  return ctx;
+}
+
+/**
+ * Format an InfraContext into a compact single-line summary for injection
+ * into agent messages (Gaps 7 & 10).
+ */
+export function formatInfraContext(ctx: InfraContext): string {
+  const parts: string[] = [];
+  if (ctx.terraformWorkspace) parts.push(`tf-workspace: ${ctx.terraformWorkspace}`);
+  if (ctx.kubectlContext) parts.push(`k8s-context: ${ctx.kubectlContext}`);
+  if (ctx.helmReleases && ctx.helmReleases.length > 0) {
+    parts.push(`helm-releases: ${ctx.helmReleases.slice(0, 3).join(', ')}${ctx.helmReleases.length > 3 ? ` +${ctx.helmReleases.length - 3} more` : ''}`);
+  }
+  if (ctx.awsAccount) parts.push(`aws-account: ${ctx.awsAccount}`);
+  if (ctx.awsRegion) parts.push(`aws-region: ${ctx.awsRegion}`);
+  if (ctx.gcpProject) parts.push(`gcp-project: ${ctx.gcpProject}`);
+  if (ctx.cicdPipeline) parts.push(`cicd: ${ctx.cicdPipeline}`);
+  return parts.length > 0 ? parts.join(' | ') : 'no infra context detected';
+}
+
 /**
  * Detect which Node.js package manager is used in `dir`.
  *
@@ -563,7 +729,7 @@ export function detectProject(dir: string): ProjectDetection {
  * The generated markdown serves as both human-readable documentation
  * and machine-readable project metadata for the Nimbus agent.
  */
-export function generateNimbusMd(detection: ProjectDetection, _dir: string): string {
+export function generateNimbusMd(detection: ProjectDetection, _dir: string, infraCtx?: InfraContext): string {
   const lines: string[] = [];
 
   // --- Header ---
@@ -597,6 +763,57 @@ export function generateNimbusMd(detection: ProjectDetection, _dir: string): str
     if (detection.cloudProviders.length > 0) {
       lines.push(`- **Cloud Providers:** ${detection.cloudProviders.join(', ')}`);
     }
+    if (infraCtx) {
+      if (infraCtx.terraformWorkspace) {
+        lines.push(`- **Terraform Workspace:** ${infraCtx.terraformWorkspace}`);
+      }
+      if (infraCtx.kubectlContext) {
+        lines.push(`- **Kubernetes Context:** ${infraCtx.kubectlContext}`);
+      }
+      if (infraCtx.kubectlClusters && infraCtx.kubectlClusters.length > 0) {
+        lines.push(`- **Kubernetes Clusters:** ${infraCtx.kubectlClusters.join(', ')}`);
+      }
+      if (infraCtx.helmReleases && infraCtx.helmReleases.length > 0) {
+        lines.push(`- **Helm Releases:** ${infraCtx.helmReleases.slice(0, 5).join(', ')}${infraCtx.helmReleases.length > 5 ? ` (+${infraCtx.helmReleases.length - 5} more)` : ''}`);
+      }
+      if (infraCtx.awsAccount) {
+        lines.push(`- **AWS Account:** ${infraCtx.awsAccount}${infraCtx.awsRegion ? ` (${infraCtx.awsRegion})` : ''}`);
+      }
+      // G13: List named AWS profiles
+      if (infraCtx.awsProfiles && infraCtx.awsProfiles.length > 0) {
+        lines.push(`- **AWS Profiles:** ${infraCtx.awsProfiles.map(p => p.profile).join(', ')}`);
+      }
+      if (infraCtx.gcpProject) {
+        lines.push(`- **GCP Project:** ${infraCtx.gcpProject}`);
+      }
+      // G16: K8s namespace and deployment counts
+      if (infraCtx.k8sNamespaceCount !== undefined) {
+        lines.push(`- **K8s Namespaces:** ${infraCtx.k8sNamespaceCount}`);
+      }
+      if (infraCtx.k8sDeploymentCount !== undefined) {
+        lines.push(`- **K8s Deployments:** ${infraCtx.k8sDeploymentCount}`);
+      }
+      // G9: CI/CD pipeline
+      if (infraCtx.cicdPipeline) {
+        lines.push(`- **CI/CD:** ${infraCtx.cicdPipeline}`);
+      }
+    }
+    lines.push('');
+  }
+
+  // --- CI/CD (M4) ---
+  if (infraCtx?.cicdPipeline) {
+    lines.push('## CI/CD');
+    lines.push('');
+    const pipelineDir: Record<string, string> = {
+      'GitHub Actions': '.github/workflows/',
+      'GitLab CI': '.gitlab-ci.yml',
+      'CircleCI': '.circleci/',
+      'Jenkins': 'Jenkinsfile',
+    };
+    const pipelinePath = pipelineDir[infraCtx.cicdPipeline] ?? '';
+    lines.push(`Pipeline: ${infraCtx.cicdPipeline}${pipelinePath ? ` (${pipelinePath})` : ''}`);
+    lines.push('Convention: Always run `terraform plan` in CI before apply. Apply only on main branch merge.');
     lines.push('');
   }
 
@@ -613,6 +830,16 @@ export function generateNimbusMd(detection: ProjectDetection, _dir: string): str
     lines.push('');
   }
 
+  // --- Environments (GAP-22) ---
+  lines.push('## Environments');
+  lines.push('');
+  lines.push('| Name | Terraform Workspace | Kubernetes Context | Protected |');
+  lines.push('|------|--------------------|--------------------|-----------|');
+  lines.push('| dev  | dev                |                    | false     |');
+  lines.push('| staging | staging        |                    | false     |');
+  lines.push('| prod | prod               |                    | true      |');
+  lines.push('');
+
   // --- Safety Rules ---
   lines.push('## Safety Rules');
   lines.push('');
@@ -623,10 +850,50 @@ export function generateNimbusMd(detection: ProjectDetection, _dir: string): str
   lines.push('- Never store secrets in source control');
   lines.push('');
 
+  // --- Guardrails (G5): DevOps-specific rules when infra is detected ---
+  const hasInfra = detection.infraTypes.length > 0 || detection.cloudProviders.length > 0;
+  if (hasInfra) {
+    lines.push('## Guardrails');
+    lines.push('');
+    lines.push('- Never run `terraform destroy` without explicit confirmation');
+    lines.push('- Protected Kubernetes namespaces: `production`, `kube-system`, `monitoring`');
+    lines.push('- Always show terraform plan before apply');
+    lines.push('- Confirm target cloud account and region before resource creation');
+    lines.push('- Protected environments: any workspace/namespace containing `prod`, `prd`, `production`');
+    lines.push('');
+  }
+
+  // --- Forbidden placeholder (G5) ---
+  lines.push('## Forbidden');
+  lines.push('');
+  lines.push('<!-- List operations Nimbus must never perform in this project -->');
+  lines.push('<!-- Example: - Never destroy the production database -->');
+  lines.push('');
+
   // --- Custom Instructions ---
   lines.push('## Custom Instructions');
   lines.push('');
   lines.push('<!-- Add project-specific instructions for the Nimbus agent here -->');
+  lines.push('');
+
+  // --- G18: Runbooks ---
+  const runbookDirs = ['docs/runbooks', 'runbooks', '.github/runbooks', '.nimbus/runbooks'];
+  const foundRunbooks: string[] = [];
+  for (const dir of runbookDirs) {
+    const fullPath = path.join(_dir, dir);
+    if (fs.existsSync(fullPath)) {
+      try {
+        const files = fs.readdirSync(fullPath).filter(f => /\.(md|yaml|yml)$/.test(f));
+        foundRunbooks.push(...files.map(f => `- ${dir}/${f}`));
+      } catch { /* non-critical */ }
+    }
+  }
+  const runbookSection = foundRunbooks.length > 0
+    ? foundRunbooks.join('\n') + '\n\nRefer to these runbooks for incident response and operational procedures.'
+    : '<!-- Add runbook references, e.g.:\n- docs/runbooks/cert-rotation.md -->';
+  lines.push('## Runbooks');
+  lines.push('');
+  lines.push(runbookSection);
   lines.push('');
 
   return lines.join('\n');
@@ -721,12 +988,38 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
   const dir = path.resolve(options?.cwd ?? process.cwd());
   const force = options?.force ?? false;
   const quiet = options?.quiet ?? false;
+  const merge = options?.merge ?? false;
 
   const log = (msg: string): void => {
     if (!quiet) {
       console.log(msg);
     }
   };
+
+  // ---- M2: --merge mode — append Local Overrides section, don't overwrite ----
+  const nimbusmdPathEarly = path.join(dir, 'NIMBUS.md');
+  if (merge && exists(nimbusmdPathEarly)) {
+    const content = fs.readFileSync(nimbusmdPathEarly, 'utf-8');
+    const filesCreated: string[] = [];
+
+    if (!content.includes('## Local Overrides')) {
+      fs.appendFileSync(nimbusmdPathEarly, '\n\n## Local Overrides\n\n<!-- Personal additions -->\n', 'utf-8');
+      log('  Appended ## Local Overrides section to NIMBUS.md');
+    } else {
+      log('  NIMBUS.md already has a ## Local Overrides section');
+    }
+
+    const localMdPath = path.join(dir, '.nimbus', 'local.md');
+    if (!exists(localMdPath)) {
+      fs.mkdirSync(path.join(dir, '.nimbus'), { recursive: true });
+      fs.writeFileSync(localMdPath, '# Local Overrides\n\n<!-- Personal notes and overrides that are not committed -->\n', 'utf-8');
+      log('  Created .nimbus/local.md for personal overrides');
+      filesCreated.push(localMdPath);
+    }
+
+    const detection = detectProject(dir);
+    return { detection, filesCreated, nimbusmdPath: nimbusmdPathEarly };
+  }
 
   // ---- Step 1: Detect project characteristics ----
   log('Detecting project...');
@@ -746,10 +1039,62 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
     log(`  Test framework: ${detection.testFramework}`);
   }
 
-  // ---- Step 2: Check for existing NIMBUS.md ----
+  // ---- Step 2: Check for existing NIMBUS.md and show diff (L8) ----
   const nimbusmdPath = path.join(dir, 'NIMBUS.md');
-  if (exists(nimbusmdPath) && !force) {
-    throw new Error('NIMBUS.md already exists. Use --force to overwrite.');
+  if (exists(nimbusmdPath) && !force && !quiet) {
+    // Generate the new content first for diffing
+    const infraCtxForDiff = await discoverInfraContext(dir).catch(() => undefined);
+    const newContent = generateNimbusMd(detection, dir, infraCtxForDiff);
+    const existingContent = readText(nimbusmdPath);
+
+    if (newContent === existingContent) {
+      log('NIMBUS.md is already up to date.');
+      return { detection, filesCreated: [], nimbusmdPath };
+    }
+
+    // Show line-level diff
+    const oldLines = existingContent.split('\n');
+    const newLines = newContent.split('\n');
+    const diffLines: string[] = [];
+    const maxLen = Math.max(oldLines.length, newLines.length);
+    for (let idx = 0; idx < maxLen; idx++) {
+      const o = oldLines[idx];
+      const n = newLines[idx];
+      if (o === undefined) diffLines.push(`+ ${n}`);
+      else if (n === undefined) diffLines.push(`- ${o}`);
+      else if (o !== n) { diffLines.push(`- ${o}`); diffLines.push(`+ ${n}`); }
+    }
+
+    if (diffLines.length > 0) {
+      log('\nNIMBUS.md changes:');
+      for (const dl of diffLines.slice(0, 50)) {
+        if (dl.startsWith('+')) log(`  \x1b[32m${dl}\x1b[0m`);
+        else if (dl.startsWith('-')) log(`  \x1b[31m${dl}\x1b[0m`);
+        else log(`  ${dl}`);
+      }
+      if (diffLines.length > 50) log(`  ... and ${diffLines.length - 50} more changes`);
+      log('');
+      log('Apply these changes? [y/N]');
+
+      // Synchronous readline for non-quiet mode
+      const answer = await new Promise<string>(resolve => {
+        const { createInterface } = require('readline') as typeof import('readline');
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        rl.question('', (ans: string) => { rl.close(); resolve(ans.trim()); });
+      });
+
+      if (answer.toLowerCase() !== 'y') {
+        log('Aborted — NIMBUS.md not changed.');
+        return { detection, filesCreated: [], nimbusmdPath };
+      }
+
+      fs.writeFileSync(nimbusmdPath, newContent, 'utf-8');
+      log('  Updated NIMBUS.md');
+      return { detection, filesCreated: [nimbusmdPath], nimbusmdPath };
+    }
+  } else if (exists(nimbusmdPath) && !force) {
+    // quiet mode — skip without prompting
+    return { detection, filesCreated: [], nimbusmdPath };
   }
 
   // ---- Step 3: Create .nimbus/ directory structure ----
@@ -827,7 +1172,25 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
   }
 
   // ---- Step 7: Generate and write NIMBUS.md ----
-  const nimbusmdContent = generateNimbusMd(detection, dir);
+  // L8: Monorepo detection — scan immediate subdirs for terraform roots
+  let monorepoSection = '';
+  try {
+    const subdirs = fs.readdirSync(dir, { withFileTypes: true })
+      .filter(e => e.isDirectory() && !e.name.startsWith('.') && !['node_modules', '.git'].includes(e.name))
+      .map(e => e.name);
+    const tfRoots: string[] = [];
+    for (const sub of subdirs.slice(0, 20)) {
+      const subPath = path.join(dir, sub);
+      const hasTf = fs.readdirSync(subPath).some(f => f.endsWith('.tf'));
+      if (hasTf) tfRoots.push(sub);
+    }
+    if (tfRoots.length > 1) {
+      monorepoSection = `\n## Terraform Modules (Monorepo)\n\nThis is a monorepo with multiple Terraform roots:\n${tfRoots.map(r => `- \`./${r}/\``).join('\n')}\n\nTo target a specific root, \`cd\` into the directory or specify the path.\n`;
+      log(`  Detected ${tfRoots.length} Terraform roots (monorepo)`);
+    }
+  } catch { /* non-critical */ }
+
+  const nimbusmdContent = generateNimbusMd(detection, dir) + monorepoSection;
   fs.writeFileSync(nimbusmdPath, nimbusmdContent, 'utf-8');
   filesCreated.push(nimbusmdPath);
   log('  Created NIMBUS.md');
@@ -845,6 +1208,16 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
   log('');
   log('Nimbus project initialized successfully.');
   log('Edit NIMBUS.md to customise agent behaviour.');
+
+  // M5: Print next steps after generating NIMBUS.md
+  if (!quiet) {
+    log('');
+    log('\x1b[36mNext steps:\x1b[0m');
+    log('  nimbus plan       Preview infrastructure changes');
+    log('  nimbus doctor     Check your DevOps toolchain');
+    log('  nimbus status     Live infrastructure health dashboard');
+    log('  nimbus            Open the interactive DevOps agent');
+  }
 
   return {
     detection,

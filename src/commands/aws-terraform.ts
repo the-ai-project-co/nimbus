@@ -7,7 +7,6 @@
  */
 
 import { logger } from '../utils';
-import { RestClient } from '../clients';
 import {
   createWizard,
   ui,
@@ -18,13 +17,10 @@ import {
   type StepResult,
 } from '../wizard';
 import { awsDiscoverCommand, type AwsDiscoverOptions } from './aws-discover';
+import { generateTerraformProject } from '../generator/terraform';
 import { readFile, writeFile } from 'node:fs/promises';
 import * as path from 'path';
 import * as fs from 'fs';
-
-// AWS Tools Service client
-const awsToolsUrl = process.env.AWS_TOOLS_SERVICE_URL || 'http://localhost:3009';
-const awsClient = new RestClient(awsToolsUrl);
 
 /**
  * Terraform generation context
@@ -364,85 +360,54 @@ async function outputLocationStep(ctx: AwsTerraformContext): Promise<StepResult>
 }
 
 /**
- * Step 3: Generate Terraform
+ * Step 3: Generate Terraform using local generator
  */
 async function generateStep(ctx: AwsTerraformContext): Promise<StepResult> {
   ui.startSpinner({ message: 'Generating Terraform configurations...' });
 
   try {
-    let response: any;
+    // Derive components from discovered resources
+    const resourceTypes = (ctx.resources ?? []).map(r => r.type);
+    const components: string[] = [];
+    if (resourceTypes.some(t => t.includes('VPC') || t.includes('Subnet'))) components.push('vpc');
+    if (resourceTypes.some(t => t.includes('EC2') || t.includes('Instance'))) components.push('ec2');
+    if (resourceTypes.some(t => t.includes('S3'))) components.push('s3');
+    if (resourceTypes.some(t => t.includes('RDS'))) components.push('rds');
+    if (resourceTypes.some(t => t.includes('EKS'))) components.push('eks');
+    if (components.length === 0) components.push('vpc', 's3');
 
-    // Generate from discovery session or direct resources
-    if (ctx.discoverySessionId) {
-      response = await awsClient.post<{
-        terraformSessionId: string;
-        files: Record<string, string>;
-        summary: GenerationSummary;
-        imports: any[];
-        importScript: string;
-      }>('/api/aws/terraform/generate', {
-        sessionId: ctx.discoverySessionId,
-        options: {
-          organizeByService: ctx.organizeByService,
-          generateImportBlocks: ctx.generateImportBlocks,
-          terraformVersion: ctx.terraformVersion,
-          awsProviderVersion: ctx.awsProviderVersion,
-        },
-      });
-    } else if (ctx.resources && ctx.resources.length > 0) {
-      response = await awsClient.post<{
-        terraformSessionId: string;
-        files: Record<string, string>;
-        summary: GenerationSummary;
-        imports: any[];
-        importScript: string;
-      }>('/api/aws/terraform/generate-direct', {
-        resources: ctx.resources,
-        options: {
-          organizeByService: ctx.organizeByService,
-          generateImportBlocks: ctx.generateImportBlocks,
-          terraformVersion: ctx.terraformVersion,
-          awsProviderVersion: ctx.awsProviderVersion,
-        },
-      });
-    } else {
-      ui.stopSpinnerFail('No resources to generate from');
-      return { success: false, error: 'No resources available' };
+    const generatedProject = await generateTerraformProject({
+      projectName: 'infrastructure',
+      provider: 'aws',
+      region: ctx.resources?.[0]?.region || 'us-east-1',
+      components,
+    });
+
+    const fileMap: Record<string, string> = {};
+    for (const file of generatedProject.files) {
+      fileMap[file.path] = file.content;
     }
 
-    if (!response.success || !response.data) {
-      ui.stopSpinnerFail(`Generation failed: ${response.error || 'Unknown error'}`);
-      return { success: false, error: response.error || 'Generation failed' };
-    }
+    const summary: GenerationSummary = {
+      totalResources: ctx.resources?.length ?? 0,
+      mappedResources: ctx.resources?.length ?? 0,
+      unmappedResources: 0,
+      filesGenerated: generatedProject.files.length,
+      servicesIncluded: components,
+      regionsIncluded: [...new Set((ctx.resources ?? []).map(r => r.region).filter(Boolean))],
+    };
 
-    const { terraformSessionId, files, summary, importScript } = response.data;
-
-    ui.stopSpinnerSuccess(`Generated ${Object.keys(files).length} files`);
+    ui.stopSpinnerSuccess(`Generated ${Object.keys(fileMap).length} file(s)`);
 
     // Add starter kit files if requested
-    const allFiles = { ...files };
-
-    if (ctx.includeReadme) {
-      allFiles['README.md'] = generateReadme(summary);
-    }
-
-    if (ctx.includeGitignore) {
-      allFiles['.gitignore'] = generateGitignore();
-    }
-
-    if (ctx.includeMakefile) {
-      allFiles['Makefile'] = generateMakefile();
-    }
-
-    if (ctx.generateImportScript && importScript) {
-      allFiles['import.sh'] = importScript;
-    }
+    if (ctx.includeReadme) fileMap['README.md'] = generateReadme(summary);
+    if (ctx.includeGitignore) fileMap['.gitignore'] = generateGitignore();
+    if (ctx.includeMakefile) fileMap['Makefile'] = generateMakefile();
 
     return {
       success: true,
       data: {
-        terraformSessionId,
-        generatedFiles: allFiles,
+        generatedFiles: fileMap,
         summary,
       },
     };
@@ -722,39 +687,41 @@ async function runNonInteractive(options: AwsTerraformOptions): Promise<void> {
     resources = inventory.resources;
   }
 
-  // Generate Terraform
+  // Generate Terraform using local generator
   ui.startSpinner({ message: 'Generating Terraform configurations...' });
 
   try {
-    let response: any;
+    const resourceTypes = (resources ?? []).map(r => r.type);
+    const components: string[] = [];
+    if (resourceTypes.some(t => t.includes('VPC') || t.includes('Subnet'))) components.push('vpc');
+    if (resourceTypes.some(t => t.includes('EC2') || t.includes('Instance'))) components.push('ec2');
+    if (resourceTypes.some(t => t.includes('S3'))) components.push('s3');
+    if (resourceTypes.some(t => t.includes('RDS'))) components.push('rds');
+    if (resourceTypes.some(t => t.includes('EKS'))) components.push('eks');
+    if (components.length === 0) components.push('vpc', 's3');
 
-    if (options.sessionId) {
-      response = await awsClient.post('/api/aws/terraform/generate', {
-        sessionId: options.sessionId,
-        options: {
-          organizeByService: options.organizeByService ?? true,
-          generateImportBlocks: options.importBlocks ?? true,
-          terraformVersion: options.terraformVersion || '1.5.0',
-        },
-      });
-    } else if (resources) {
-      response = await awsClient.post('/api/aws/terraform/generate-direct', {
-        resources,
-        options: {
-          organizeByService: options.organizeByService ?? true,
-          generateImportBlocks: options.importBlocks ?? true,
-          terraformVersion: options.terraformVersion || '1.5.0',
-        },
-      });
+    const generatedProject = await generateTerraformProject({
+      projectName: 'infrastructure',
+      provider: 'aws',
+      region: resources?.[0]?.region || 'us-east-1',
+      components,
+    });
+
+    const files: Record<string, string> = {};
+    for (const file of generatedProject.files) {
+      files[file.path] = file.content;
     }
 
-    if (!response.success || !response.data) {
-      ui.stopSpinnerFail('Generation failed');
-      process.exit(1);
-    }
+    const summary: GenerationSummary = {
+      totalResources: resources?.length ?? 0,
+      mappedResources: resources?.length ?? 0,
+      unmappedResources: 0,
+      filesGenerated: generatedProject.files.length,
+      servicesIncluded: components,
+      regionsIncluded: [...new Set((resources ?? []).map(r => r.region).filter(Boolean))],
+    };
 
-    const { files, summary, importScript } = response.data;
-    ui.stopSpinnerSuccess(`Generated ${Object.keys(files).length} files`);
+    ui.stopSpinnerSuccess(`Generated ${Object.keys(files).length} file(s)`);
 
     // Write files
     const outputPath = options.output || './terraform-aws';
@@ -764,38 +731,21 @@ async function runNonInteractive(options: AwsTerraformOptions): Promise<void> {
       fs.mkdirSync(outputPath, { recursive: true });
     }
 
-    // Add starter kit if requested
-    if (options.includeStarterKit || options.includeReadme) {
-      files['README.md'] = generateReadme(summary);
-    }
-    if (options.includeStarterKit || options.includeGitignore) {
-      files['.gitignore'] = generateGitignore();
-    }
-    if (options.includeStarterKit || options.includeMakefile) {
-      files['Makefile'] = generateMakefile();
-    }
-    if (importScript && (options.importScript ?? true)) {
-      files['import.sh'] = importScript;
-    }
+    if (options.includeStarterKit || options.includeReadme) files['README.md'] = generateReadme(summary);
+    if (options.includeStarterKit || options.includeGitignore) files['.gitignore'] = generateGitignore();
+    if (options.includeStarterKit || options.includeMakefile) files['Makefile'] = generateMakefile();
 
     for (const [fileName, content] of Object.entries(files)) {
       const filePath = path.join(outputPath, fileName);
       await writeFile(filePath, content as string, 'utf-8');
     }
 
-    if (files['import.sh']) {
-      fs.chmodSync(path.join(outputPath, 'import.sh'), '755');
-    }
-
     ui.stopSpinnerSuccess(`Wrote ${Object.keys(files).length} files to ${outputPath}`);
 
-    // Show summary
     ui.newLine();
     ui.success('Generation complete!');
     ui.print(`  Output: ${outputPath}`);
-    ui.print(
-      `  Resources: ${summary.mappedResources} mapped, ${summary.unmappedResources} unmapped`
-    );
+    ui.print(`  Resources: ${summary.mappedResources} mapped`);
   } catch (error: any) {
     ui.stopSpinnerFail(`Generation failed: ${error.message}`);
     process.exit(1);

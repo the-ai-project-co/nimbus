@@ -180,11 +180,28 @@ async function generateTerraformPreview(workdir: string): Promise<DeployPreview>
     const changes = parseTerraformPlanOutput(output);
     const summary = summarizeChanges(changes);
 
+    // Try infracost for real cost delta (best-effort, non-blocking)
+    let costImpact: string | undefined;
+    try {
+      const { stdout: icOut } = await execAsync(
+        `infracost breakdown --path ${workdir} --format json`,
+        { timeout: 60_000, maxBuffer: 5 * 1024 * 1024 }
+      );
+      const ic = JSON.parse(icOut);
+      const totalMonthly = parseFloat(ic.totalMonthlyCost ?? '0').toFixed(2);
+      const diff = parseFloat(ic.diffTotalMonthlyCost ?? '0');
+      const sign = diff > 0 ? '+' : '';
+      costImpact = `$${totalMonthly}/month${diff !== 0 ? ` (${sign}$${diff.toFixed(2)} change)` : ' (no change)'}`;
+    } catch {
+      // infracost not installed or failed — omit cost impact
+    }
+
     return {
       ...base,
       changes,
       summary,
       rawOutput: output,
+      costImpact,
       success: true,
     };
   } catch (error: unknown) {
@@ -281,6 +298,50 @@ async function generateHelmPreview(action: string, workdir: string): Promise<Dep
 }
 
 // ---------------------------------------------------------------
+// G9: Multi-file diff batch builder for Terraform plan output
+// ---------------------------------------------------------------
+
+/**
+ * G9: Build a FileDiffBatch from a Terraform plan preview.
+ *
+ * Parses the resource changes in the plan and represents each modified
+ * resource as a synthetic diff entry so they can be reviewed via the
+ * existing FileDiffModal batch flow.
+ *
+ * @param preview - DeployPreview from generateTerraformPreview
+ * @returns Array of file-diff entries suitable for FileDiffBatch.files
+ */
+export function buildFileDiffBatchFromPlan(
+  preview: DeployPreview
+): Array<{ filePath: string; diff: string; toolName: string }> {
+  return preview.changes.map(change => {
+    const actionLine = getChangeSymbolStr(change.action);
+    const diff = [
+      `--- a/${change.resource}`,
+      `+++ b/${change.resource}`,
+      `@@ -0,0 +1,1 @@`,
+      `${actionLine} ${change.resource}${change.details ? `  # ${change.details}` : ''}`,
+    ].join('\n');
+
+    return {
+      filePath: change.resource,
+      diff,
+      toolName: 'terraform',
+    };
+  });
+}
+
+function getChangeSymbolStr(action: ResourceChange['action']): string {
+  switch (action) {
+    case 'create':  return '+';
+    case 'update':  return '~';
+    case 'destroy': return '-';
+    case 'replace': return '+/-';
+    default:        return ' ';
+  }
+}
+
+// ---------------------------------------------------------------
 // Output parsers
 // ---------------------------------------------------------------
 
@@ -297,7 +358,7 @@ async function generateHelmPreview(action: string, workdir: string): Promise<Dep
  * Falls back to the summary line (`Plan: X to add, Y to change, Z to destroy.`)
  * when no individual resource lines are found.
  */
-function parseTerraformPlanOutput(output: string): ResourceChange[] {
+export function parseTerraformPlanOutput(output: string): ResourceChange[] {
   const changes: ResourceChange[] = [];
   const lines = output.split('\n');
 

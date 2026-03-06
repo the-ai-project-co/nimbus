@@ -28,17 +28,67 @@ export interface AppContext {
 }
 
 /**
+ * Startup warnings collected during initApp() — surfaced as first system
+ * message when the TUI starts (Gap 19).
+ */
+export let startupWarnings: string[] = [];
+
+/**
  * Initialize the Nimbus application.
  *
  * - Ensures the ~/.nimbus directory exists.
  * - Opens (or creates) the local SQLite database via the state module.
  * - Loads config and creates the LLM router instance.
+ * - Runs pre-flight health checks and exits on critical failures (Gap 19).
  *
  * This function is lazy: calling it multiple times returns the same context.
  */
 export async function initApp(): Promise<AppContext> {
   if (appContext) {
     return appContext;
+  }
+
+  // Gap 19: Pre-flight startup checks (fast, no network calls)
+  try {
+    const { runStartupChecks } = await import('./commands/doctor');
+    const issues = await runStartupChecks();
+    if (issues.critical.length > 0) {
+      const lines = [
+        '\x1b[31m\x1b[1mNimbus cannot start:\x1b[0m',
+        ...issues.critical.map(i => `  \x1b[31m✗ ${i}\x1b[0m`),
+        '',
+        '\x1b[2mRun `nimbus doctor` for detailed diagnosis.\x1b[0m',
+      ];
+      process.stderr.write(lines.join('\n') + '\n');
+      process.exit(1);
+    }
+    startupWarnings = issues.warnings;
+  } catch {
+    // Startup checks are non-critical — never let them block startup
+  }
+
+  // H2: Warn if no NIMBUS.md found in the current project directory
+  try {
+    const cwd = process.cwd();
+    const nimbusMdPaths = [join(cwd, 'NIMBUS.md'), join(cwd, '.nimbus', 'NIMBUS.md')];
+    if (!nimbusMdPaths.some(p => existsSync(p))) {
+      startupWarnings.push('No NIMBUS.md found — run /init to set up project context for better results.');
+    }
+  } catch {
+    // Non-critical
+  }
+
+  // M3: Load per-project config and surface protected environments as warnings
+  try {
+    const { loadProjectConfig } = await import('./config/types');
+    const projectConfig = loadProjectConfig(process.cwd());
+    if (projectConfig?.protectedEnvironments && projectConfig.protectedEnvironments.length > 0) {
+      startupWarnings.push(
+        `Protected environments: ${projectConfig.protectedEnvironments.join(', ')} — destructive operations require confirmation.`
+      );
+    }
+  } catch {
+    // Non-critical
   }
 
   // Ensure ~/.nimbus directory exists
@@ -110,6 +160,14 @@ export function getAppContext(): AppContext | null {
 export async function shutdownApp(): Promise<void> {
   if (!appContext) {
     return;
+  }
+
+  // Flush any pending debounced SQLite writes before closing the DB
+  try {
+    const { SessionManager } = await import('./sessions/manager');
+    SessionManager.getInstance().flushAll();
+  } catch {
+    // SessionManager may not have been used — ignore
   }
 
   try {

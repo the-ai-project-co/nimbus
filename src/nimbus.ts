@@ -97,11 +97,36 @@ process.on('uncaughtException', error => {
 });
 
 async function main() {
-  const args = process.argv.slice(2);
+  let args = process.argv.slice(2);
+
+  // G11: Global --project / --cwd flag: change working directory before command dispatch
+  const cwdFlagIdx = args.findIndex(a => a === '--project' || a === '--cwd');
+  if (cwdFlagIdx !== -1 && args[cwdFlagIdx + 1]) {
+    const { resolve } = await import('node:path');
+    const targetDir = resolve(args[cwdFlagIdx + 1]);
+    process.chdir(targetDir);
+    args.splice(cwdFlagIdx, 2);
+  }
 
   // Handle --version and -v before anything else (no init needed)
   if (args[0] === '--version' || args[0] === '-v') {
     console.log(`nimbus ${VERSION}`);
+    process.exit(0);
+  }
+
+  // Handle --completion-install / completion <shell> — print shell completion script
+  if (args[0] === '--completion-install' || args[0] === 'completion') {
+    const shell = args[1] ?? 'bash';
+    const { join } = await import('node:path');
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const dir = join(fileURLToPath(import.meta.url), '../../completions');
+    try {
+      process.stdout.write(readFileSync(join(dir, `nimbus.${shell}`), 'utf-8'));
+    } catch {
+      console.error(`No completion script for shell: ${shell}. Available: bash, zsh, fish`);
+      process.exit(1);
+    }
     process.exit(0);
   }
 
@@ -165,6 +190,14 @@ async function main() {
       if (args[0] === 'chat' && process.stderr.isTTY) {
         process.stderr.write('\r\x1b[K');
       }
+    }
+
+    // Resolve aliases before dispatching (L2)
+    try {
+      const { resolveAlias } = await import('./commands/alias');
+      args = resolveAlias(args);
+    } catch {
+      /* alias file not found — ignore */
     }
 
     // Import and run CLI command router

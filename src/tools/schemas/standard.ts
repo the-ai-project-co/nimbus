@@ -26,7 +26,7 @@ const execAsync = promisify(exec);
  */
 function spawnAsync(
   command: string,
-  options: { timeout?: number; cwd?: string; maxBuffer?: number; signal?: AbortSignal }
+  options: { timeout?: number; cwd?: string; maxBuffer?: number; signal?: AbortSignal; onChunk?: (chunk: string) => void }
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const maxBuffer = options.maxBuffer ?? 10 * 1024 * 1024;
@@ -74,6 +74,7 @@ function spawnAsync(
     }
 
     child.stdout?.on('data', (data: Buffer) => {
+      options.onChunk?.(data.toString());
       if (stdout.length + data.length > maxBuffer) {
         stdoutOverflow = true;
         return;
@@ -82,6 +83,7 @@ function spawnAsync(
     });
 
     child.stderr?.on('data', (data: Buffer) => {
+      options.onChunk?.(data.toString());
       if (stderr.length + data.length > maxBuffer) {
         stderrOverflow = true;
         return;
@@ -550,11 +552,13 @@ export const bashTool: ToolDefinition = {
     try {
       const input = bashSchema.parse(raw);
       const signal = (raw as Record<string, unknown> | null)?._signal as AbortSignal | undefined;
+      const onChunk = (raw as Record<string, unknown>)?._onChunk as ((chunk: string) => void) | undefined;
       const { stdout, stderr } = await spawnAsync(input.command, {
         timeout: input.timeout,
         cwd: input.workdir,
         maxBuffer: 10 * 1024 * 1024, // 10 MB
         signal,
+        onChunk,
       });
       const combined = [stdout, stderr].filter(Boolean).join('\n');
       return ok(combined || '(no output)');

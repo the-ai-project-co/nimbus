@@ -479,17 +479,15 @@ export class LLMRouter {
         }
         try {
           let lastUsage: StreamChunk['usage'] | undefined;
-          const bufferedChunks: StreamChunk[] = [];
+          // Yield each chunk immediately (no buffering) for real-time streaming UX.
           for await (const chunk of p.streamWithTools(request)) {
-            bufferedChunks.push(chunk);
             if (chunk.usage) {
               lastUsage = chunk.usage;
             }
-          }
-          self.circuitBreaker.recordSuccess(p.name);
-          for (const chunk of bufferedChunks) {
             yield chunk;
           }
+          // Record success after the `done: true` chunk has been received and yielded.
+          self.circuitBreaker.recordSuccess(p.name);
           if (lastUsage) {
             const model = request.model || defaultModel;
             const cost = calculateCost(
@@ -1031,5 +1029,76 @@ export class LLMRouter {
   private enforceTokenBudget(request: CompletionRequest): void {
     const maxTokens = this.config.tokenBudget?.maxTokensPerRequest || 32768;
     request.maxTokens = Math.min(request.maxTokens || 4096, maxTokens);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gap 6: List authenticated providers for /model command
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the names of providers that have valid credentials configured.
+ * Checks both environment variables and the auth store.
+ */
+export function listAuthenticatedProviders(): string[] {
+  const authenticated: string[] = [];
+  if (process.env.ANTHROPIC_API_KEY) authenticated.push('anthropic');
+  if (process.env.OPENAI_API_KEY) authenticated.push('openai');
+  if (process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) authenticated.push('google');
+  if (process.env.GROQ_API_KEY) authenticated.push('groq');
+  if (process.env.OPENROUTER_API_KEY) authenticated.push('openrouter');
+  if (process.env.AWS_ACCESS_KEY_ID || process.env.AWS_PROFILE) authenticated.push('bedrock');
+  return authenticated;
+}
+
+// ---------------------------------------------------------------------------
+// Gap 18: Multi-model routing based on task complexity
+// ---------------------------------------------------------------------------
+
+/** Complexity tiers for automatic model selection. */
+export type TaskComplexity = 'simple' | 'moderate' | 'complex';
+
+/**
+ * Classify a user message as simple, moderate, or complex.
+ *
+ * - **simple**: short status/list/describe queries (<200 chars, no code generation)
+ * - **complex**: long messages, code generation, architectural reasoning
+ * - **moderate**: everything else
+ */
+export function classifyTaskComplexity(message: string): TaskComplexity {
+  const lower = message.toLowerCase().trim();
+
+  // Simple: short status/list queries
+  if (
+    message.length < 200 &&
+    /^(list|show|get|check|status|what is|what are|describe|which|where|who|ping|echo)\b/.test(lower)
+  ) {
+    return 'simple';
+  }
+
+  // Complex: long messages or keywords that imply heavy reasoning
+  if (
+    message.length > 500 ||
+    /\b(implement|design|architect|refactor|migrate|rewrite|build|create|scaffold|generate|optimize|debug|diagnose|analyze)\b/.test(lower)
+  ) {
+    return 'complex';
+  }
+
+  return 'moderate';
+}
+
+/**
+ * Select the appropriate model string for a given complexity level.
+ * If `preferredModel` is provided it always wins (user override).
+ */
+export function routeModel(complexity: TaskComplexity, preferredModel?: string): string {
+  if (preferredModel) return preferredModel;
+  switch (complexity) {
+    case 'simple':
+      return 'anthropic/claude-haiku-4-5-20251001';
+    case 'complex':
+      return 'anthropic/claude-opus-4-6';
+    default:
+      return 'anthropic/claude-sonnet-4-20250514';
   }
 }

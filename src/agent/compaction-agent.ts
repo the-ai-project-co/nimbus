@@ -33,6 +33,15 @@ export interface CompactionOptions {
   focusArea?: string;
   /** Model to use for compaction (default: haiku). */
   model?: string;
+  /** H3: Infrastructure context to preserve during compaction. */
+  infraContext?: {
+    terraformWorkspace?: string;
+    kubectlContext?: string;
+    awsProfile?: string;
+    awsRegion?: string;
+    gcpProject?: string;
+    azureSubscription?: string;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +116,21 @@ export async function runCompaction(
     userPrompt += `\n\nPay special attention to: ${options.focusArea}`;
   }
 
+  // H3: Inject current infraContext into compaction prompt so it's never omitted
+  if (options.infraContext) {
+    const ic = options.infraContext;
+    const infraLines: string[] = [];
+    if (ic.terraformWorkspace) infraLines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);
+    if (ic.kubectlContext) infraLines.push(`- kubectl context: ${ic.kubectlContext}`);
+    if (ic.awsProfile) infraLines.push(`- AWS profile: ${ic.awsProfile}`);
+    if (ic.awsRegion) infraLines.push(`- AWS region: ${ic.awsRegion}`);
+    if (ic.gcpProject) infraLines.push(`- GCP project: ${ic.gcpProject}`);
+    if (ic.azureSubscription) infraLines.push(`- Azure subscription: ${ic.azureSubscription}`);
+    if (infraLines.length > 0) {
+      userPrompt += `\n\n## ALWAYS PRESERVE IN SUMMARY (do not omit):\n${infraLines.join('\n')}`;
+    }
+  }
+
   // Call the LLM for summarization using a fast, cheap model
   const model = options.model ?? 'haiku';
   let summary: string;
@@ -126,8 +150,23 @@ export async function runCompaction(
     summary = fallbackSummary(toSummarize);
   }
 
+  // H3: Prepend infraContext block to summary so it survives compaction
+  let finalSummary = summary;
+  if (options.infraContext) {
+    const ic = options.infraContext;
+    const infraLines: string[] = [];
+    if (ic.terraformWorkspace) infraLines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);
+    if (ic.kubectlContext) infraLines.push(`- kubectl context: ${ic.kubectlContext}`);
+    if (ic.awsProfile) infraLines.push(`- AWS profile: ${ic.awsProfile}`);
+    if (ic.awsRegion) infraLines.push(`- AWS region: ${ic.awsRegion}`);
+    if (ic.gcpProject) infraLines.push(`- GCP project: ${ic.gcpProject}`);
+    if (ic.azureSubscription) infraLines.push(`- Azure subscription: ${ic.azureSubscription}`);
+    if (infraLines.length > 0) {
+      finalSummary = `## Infrastructure Context\n${infraLines.join('\n')}\n\n${summary}`;
+    }
+  }
   // Reassemble the compacted message array
-  const compactedMessages = contextManager.buildCompactedMessages(preserved, summary);
+  const compactedMessages = contextManager.buildCompactedMessages(preserved, finalSummary);
   const compactedTokens = compactedMessages.reduce(
     (sum, m) => sum + estimateTokens(getTextContent(m.content)),
     0

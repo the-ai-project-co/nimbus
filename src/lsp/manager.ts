@@ -9,6 +9,7 @@
 import { readFile } from 'node:fs/promises';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { EventEmitter } from 'node:events';
 import { LSPClient, type Diagnostic } from './client';
 import { getLanguageForFile, LANGUAGE_CONFIGS, type LanguageConfig } from './languages';
 
@@ -26,16 +27,21 @@ export interface LSPStatus {
   available: boolean;
 }
 
-export class LSPManager {
+export class LSPManager extends EventEmitter {
   private clients = new Map<string, LSPClient>();
   private idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private rootUri: string;
   private availabilityCache = new Map<string, boolean>();
   private fileVersions = new Map<string, number>();
   private enabled: boolean = true;
+  private enabledLanguages?: readonly string[];
+  /** C4: Track languages already reported as unavailable to avoid duplicate events. */
+  private failedLSPs = new Set<string>();
 
-  constructor(rootUri?: string) {
+  constructor(rootUri?: string, options?: { enabledLanguages?: readonly string[] }) {
+    super();
     this.rootUri = rootUri ?? process.cwd();
+    this.enabledLanguages = options?.enabledLanguages;
   }
 
   /** Enable or disable LSP integration. */
@@ -57,6 +63,11 @@ export class LSPManager {
 
     const config = getLanguageForFile(filePath);
     if (!config) {
+      return;
+    }
+
+    // Skip non-enabled language servers if a filter is set
+    if (this.enabledLanguages && !this.enabledLanguages.includes(config.id)) {
       return;
     }
 
@@ -201,6 +212,11 @@ export class LSPManager {
     // Check if the binary is available
     const available = await this.isAvailable(config);
     if (!available) {
+      // C4: Emit once per language so the TUI can surface a diagnostic message
+      if (!this.failedLSPs.has(config.id)) {
+        this.failedLSPs.add(config.id);
+        this.emit('lsp-unavailable', config.name ?? config.id, config.command);
+      }
       return null;
     }
 
@@ -264,9 +280,9 @@ export class LSPManager {
 let lspManagerInstance: LSPManager | null = null;
 
 /** Get or create the singleton LSP manager. */
-export function getLSPManager(rootUri?: string): LSPManager {
+export function getLSPManager(rootUri?: string, options?: { enabledLanguages?: readonly string[] }): LSPManager {
   if (!lspManagerInstance) {
-    lspManagerInstance = new LSPManager(rootUri);
+    lspManagerInstance = new LSPManager(rootUri, options);
   }
   return lspManagerInstance;
 }

@@ -266,6 +266,91 @@ export async function authAzureCommand(options: AuthCloudOptions = {}): Promise<
 }
 
 /**
+ * H1: AWS SSO Login — delegates to `aws sso login` so the CLI handles the browser flow.
+ * spawnSync with stdio: 'inherit' so device codes / browser prompts appear in terminal.
+ */
+export async function loginAwsCommand(options: AuthCloudOptions = {}): Promise<void> {
+  const installed = await isCliInstalled('aws');
+  if (!installed) {
+    ui.error('AWS CLI is not installed. Install from https://aws.amazon.com/cli/');
+    return;
+  }
+
+  ui.info('Launching AWS SSO login...');
+  ui.print(ui.dim('The browser (or device code) flow is handled by the AWS CLI.'));
+  ui.newLine();
+
+  const { spawnSync } = await import('child_process');
+  const args = ['sso', 'login'];
+  if (options.profile) {
+    args.push('--profile', options.profile);
+  }
+
+  const result = spawnSync('aws', args, { stdio: 'inherit' });
+  if (result.status === 0) {
+    ui.success('AWS SSO login completed successfully.');
+  } else {
+    ui.error('AWS SSO login failed or was cancelled.');
+  }
+}
+
+/**
+ * H1: GCP Login — delegates to `gcloud auth login --no-launch-browser` (device code flow).
+ */
+export async function loginGcpCommand(options: AuthCloudOptions = {}): Promise<void> {
+  const installed = await isCliInstalled('gcloud');
+  if (!installed) {
+    ui.error('Google Cloud SDK not installed. See https://cloud.google.com/sdk/docs/install');
+    return;
+  }
+
+  ui.info('Launching GCP device-code login...');
+  ui.print(ui.dim('Follow the URL and code shown below to complete authentication.'));
+  ui.newLine();
+
+  const { spawnSync } = await import('child_process');
+  const args = ['auth', 'login', '--no-launch-browser'];
+  if (options.project) {
+    args.push('--project', options.project);
+  }
+
+  const result = spawnSync('gcloud', args, { stdio: 'inherit' });
+  if (result.status === 0) {
+    ui.success('GCP login completed successfully.');
+  } else {
+    ui.error('GCP login failed or was cancelled.');
+  }
+}
+
+/**
+ * H1: Azure Login — delegates to `az login --use-device-code`.
+ */
+export async function loginAzureCommand(options: AuthCloudOptions = {}): Promise<void> {
+  const installed = await isCliInstalled('az');
+  if (!installed) {
+    ui.error('Azure CLI not installed. See https://learn.microsoft.com/en-us/cli/azure/install-azure-cli');
+    return;
+  }
+
+  ui.info('Launching Azure device-code login...');
+  ui.print(ui.dim('Follow the URL and code shown below to complete authentication.'));
+  ui.newLine();
+
+  const { spawnSync } = await import('child_process');
+  const args = ['login', '--use-device-code'];
+  if (options.subscription) {
+    args.push('--subscription', options.subscription);
+  }
+
+  const result = spawnSync('az', args, { stdio: 'inherit' });
+  if (result.status === 0) {
+    ui.success('Azure login completed successfully.');
+  } else {
+    ui.error('Azure login failed or was cancelled.');
+  }
+}
+
+/**
  * Cloud auth parent command router
  */
 export async function authCloudCommand(
@@ -290,5 +375,33 @@ export async function authCloudCommand(
       ui.print('  nimbus auth aws     — Validate AWS credentials');
       ui.print('  nimbus auth gcp     — Validate GCP credentials');
       ui.print('  nimbus auth azure   — Validate Azure credentials');
+  }
+}
+
+/**
+ * Cloud login command router — delegates to CLI tools for SSO/OAuth flows (H1).
+ */
+export async function loginCloudCommand(
+  provider: string,
+  options: AuthCloudOptions = {}
+): Promise<void> {
+  switch (provider) {
+    case 'aws':
+      await loginAwsCommand(options);
+      break;
+    case 'gcp':
+    case 'google':
+      await loginGcpCommand(options);
+      break;
+    case 'azure':
+      await loginAzureCommand(options);
+      break;
+    default:
+      ui.error(`Unknown cloud provider: ${provider}`);
+      ui.newLine();
+      ui.print('Supported providers:');
+      ui.print('  nimbus auth login aws     — AWS SSO login (browser/device code)');
+      ui.print('  nimbus auth login gcp     — GCP device-code login');
+      ui.print('  nimbus auth login azure   — Azure device-code login');
   }
 }

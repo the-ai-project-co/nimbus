@@ -191,6 +191,34 @@ export function estimateMessageTokens(message: LLMMessage): number {
 }
 
 // ---------------------------------------------------------------------------
+// H2: Terraform plan output detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Patterns that indicate a message contains a terraform plan output.
+ * These messages are critical context that should survive compaction.
+ */
+const TERRAFORM_PLAN_INDICATORS = [
+  'Plan:',
+  'will be created',
+  'will be destroyed',
+  'to add,',
+  'to change,',
+  'to destroy',
+] as const;
+
+/**
+ * Return true if the given text content contains terraform plan output.
+ * Used by selectPreservedMessages to protect plan results from compaction.
+ *
+ * @param text - The text content to inspect.
+ * @returns `true` if the text looks like terraform plan output.
+ */
+function containsTerraformPlanOutput(text: string): boolean {
+  return TERRAFORM_PLAN_INDICATORS.some(indicator => text.includes(indicator));
+}
+
+// ---------------------------------------------------------------------------
 // ContextManager Class
 // ---------------------------------------------------------------------------
 
@@ -206,6 +234,8 @@ export class ContextManager {
   private autoCompactThreshold: number;
   private preserveRecentMessages: number;
   private alwaysInContext: string[];
+  /** Per-message token count cache: key = `role:contentLen:toolCallCount:toolCallId`. */
+  private _tokenCache: Map<string, number> = new Map();
 
   constructor(options?: ContextManagerOptions) {
     // Try loading from config DB, fall back to options/defaults
@@ -216,7 +246,31 @@ export class ContextManager {
     this.maxContextTokens = options?.maxContextTokens ?? modelWindow ?? 200_000;
     this.autoCompactThreshold = configThreshold ?? options?.autoCompactThreshold ?? 0.85;
     this.preserveRecentMessages = options?.preserveRecentMessages ?? 5;
-    this.alwaysInContext = options?.alwaysInContext ?? [];
+    this.alwaysInContext = options?.alwaysInContext ?? ['Infrastructure Context', 'Tool Timeouts'];
+  }
+
+  /**
+   * Get cached token count for a message, computing + caching on miss.
+   * Key encodes role + content length + tool call count + tool call IDs so
+   * any meaningful change busts the cache entry.
+   */
+  private _getCachedTokens(msg: LLMMessage): number {
+    const contentLen = typeof msg.content === 'string'
+      ? msg.content.length
+      : JSON.stringify(msg.content).length;
+    const tcCount = msg.toolCalls?.length ?? 0;
+    const tcIds = msg.toolCalls?.map(tc => tc.id).join(',') ?? '';
+    const key = `${msg.role}:${contentLen}:${tcCount}:${tcIds}`;
+    const cached = this._tokenCache.get(key);
+    if (cached !== undefined) return cached;
+    const val = estimateMessageTokens(msg);
+    this._tokenCache.set(key, val);
+    return val;
+  }
+
+  /** Clear the token cache. Call after compaction when old messages are removed. */
+  clearTokenCache(): void {
+    this._tokenCache.clear();
   }
 
   /**
@@ -270,7 +324,7 @@ export class ContextManager {
       baseSystemTokens = systemPromptTokens - nimbusInstructionsTokens;
     }
 
-    const messagesTokens = messages.reduce((sum, msg) => sum + estimateMessageTokens(msg), 0);
+    const messagesTokens = messages.reduce((sum, msg) => sum + this._getCachedTokens(msg), 0);
 
     const total = systemPromptTokens + messagesTokens + toolDefinitionsTokens;
     const usagePercent =
@@ -295,6 +349,8 @@ export class ContextManager {
    * - The last N messages are always kept (recent conversation).
    * - Tool messages near the recent window are kept (active tool state).
    * - Previous compaction summary blocks are always kept.
+   * - H2: Tool result messages containing terraform plan output are always
+   *   kept so the agent retains critical plan context across compaction.
    * - Everything else is marked for summarization.
    *
    * @param messages - The full conversation message array.
@@ -321,7 +377,15 @@ export class ContextManager {
       // Always preserve summary blocks (from previous compactions)
       const isSummary = getTextContent(msg.content).startsWith('[Context Summary]');
 
-      if (isFirst || isRecent || hasActiveTools || isSummary) {
+      // H2: Always preserve messages containing terraform plan output.
+      // These are typically `tool` role messages or `assistant` messages with
+      // tool_use content blocks whose text contains plan output markers.
+      const textContent = getTextContent(msg.content);
+      const isTerraformPlan =
+        (msg.role === 'tool' || msg.role === 'assistant') &&
+        containsTerraformPlanOutput(textContent);
+
+      if (isFirst || isRecent || hasActiveTools || isSummary || isTerraformPlan) {
         preserved.push(msg);
       } else {
         toSummarize.push(msg);

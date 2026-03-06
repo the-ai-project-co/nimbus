@@ -261,7 +261,11 @@ export type ConfigKey =
   | 'llm.cost_optimization.cheap_model'
   | 'llm.cost_optimization.expensive_model'
   | 'llm.cost_optimization.use_cheap_model_for'
-  | 'llm.cost_optimization.use_expensive_model_for';
+  | 'llm.cost_optimization.use_expensive_model_for'
+  | 'primaryClouds'
+  | 'model'
+  | 'defaultCostBudget'
+  | 'agentTurnTimeoutSeconds';
 
 /**
  * Config key metadata for help/validation
@@ -524,4 +528,82 @@ export const CONFIG_KEYS: ConfigKeyInfo[] = [
     description: 'Ordered list of fallback LLM providers to try on failure (JSON array)',
     type: 'string',
   },
+  // M4: Primary cloud providers
+  {
+    key: 'primaryClouds',
+    description: 'Primary cloud providers (comma-separated: aws,gcp,azure)',
+    type: 'string',
+  },
+  // M4: Model override (validated against known model IDs)
+  {
+    key: 'model',
+    description: 'Default model ID (e.g. claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5-20251001)',
+    type: 'string',
+  },
+  // G16: Default cost budget per session
+  {
+    key: 'defaultCostBudget',
+    description: 'Default cost budget in USD per session (e.g. 1.00). 0 means unlimited.',
+    type: 'number',
+    defaultValue: 0,
+  },
+  // G21: Configurable agent turn silence timeout
+  {
+    key: 'agentTurnTimeoutSeconds',
+    description: 'Seconds to wait for LLM response before aborting (default: 60)',
+    type: 'number',
+    defaultValue: 60,
+  },
 ];
+
+// ---------------------------------------------------------------------------
+// M3: Per-project configuration (nimbus.yaml / .nimbus/config.json)
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-project Nimbus configuration for team defaults.
+ * Stored in <project-root>/nimbus.yaml OR <project-root>/.nimbus/config.json.
+ * JSON-only format to avoid adding a YAML parser dependency.
+ */
+export interface ProjectConfig {
+  /** Default Terraform workspace for this project */
+  defaultWorkspace?: string;
+  /** Default kubectl context for this project */
+  defaultContext?: string;
+  /** Default Kubernetes namespace */
+  defaultNamespace?: string;
+  /** Tool call patterns to auto-approve (e.g. ["kubectl get *", "terraform plan"]) */
+  autoApprove?: string[];
+  /** Environment names that should be treated as protected (require confirmation for destructive ops) */
+  protectedEnvironments?: string[];
+}
+
+/**
+ * Load per-project configuration from:
+ *   1. <cwd>/nimbus.yaml  (JSON-parsed, no YAML dep)
+ *   2. <cwd>/.nimbus/config.json
+ *
+ * Returns null if neither file exists or both fail to parse.
+ */
+export function loadProjectConfig(cwd: string): ProjectConfig | null {
+  const { existsSync, readFileSync } = require('node:fs') as typeof import('node:fs');
+  const { join } = require('node:path') as typeof import('node:path');
+
+  const candidates = [
+    join(cwd, 'nimbus.yaml'),
+    join(cwd, '.nimbus', 'config.json'),
+  ];
+
+  for (const file of candidates) {
+    try {
+      if (!existsSync(file)) continue;
+      const raw = readFileSync(file, 'utf-8');
+      const parsed = JSON.parse(raw) as ProjectConfig;
+      return parsed;
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  return null;
+}

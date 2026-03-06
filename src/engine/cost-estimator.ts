@@ -96,16 +96,58 @@ export interface CostEstimate {
  *   s3:  Minimal storage estimate (< 100GB) ~= $5
  */
 const BASE_COMPONENT_COSTS: Record<string, number> = {
-  vpc: 32, // NAT Gateway
-  eks: 73, // Control plane
-  rds: 50, // db.t3.micro + storage
-  s3: 5, // Minimal storage
-  ecs: 30, // Fargate minimal
-  lambda: 2, // < 1M invocations/month
-  cloudfront: 10, // < 1TB transfer/month
-  elasticache: 25, // cache.t3.micro
-  sqs: 1, // < 1M requests/month
-  sns: 1, // < 1M notifications/month
+  // AWS Compute
+  vpc: 32,
+  eks: 73,
+  ecs: 30,
+  lambda: 2,
+  // EC2 instance types (monthly on-demand us-east-1)
+  't3.micro': 8,
+  't3.small': 16,
+  't3.medium': 32,
+  't3.large': 65,
+  'm5.large': 70,
+  'm5.xlarge': 140,
+  'm5.2xlarge': 280,
+  'c5.large': 62,
+  'c5.xlarge': 124,
+  'r5.large': 91,
+  'r5.xlarge': 182,
+  // RDS instance types (monthly, single-AZ)
+  'db.t3.micro': 14,
+  'db.t3.small': 28,
+  'db.t3.medium': 56,
+  'db.r5.large': 175,
+  'db.r5.xlarge': 350,
+  // AWS Data
+  rds: 50,
+  s3: 5,
+  elasticache: 25,
+  sqs: 1,
+  sns: 1,
+  cloudfront: 10,
+  // AWS Network/LB
+  'aws_nat_gateway': 32,
+  'aws_lb': 25,
+  'aws_alb': 25,
+  'aws_instance': 30,
+  'aws_db_instance': 50,
+  'aws_s3_bucket': 5,
+  'aws_eks_cluster': 73,
+  'aws_elasticache_cluster': 25,
+  'aws_rds_cluster': 50,
+  'aws_lambda_function': 2,
+  'aws_cloudfront_distribution': 10,
+  // GCP
+  'google_compute_instance': 30,
+  'google_container_cluster': 73,
+  'google_sql_database_instance': 50,
+  'google_storage_bucket': 5,
+  // Azure
+  'azurerm_virtual_machine': 30,
+  'azurerm_kubernetes_cluster': 73,
+  'azurerm_sql_database': 50,
+  'azurerm_storage_account': 5,
 };
 
 /**

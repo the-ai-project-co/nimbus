@@ -1,10 +1,11 @@
 /**
  * Resume Command
- * Resume a task from its last checkpoint
+ * Resume a Nimbus session by ID (or last session if omitted).
+ * Looks up sessions from SQLite, then launches chat with that session.
  */
 
 import { ui } from '../wizard/ui';
-import { CoreEngineClient } from '../clients/core-engine-client';
+import { SessionManager } from '../sessions/manager';
 
 export interface ResumeOptions {
   taskId?: string;
@@ -13,43 +14,34 @@ export interface ResumeOptions {
 export async function resumeCommand(taskIdOrOptions: string | ResumeOptions = {}): Promise<void> {
   const taskId = typeof taskIdOrOptions === 'string' ? taskIdOrOptions : taskIdOrOptions.taskId;
 
+  ui.header('Resume Session');
+
+  const sessionManager = SessionManager.getInstance();
+
+  // If no taskId given, try to resume the most recent session
   if (!taskId) {
-    ui.error('Task ID is required. Usage: nimbus resume <task-id>');
-    process.exit(1);
-  }
-
-  ui.header('Resume Task');
-  ui.info(`Task ID: ${taskId}`);
-  ui.newLine();
-
-  const client = new CoreEngineClient();
-
-  const available = await client.isAvailable();
-  if (!available) {
-    ui.error('Core Engine service is not available.');
-    process.exit(1);
-  }
-
-  ui.startSpinner({ message: 'Resuming task from checkpoint...' });
-
-  try {
-    const result = await client.resumeTask(taskId);
-
-    if (result.success) {
-      ui.stopSpinnerSuccess('Task resumed and completed successfully');
-      ui.newLine();
-      if (result.data) {
-        const executionResults = result.data.executionResults || [];
-        ui.print(`Steps completed: ${executionResults.length}`);
-      }
-    } else {
-      ui.stopSpinnerFail('Resume failed');
-      ui.error(result.error || 'Unknown error');
+    const sessions = sessionManager.list();
+    if (sessions.length === 0) {
+      ui.error('No sessions found. Start a new session with "nimbus chat".');
       process.exit(1);
     }
-  } catch (error: any) {
-    ui.stopSpinnerFail('Resume failed');
-    ui.error(error.message || 'Failed to resume task');
+    const lastSession = sessions[0];
+    ui.info(`Resuming last session: ${lastSession.id.slice(0, 8)}`);
+    const { chatCommand } = await import('./chat');
+    await chatCommand({ continue: true });
+    return;
+  }
+
+  // Look up specific session by ID (or prefix)
+  const sessions = sessionManager.list();
+  const found = sessions.find((s: { id: string }) => s.id === taskId || s.id.startsWith(taskId));
+
+  if (!found) {
+    ui.error(`Session not found. Use "nimbus sessions" to list available sessions.`);
     process.exit(1);
   }
+
+  ui.info(`Resuming session: ${found.id.slice(0, 8)}`);
+  const { chatCommand } = await import('./chat');
+  await chatCommand({ continue: true });
 }

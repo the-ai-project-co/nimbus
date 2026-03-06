@@ -115,6 +115,32 @@ export async function configSetCommand(options: ConfigSetOptions): Promise<void>
     process.exit(1);
   }
 
+  // M4: Validate model key against known model IDs
+  if (key === 'model' || key === 'llm.defaultModel') {
+    const knownModels = [
+      'claude-opus-4-6',
+      'claude-sonnet-4-6',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-20250514',
+      'claude-sonnet-4-20250514',
+      'claude-haiku-4-5',
+      'anthropic/claude-opus-4-6',
+      'anthropic/claude-sonnet-4-6',
+      'anthropic/claude-haiku-4-5-20251001',
+      'anthropic/claude-opus-4-20250514',
+      'anthropic/claude-sonnet-4-20250514',
+    ];
+    if (!knownModels.includes(value)) {
+      ui.warning(`"${value}" is not a recognized Nimbus model ID.`);
+      ui.info('Known models: ' + knownModels.slice(0, 6).join(', '));
+      if (!options.nonInteractive) {
+        const { confirm: confirmPrompt } = await import('../wizard/prompts');
+        const proceed = await confirmPrompt({ message: 'Set this model anyway?', defaultValue: false });
+        if (!proceed) return;
+      }
+    }
+  }
+
   // Parse and set value
   const parsedValue = configManager.parseValue(key, value);
   configManager.set(key, parsedValue);

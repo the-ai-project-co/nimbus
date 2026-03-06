@@ -203,17 +203,129 @@ export async function auditExportCommand(options: AuditExportCommandOptions): Pr
   }
 }
 
+/** Options for the audit scan subcommand */
+export interface AuditScanOptions {
+  /** Compliance framework filter */
+  framework?: 'soc2' | 'hipaa' | 'pci' | 'iso27001';
+  /** Write JSON report to this file */
+  output?: string;
+  /** Directory to scan (default: cwd) */
+  dir?: string;
+  /** Exit code 1 if findings exceed this count */
+  threshold?: number;
+}
+
+/**
+ * Parse audit scan options from CLI args
+ */
+export function parseAuditScanOptions(args: string[]): AuditScanOptions {
+  const options: AuditScanOptions = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--framework' && args[i + 1]) {
+      options.framework = args[++i] as AuditScanOptions['framework'];
+    } else if ((arg === '--output' || arg === '-o') && args[i + 1]) {
+      options.output = args[++i];
+    } else if ((arg === '--dir' || arg === '-d') && args[i + 1]) {
+      options.dir = args[++i];
+    } else if (arg === '--threshold' && args[i + 1]) {
+      options.threshold = parseInt(args[++i], 10);
+    }
+  }
+
+  return options;
+}
+
+/**
+ * Audit scan subcommand — runs the local security scanner
+ */
+export async function auditScanCommand(options: AuditScanOptions): Promise<void> {
+  const { scanSecurity } = await import('../../audit/security-scanner');
+  const dir = options.dir ?? process.cwd();
+
+  ui.startSpinner({ message: `Scanning ${dir} for security issues...` });
+
+  let result;
+  try {
+    result = await scanSecurity({ dir });
+  } catch (e: any) {
+    ui.stopSpinnerFail('Scan failed');
+    ui.error(e.message);
+    return;
+  }
+
+  ui.stopSpinnerSuccess(
+    `Scan complete: ${result.findings.length} finding(s) in ${result.scannedFiles} file(s)`
+  );
+
+  // Filter by framework if provided (maps framework to relevant finding IDs)
+  let findings = result.findings;
+  if (options.framework) {
+    // Each framework maps loosely to severity thresholds
+    const frameworkSeverityMap: Record<string, string[]> = {
+      soc2: ['CRITICAL', 'HIGH', 'MEDIUM'],
+      hipaa: ['CRITICAL', 'HIGH', 'MEDIUM'],
+      pci: ['CRITICAL', 'HIGH'],
+      iso27001: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+    };
+    const allowedSeverities = frameworkSeverityMap[options.framework] ?? [];
+    findings = findings.filter((f: { severity: string }) => allowedSeverities.includes(f.severity));
+    ui.dim(`Framework filter (${options.framework}): showing ${findings.length} relevant finding(s)`);
+  }
+
+  if (findings.length === 0) {
+    ui.info('No findings. Scan clean.');
+  } else {
+    ui.newLine();
+    for (const finding of findings) {
+      const severityColor = finding.severity === 'CRITICAL' || finding.severity === 'HIGH'
+        ? 'red'
+        : finding.severity === 'MEDIUM'
+        ? 'yellow'
+        : 'white';
+      ui.print(`[${ui.color(finding.severity, severityColor)}] ${finding.id}: ${finding.title}`);
+      if (finding.file) ui.dim(`  File: ${finding.file}${finding.line ? `:${finding.line}` : ''}`);
+      ui.dim(`  ${finding.recommendation}`);
+      ui.newLine();
+    }
+  }
+
+  // Write JSON report to file if requested
+  if (options.output) {
+    const report = {
+      timestamp: result.timestamp.toISOString(),
+      scannedFiles: result.scannedFiles,
+      scanDuration: result.scanDuration,
+      framework: options.framework ?? null,
+      findingsCount: findings.length,
+      findings,
+    };
+    fs.writeFileSync(options.output, JSON.stringify(report, null, 2), 'utf-8');
+    ui.print(`Report written to ${options.output}`);
+  }
+
+  // Threshold check — exit code 1 if too many findings
+  if (options.threshold !== undefined && findings.length > options.threshold) {
+    ui.error(`Findings (${findings.length}) exceeded threshold (${options.threshold}). Exiting with code 1.`);
+    process.exit(1);
+  }
+}
+
 /**
  * Main audit command dispatcher
  */
 export async function auditCommand(subcommand: string, args: string[]): Promise<void> {
   switch (subcommand) {
     case 'list':
-    case undefined:
+    case '':
       await auditListCommand(parseAuditListOptions(args));
       break;
     case 'export':
       await auditExportCommand(parseAuditExportOptions(args));
+      break;
+    case 'scan':
+      await auditScanCommand(parseAuditScanOptions(args));
       break;
     default:
       ui.error(`Unknown audit command: ${subcommand}`);
@@ -222,14 +334,21 @@ export async function auditCommand(subcommand: string, args: string[]): Promise<
       ui.print('  nimbus audit                      - List audit logs');
       ui.print('  nimbus audit list                 - List audit logs');
       ui.print('  nimbus audit export               - Export audit logs');
+      ui.print('  nimbus audit scan                 - Scan directory for security issues');
       ui.newLine();
-      ui.info('Options:');
+      ui.info('Options (list):');
       ui.print('  --since <time>   Filter logs since (e.g., 7d, 24h, 2024-01-01)');
       ui.print('  --until <time>   Filter logs until');
       ui.print('  --action <type>  Filter by action type');
       ui.print('  --user <id>      Filter by user');
       ui.print('  --limit <n>      Number of logs to show');
       ui.print('  --json           Output as JSON');
+      ui.newLine();
+      ui.info('Options (scan):');
+      ui.print('  --framework <f>  Compliance framework: soc2|hipaa|pci|iso27001');
+      ui.print('  --output <file>  Write JSON report to file');
+      ui.print('  --dir <path>     Directory to scan (default: cwd)');
+      ui.print('  --threshold <n>  Exit code 1 if findings exceed this count');
       ui.newLine();
       ui.info('Export options:');
       ui.print('  --format <type>  Export format (csv|json)');

@@ -1,14 +1,16 @@
 {
   "name": "@build-astron-co/nimbus",
-  "version": "0.3.0",
-  "description": "AI-Powered Cloud Engineering Agent",
-  "main": "src/nimbus.ts",
+  "version": "0.4.0",
+  "description": "AI-Powered DevOps Engineering Agent",
+  "main": "dist/src/nimbus.js",
   "bin": {
-    "nimbus": "bin/nimbus"
+    "nimbus": "bin/nimbus.mjs"
   },
   "files": [
     "bin/",
     "src/",
+    "dist/",
+    "completions/",
     "package.json",
     "tsconfig.json"
   ],
@@ -28,7 +30,11 @@
     "build:binary": "./scripts/build-binary.sh",
     "build:binary:all": "./scripts/build-binary.sh all",
     "nimbus": "node --loader ./node_modules/tsx/dist/esm/index.mjs src/nimbus.ts",
-    "precommit": "npm run lint && npm run format:check && npm run type-check"
+    "build:npm": "tsc --project tsconfig.build.json",
+    "prepare": "npm run build:npm",
+    "prepack": "tsc --project tsconfig.build.json",
+    "precommit": "npm run lint && npm run format:check && npm run type-check",
+    "postinstall": "node -e \"process.stdout.write('\\n  Nimbus installed! Next steps:\\n  1. Run: nimbus login              (configure your LLM provider)\\n  2. Run: nimbus doctor             (check your DevOps toolchain)\\n  3. Run: nimbus completions install (enable tab completion)\\n  4. Run: nimbus                    (start the DevOps agent)\\n\\n')\""
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
@@ -52,7 +58,6 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/websocket": "^0.2.8",
     "@google/generative-ai": "^0.24.1",
-    "better-sqlite3": "^11.0.0",
     "elysia": "^1.4.22",
     "fast-glob": "^3.3.3",
     "gpt-tokenizer": "^3.4.0",
@@ -67,6 +72,8 @@
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "sql.js": "^1.12.0",
     "@azure/arm-compute": "^22.0.0",
     "@azure/arm-containerservice": "^21.0.0",
     "@azure/arm-network": "^33.0.0",

@@ -500,3 +500,133 @@ describe('Context Breakdown Formatting', () => {
     expect(display).toContain('1%');
   });
 });
+
+// ---------------------------------------------------------------------------
+// PERF-2b: Token count caching in ContextManager
+// ---------------------------------------------------------------------------
+
+describe('PERF-2b: ContextManager token count caching', () => {
+  let cm: ContextManager;
+
+  beforeEach(() => {
+    cm = new ContextManager({ maxContextTokens: 100_000 });
+  });
+
+  it('clearTokenCache() is a public method and does not throw', () => {
+    expect(() => cm.clearTokenCache()).not.toThrow();
+  });
+
+  it('calculateUsage returns the same result before and after clearTokenCache', () => {
+    const msgs: LLMMessage[] = [
+      { role: 'user', content: 'Hello there' },
+      { role: 'assistant', content: 'Hi! How can I help?' },
+    ];
+    const before = cm.calculateUsage('System prompt', msgs, 50);
+    cm.clearTokenCache();
+    const after = cm.calculateUsage('System prompt', msgs, 50);
+    expect(before.messages).toBe(after.messages);
+    expect(before.total).toBe(after.total);
+  });
+
+  it('repeated calculateUsage calls return identical token counts (cache consistent)', () => {
+    const msgs: LLMMessage[] = Array.from({ length: 20 }, (_, i) => ({
+      role: i % 2 === 0 ? ('user' as const) : ('assistant' as const),
+      content: `Message ${i}: ${'x'.repeat(50)}`,
+    }));
+    const first = cm.calculateUsage('sys', msgs, 0);
+    const second = cm.calculateUsage('sys', msgs, 0);
+    const third = cm.calculateUsage('sys', msgs, 0);
+    expect(first.messages).toBe(second.messages);
+    expect(second.messages).toBe(third.messages);
+  });
+
+  it('cache is invalidated by clearTokenCache (new message gets fresh count)', () => {
+    const msg: LLMMessage = { role: 'user', content: 'short' };
+    const msgs = [msg];
+    const before = cm.calculateUsage('sys', msgs, 0);
+    cm.clearTokenCache();
+    const after = cm.calculateUsage('sys', msgs, 0);
+    // Counts should still be equal — same message, same content
+    expect(before.messages).toBe(after.messages);
+  });
+
+  it('token cache handles tool call messages without error', () => {
+    const msgs: LLMMessage[] = [
+      {
+        role: 'assistant',
+        content: 'Calling tool',
+        toolCalls: [
+          {
+            id: 'tc1',
+            type: 'function',
+            function: { name: 'bash', arguments: '{"command":"ls"}' },
+          },
+        ],
+      },
+    ];
+    expect(() => cm.calculateUsage('sys', msgs, 0)).not.toThrow();
+    expect(() => cm.calculateUsage('sys', msgs, 0)).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H3: Compaction preserves infraContext
+// ---------------------------------------------------------------------------
+
+describe('compaction preserves infraContext (H3)', () => {
+  it('compaction-agent.ts CompactionOptions has infraContext field', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/compaction-agent.ts'), 'utf-8');
+    expect(src).toContain('infraContext?:');
+  });
+
+  it('compaction injects ALWAYS PRESERVE section when infraContext provided', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/compaction-agent.ts'), 'utf-8');
+    expect(src).toContain('ALWAYS PRESERVE IN SUMMARY');
+  });
+
+  it('compaction prepends Infrastructure Context to summary', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/compaction-agent.ts'), 'utf-8');
+    expect(src).toContain('## Infrastructure Context');
+  });
+
+  it('context-manager default alwaysInContext includes Infrastructure Context', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/context-manager.ts'), 'utf-8');
+    expect(src).toContain("'Infrastructure Context'");
+  });
+
+  it('context-manager default alwaysInContext includes Tool Timeouts', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/context-manager.ts'), 'utf-8');
+    expect(src).toContain("'Tool Timeouts'");
+  });
+
+  it('compaction passes infraContext from runAgentLoop options', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/loop.ts'), 'utf-8');
+    expect(src).toContain('infraContext: options.infraContext');
+  });
+
+  it('compaction-agent terraformWorkspace is serialized in infraLines', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/compaction-agent.ts'), 'utf-8');
+    expect(src).toContain('ic.terraformWorkspace');
+  });
+
+  it('compaction-agent kubectlContext is serialized in infraLines', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/compaction-agent.ts'), 'utf-8');
+    expect(src).toContain('ic.kubectlContext');
+  });
+});

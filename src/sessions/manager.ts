@@ -13,6 +13,16 @@ import type { Database } from '../compat/sqlite';
 import type { SessionRecord, SessionStatus, SessionEvent, SessionFileEdit } from './types';
 import type { LLMMessage } from '../llm/types';
 
+/** Infra context persisted per session (terraform workspace, kubectl context, etc.) */
+export interface SessionInfraContext {
+  terraformWorkspace?: string;
+  kubectlContext?: string;
+  awsProfile?: string;
+  awsRegion?: string;
+  gcpProject?: string;
+  azureSubscription?: string;
+}
+
 /** Singleton session manager instance. */
 let instance: SessionManager | null = null;
 
@@ -22,8 +32,17 @@ export class SessionManager {
   private fileEdits: Map<string, SessionFileEdit[]> = new Map();
   private eventListeners: Array<(event: SessionEvent) => void> = [];
 
-  constructor(db?: Database) {
+  /** Pending conversation writes accumulated before the next debounced flush. */
+  private pendingConversationFlush: Map<string, {
+    messages: LLMMessage[];
+    stats?: Partial<Pick<SessionRecord, 'tokenCount' | 'costUSD' | 'snapshotCount' | 'mode' | 'model'>>;
+  }> = new Map();
+  private _flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly flushDebounceMs: number;
+
+  constructor(db?: Database, options?: { flushDebounceMs?: number }) {
     this.db = db || getDb();
+    this.flushDebounceMs = options?.flushDebounceMs ?? 5000;
     this.ensureTable();
   }
 
@@ -214,6 +233,11 @@ export class SessionManager {
     this.emit({ type: 'destroyed', sessionId, timestamp: new Date() });
   }
 
+  /** M2: Rename a session (update its display name). */
+  rename(sessionId: string, name: string): void {
+    this.db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, sessionId);
+  }
+
   /** Update session metadata (tokens, cost, mode, etc.). */
   updateSession(
     sessionId: string,
@@ -275,6 +299,67 @@ export class SessionManager {
     }
   }
 
+  /**
+   * Atomically save conversation messages AND update session stats.
+   * Writes are debounced (default 5s) and batched for performance.
+   * Use `flushAll()` for immediate persistence (shutdown / completion).
+   */
+  saveConversationAndStats(
+    sessionId: string,
+    messages: LLMMessage[],
+    stats: Partial<Pick<SessionRecord, 'tokenCount' | 'costUSD' | 'snapshotCount' | 'mode' | 'model'>>
+  ): void {
+    // Accumulate into the pending flush map (latest write wins per session)
+    const existing = this.pendingConversationFlush.get(sessionId);
+    this.pendingConversationFlush.set(sessionId, {
+      messages,
+      stats: existing?.stats ? { ...existing.stats, ...stats } : stats,
+    });
+    this._scheduleFlush();
+  }
+
+  /** Schedule a debounced flush (no-op if already scheduled). */
+  private _scheduleFlush(): void {
+    if (this._flushTimer !== null) return;
+    if (this.flushDebounceMs === 0) {
+      // Immediate flush path (used in tests)
+      this._flushNow();
+      return;
+    }
+    this._flushTimer = setTimeout(() => {
+      this._flushTimer = null;
+      this._flushNow();
+    }, this.flushDebounceMs);
+  }
+
+  /** Write all pending conversation entries to SQLite. */
+  private _flushNow(): void {
+    if (this.pendingConversationFlush.size === 0) return;
+    const pending = this.pendingConversationFlush;
+    this.pendingConversationFlush = new Map();
+    const txn = this.db.transaction(() => {
+      for (const [sessionId, { messages, stats }] of pending) {
+        this.saveConversation(sessionId, messages);
+        if (stats && Object.keys(stats).length > 0) {
+          this.updateSession(sessionId, stats);
+        }
+      }
+    });
+    txn();
+  }
+
+  /**
+   * Flush all pending conversation writes immediately.
+   * Must be called on clean shutdown and session completion.
+   */
+  flushAll(): void {
+    if (this._flushTimer !== null) {
+      clearTimeout(this._flushTimer);
+      this._flushTimer = null;
+    }
+    this._flushNow();
+  }
+
   /** Load conversation messages for a session. Returns empty array if not found. */
   loadConversation(sessionId: string): LLMMessage[] {
     const row: any = this.db
@@ -319,6 +404,28 @@ export class SessionManager {
     }
 
     return conflicts;
+  }
+
+  /** Persist infra context (terraform workspace, kubectl context, etc.) for a session. */
+  setInfraContext(sessionId: string, ctx: SessionInfraContext): void {
+    const row: any = this.db.prepare('SELECT metadata FROM sessions WHERE id = ?').get(sessionId);
+    const existing = row?.metadata ? JSON.parse(row.metadata) : {};
+    const updated = { ...existing, infraContext: ctx };
+    this.db
+      .prepare("UPDATE sessions SET metadata = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(JSON.stringify(updated), sessionId);
+  }
+
+  /** Retrieve infra context for a session. Returns null if not set. */
+  getInfraContext(sessionId: string): SessionInfraContext | null {
+    const row: any = this.db.prepare('SELECT metadata FROM sessions WHERE id = ?').get(sessionId);
+    if (!row?.metadata) return null;
+    try {
+      const meta = JSON.parse(row.metadata);
+      return meta.infraContext ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Listen for session events. */

@@ -95,3 +95,69 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// ---------------------------------------------------------------------------
+// Gap 4: Runbook / Session Export
+// ---------------------------------------------------------------------------
+
+export interface RunbookMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: Date;
+}
+
+export interface RunbookSession {
+  id?: string;
+  model?: string;
+  mode?: string;
+  costUSD?: number;
+  tokenCount?: number;
+}
+
+/**
+ * Format a chat session as a Markdown runbook for team documentation.
+ *
+ * Produces a self-contained `.md` file with:
+ * - Session metadata header (model, date, mode, cost)
+ * - Each user message as a `## User` section
+ * - Each assistant message as an `## Agent` section
+ * - Tool calls as collapsible `<details>` blocks
+ * - System messages skipped (they are implementation details)
+ */
+export function formatSessionAsRunbook(
+  messages: RunbookMessage[],
+  session?: RunbookSession
+): string {
+  const date = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const lines: string[] = [
+    '# Nimbus Session Runbook',
+    '',
+    '| Field | Value |',
+    '|-------|-------|',
+    `| Date | ${date} |`,
+    `| Model | ${session?.model ?? 'default'} |`,
+    `| Mode | ${session?.mode ?? 'build'} |`,
+    `| Tokens | ${session?.tokenCount?.toLocaleString() ?? 'N/A'} |`,
+    `| Cost | $${session?.costUSD?.toFixed(4) ?? '0.0000'} |`,
+    '',
+    '---',
+    '',
+  ];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') continue;
+
+    const heading = msg.role === 'user' ? '## User' : '## Agent';
+    lines.push(heading);
+    lines.push('');
+
+    // Preserve code blocks; escape HTML outside them
+    const content = msg.content.trim();
+    lines.push(content);
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}

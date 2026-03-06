@@ -66,52 +66,45 @@ function getBunVersion(): string | undefined {
 }
 
 /**
- * Fetch component versions from services (for verbose mode)
+ * Fetch DevOps CLI tool versions (for verbose mode)
  */
-async function fetchComponentVersions(): Promise<Record<string, string>> {
-  const components: Record<string, string> = {};
-  const services = [
-    { name: 'core-engine', url: process.env.CORE_ENGINE_URL || 'http://localhost:3001' },
-    { name: 'llm-service', url: process.env.LLM_SERVICE_URL || 'http://localhost:3002' },
-    {
-      name: 'generator-service',
-      url: process.env.GENERATOR_SERVICE_URL || 'http://localhost:3003',
-    },
-    { name: 'terraform-tools', url: process.env.TERRAFORM_TOOLS_URL || 'http://localhost:3006' },
-    { name: 'k8s-tools', url: process.env.K8S_TOOLS_URL || 'http://localhost:3007' },
-    { name: 'helm-tools', url: process.env.HELM_TOOLS_URL || 'http://localhost:3008' },
+async function fetchDevOpsVersions(): Promise<Record<string, string>> {
+  const { execFileSync } = await import('child_process');
+  const tools = [
+    { name: 'terraform', args: ['version', '-json'] },
+    { name: 'kubectl', args: ['version', '--client', '--output=json'] },
+    { name: 'helm', args: ['version', '--short'] },
+    { name: 'aws', args: ['--version'] },
+    { name: 'gcloud', args: ['version'] },
+    { name: 'az', args: ['version'] },
   ];
 
-  const fetchWithTimeout = async (url: string, timeout = 2000): Promise<Response> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const versions: Record<string, string> = {};
+  for (const tool of tools) {
     try {
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      return response;
-    } catch {
-      clearTimeout(timeoutId);
-      throw new Error('Timeout');
-    }
-  };
-
-  await Promise.all(
-    services.map(async service => {
+      const output = execFileSync(tool.name, tool.args, {
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      // Try to parse version string from JSON output
+      let version = 'installed';
       try {
-        const response = await fetchWithTimeout(`${service.url}/health`);
-        if (response.ok) {
-          const data = (await response.json()) as { version?: string; status?: string };
-          components[service.name] = data.version || 'running';
-        } else {
-          components[service.name] = 'unavailable';
-        }
+        const parsed = JSON.parse(output);
+        version =
+          parsed.terraform_version ||
+          parsed.clientVersion?.gitVersion ||
+          'installed';
       } catch {
-        components[service.name] = 'unavailable';
+        const match = output.match(/[\d]+\.[\d]+\.[\d]+/);
+        if (match) version = `v${match[0]}`;
       }
-    })
-  );
-
-  return components;
+      versions[tool.name] = version;
+    } catch {
+      versions[tool.name] = 'not installed';
+    }
+  }
+  return versions;
 }
 
 /**
@@ -120,25 +113,35 @@ async function fetchComponentVersions(): Promise<Record<string, string>> {
 export async function versionCommand(options: VersionOptions = {}): Promise<void> {
   logger.debug('Running version command', { options });
 
+  const cliVersion = getCliVersion();
   const versionInfo: VersionInfo = {
-    cli: getCliVersion(),
+    cli: cliVersion,
     node: process.version,
     bun: getBunVersion(),
     platform: process.platform,
     arch: process.arch,
   };
 
-  // Fetch component versions in verbose mode
+  // Fetch DevOps tool versions in verbose mode
   if (options.verbose) {
-    ui.startSpinner({ message: 'Fetching component versions...' });
-    versionInfo.components = await fetchComponentVersions();
+    ui.startSpinner({ message: 'Checking DevOps tool versions...' });
+    versionInfo.components = await fetchDevOpsVersions();
     ui.stopSpinnerSuccess('');
   }
 
-  // JSON output
+  // JSON output — expose `version` field (alias for `cli`) for L3 compatibility
   if (options.json) {
-    console.log(JSON.stringify(versionInfo, null, 2));
-    return;
+    const jsonOutput: Record<string, unknown> = {
+      version: cliVersion,
+      node: versionInfo.node,
+      platform: versionInfo.platform,
+      arch: versionInfo.arch,
+      cli: versionInfo.cli,
+    };
+    if (versionInfo.bun) jsonOutput.bun = versionInfo.bun;
+    if (versionInfo.components) jsonOutput.components = versionInfo.components;
+    console.log(JSON.stringify(jsonOutput, null, 2));
+    process.exit(0);
   }
 
   // Human-readable output
@@ -156,11 +159,12 @@ export async function versionCommand(options: VersionOptions = {}): Promise<void
 
     if (versionInfo.components) {
       ui.newLine();
-      ui.print(`Components:`);
+      ui.print(`DevOps Tools:`);
       for (const [name, version] of Object.entries(versionInfo.components)) {
-        const status =
-          version === 'unavailable' ? ui.color(version, 'red') : ui.color(version, 'green');
-        ui.print(`  ${name.padEnd(18)} ${status}`);
+        const isInstalled = version !== 'not installed';
+        const icon = isInstalled ? '[+]' : '[-]';
+        const color = isInstalled ? 'green' : 'red';
+        ui.print(`  ${ui.color(icon, color)} ${name.padEnd(12)} ${version}`);
       }
     }
   }

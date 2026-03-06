@@ -39,9 +39,29 @@ interface CommandDoc {
  * Command documentation
  */
 const COMMANDS: Record<string, CommandDoc> = {
+  run: {
+    name: 'run',
+    description: 'Run the Nimbus DevOps agent non-interactively with a prompt',
+    usage: 'nimbus run "<prompt>" [options]',
+    options: [
+      { flag: '--mode <mode>', description: 'Agent mode: plan, build, deploy', default: 'build' },
+      { flag: '--format <fmt>', description: 'Output format: text, json', default: 'text' },
+      { flag: '--auto-approve, -y', description: 'Auto-approve all tool permissions' },
+      { flag: '--stdin', description: 'Read prompt from stdin (pipe support)' },
+      { flag: '--model <model>', description: 'Override LLM model' },
+      { flag: '--max-turns <n>', description: 'Maximum agent turns', default: '50' },
+    ],
+    examples: [
+      'nimbus run "run terraform plan and summarize changes"',
+      'nimbus run "check for k8s pod restarts in production" --mode plan',
+      'nimbus run "apply the staging deployment" --mode deploy --auto-approve',
+      'echo "review my IAM policies" | nimbus run --stdin --format json',
+    ],
+  },
+
   chat: {
     name: 'chat',
-    description: 'Interactive AI chat for cloud engineering assistance',
+    description: 'Interactive DevOps agent — Terraform, Kubernetes, Helm, AWS, GCP, Azure',
     usage: 'nimbus chat [options]',
     options: [
       { flag: '-m, --message <text>', description: 'Send a single message (non-interactive)' },
@@ -298,10 +318,22 @@ const COMMANDS: Record<string, CommandDoc> = {
       { name: 'init', description: 'Initialize configuration interactively' },
       { name: 'reset', description: 'Reset configuration to defaults' },
     ],
+    options: [
+      { flag: 'default-model <model>', description: 'Default LLM model to use', default: 'anthropic/claude-sonnet-4-6' },
+      { flag: 'default-mode <mode>', description: 'Default agent mode: plan | build | deploy', default: 'build' },
+      { flag: 'theme <theme>', description: 'TUI color theme: default | dark | light', default: 'default' },
+      { flag: 'auto-approve <bool>', description: 'Auto-approve all tool permissions (true/false)', default: 'false' },
+      { flag: 'max-tokens <n>', description: 'Maximum output tokens per LLM response', default: '8192' },
+      { flag: 'telemetry <bool>', description: 'Enable anonymous usage analytics (true/false)', default: 'true' },
+      { flag: 'serve.port <port>', description: 'Default port for nimbus serve', default: '4200' },
+      { flag: 'serve.auth <user:pass>', description: 'HTTP Basic Auth for nimbus serve (user:password)' },
+    ],
     examples: [
       'nimbus config list',
-      'nimbus config get llm.provider',
-      'nimbus config set llm.model gpt-4',
+      'nimbus config get default-model',
+      'nimbus config set default-model anthropic/claude-opus-4-6',
+      'nimbus config set auto-approve true',
+      'nimbus config set serve.port 8080',
     ],
   },
 
@@ -406,6 +438,134 @@ const COMMANDS: Record<string, CommandDoc> = {
       'nimbus team members',
     ],
   },
+
+  drift: {
+    name: 'drift',
+    description: 'Detect infrastructure drift between desired state (IaC) and actual cloud state',
+    usage: 'nimbus drift [options]',
+    options: [
+      { flag: '--provider <type>', description: 'IaC provider: terraform, kubernetes, helm', default: 'terraform' },
+      { flag: '--workdir <path>', description: 'Working directory with IaC configs', default: '.' },
+    ],
+    examples: [
+      'nimbus drift',
+      'nimbus drift --provider kubernetes',
+      'nimbus run "check for infrastructure drift" --mode plan',
+    ],
+  },
+
+  cost: {
+    name: 'cost',
+    description: 'Estimate infrastructure costs from Terraform plans or working directory',
+    usage: 'nimbus cost [options]',
+    options: [
+      { flag: '--plan-file <file>', description: 'Path to a saved Terraform plan file' },
+      { flag: '--workdir <path>', description: 'Working directory containing Terraform config', default: '.' },
+    ],
+    examples: [
+      'nimbus cost',
+      'nimbus cost --plan-file tfplan.json',
+      'nimbus run "estimate monthly cost for this infrastructure"',
+    ],
+  },
+
+  'auth-refresh': {
+    name: 'auth-refresh',
+    description: 'Re-validate and refresh cloud provider credentials (AWS SSO, GCP, Azure)',
+    usage: 'nimbus auth-refresh [options]',
+    options: [
+      { flag: '--provider <name>', description: 'Provider to refresh: aws, gcp, azure, all', default: 'all' },
+    ],
+    examples: [
+      'nimbus auth-refresh',
+      'nimbus auth-refresh --provider aws',
+      'nimbus auth-refresh --provider gcp',
+    ],
+  },
+
+  profile: {
+    name: 'profile',
+    description: 'Manage per-project credential profiles (AWS, kubectl, Terraform, GCP)',
+    usage: 'nimbus profile <list|create|set|delete|show> [name]',
+    subcommands: [
+      { name: 'list', description: 'Show all profiles (current marked with *)' },
+      { name: 'create <name>', description: 'Create a new profile (interactive wizard)' },
+      { name: 'set <name>', description: 'Switch to a profile atomically (sets AWS_PROFILE, kubectl context, TF workspace)' },
+      { name: 'delete <name>', description: 'Delete a profile' },
+      { name: 'show [name]', description: 'Display profile details' },
+    ],
+    examples: [
+      'nimbus profile list',
+      'nimbus profile create prod',
+      'nimbus profile set prod',
+      'nimbus profile delete staging',
+    ],
+  },
+
+  incident: {
+    name: 'incident',
+    description: 'Launch an incident response session pre-loaded with alert context (G14)',
+    usage: 'nimbus incident <pagerduty-url-or-id|description> [--notes "observed behavior"]',
+    options: [
+      { flag: '--notes <text>', description: 'Observed behavior or additional context' },
+    ],
+    examples: [
+      'nimbus incident https://example.pagerduty.com/incidents/P1234',
+      'nimbus incident "high CPU on api-service pods" --notes "started after deploy at 14:00"',
+      'nimbus incident PABC123',
+    ],
+  },
+
+  runbook: {
+    name: 'runbook',
+    description: 'Load and execute operational runbooks as agent prompts (G15)',
+    usage: 'nimbus runbook <list|run|create> [name]',
+    subcommands: [
+      { name: 'list', description: 'List available runbooks' },
+      { name: 'run <name>', description: 'Execute a runbook as an agent session' },
+      { name: 'create <name>', description: 'Create a new runbook interactively' },
+    ],
+    examples: [
+      'nimbus runbook list',
+      'nimbus runbook run rotate-certs',
+      'nimbus runbook run cert-rotation --auto',
+      'nimbus runbook create db-backup',
+    ],
+  },
+
+  schedule: {
+    name: 'schedule',
+    description: 'Manage periodic DevOps automation tasks (G13)',
+    usage: 'nimbus schedule <list|add|remove|run-now>',
+    subcommands: [
+      { name: 'list', description: 'List configured schedules with next-run times' },
+      { name: 'add "<cron>" "<prompt>"', description: 'Add a new periodic task' },
+      { name: 'remove <id-or-name>', description: 'Remove a schedule' },
+      { name: 'run-now <id-or-name>', description: 'Execute a schedule immediately' },
+    ],
+    examples: [
+      'nimbus schedule list',
+      'nimbus schedule add "0 8 * * *" "check for infrastructure drift" --name daily-drift',
+      'nimbus schedule add "0 9 * * 1" "generate weekly cost report"',
+      'nimbus schedule run-now daily-drift',
+      'nimbus schedule remove daily-drift',
+    ],
+  },
+
+  export: {
+    name: 'export',
+    description: 'Export session conversation to markdown, HTML, or JSON (G19)',
+    usage: 'nimbus export [session-id] [--format md|html|json] [--output file]',
+    options: [
+      { flag: '--format <fmt>', description: 'Output format: md, html, json', default: 'md' },
+      { flag: '--output <file>', description: 'Save to file instead of stdout' },
+    ],
+    examples: [
+      'nimbus export',
+      'nimbus export abc123 --format html --output session.html',
+      'nimbus export --format json > session.json',
+    ],
+  },
 };
 
 /**
@@ -462,59 +622,75 @@ function showCommandHelp(commandName: string): void {
  * Show general help
  */
 function showGeneralHelp(): void {
-  ui.header('Nimbus CLI');
-  ui.print('AI-powered Cloud Engineering Agent');
+  ui.header('Nimbus — AI-Powered DevOps Terminal');
+  ui.print('Plan, apply, and manage Terraform, Kubernetes, Helm, AWS, GCP, Azure with natural language.');
+  ui.print('Type a DevOps request directly or use any command below.');
   ui.newLine();
 
   ui.print('Usage:');
   ui.print('  nimbus <command> [options]');
+  ui.print('  nimbus                  Open interactive DevOps agent TUI');
+  ui.print('  nimbus run "<prompt>"   Run agent non-interactively');
   ui.newLine();
 
-  ui.print('Chat & AI:');
-  ui.print('  chat              Interactive AI chat');
-  ui.print('  ask               Quick question/answer');
-  ui.print('  explain           Explain code or infrastructure');
-  ui.print('  fix               Fix errors with AI assistance');
+  ui.print('DevOps Operations:');
+  ui.print('  plan              Preview infrastructure changes (tf/k8s/helm)');
+  ui.print('  apply             Apply infrastructure changes');
+  ui.print('  tf <cmd>          Terraform init/plan/apply/validate/destroy');
+  ui.print('  k8s <cmd>         Kubernetes get/apply/delete/logs/scale');
+  ui.print('  helm <cmd>        Helm install/upgrade/rollback/list');
+  ui.print('  drift             Detect infrastructure drift (IaC vs actual)');
+  ui.print('  cost              Estimate infrastructure costs');
+  ui.print('  status            Live infra health dashboard (TF + K8s + Helm)');
+  ui.newLine();
+
+  ui.print('Incident & Automation:');
+  ui.print('  incident          Incident response session with alert pre-loading');
+  ui.print('  runbook           Load and execute operational runbooks');
+  ui.print('  schedule          Manage periodic DevOps automation tasks');
+  ui.print('  rollout           Safe rolling deployment management');
   ui.newLine();
 
   ui.print('Infrastructure Generation:');
-  ui.print('  generate terraform   Generate Terraform from AWS infrastructure');
-  ui.print('  generate k8s         Generate Kubernetes manifests');
+  ui.print('  generate terraform   Generate Terraform from live AWS infrastructure');
+  ui.print('  generate k8s         Generate Kubernetes manifests for your app');
   ui.print('  generate helm        Generate Helm values files');
   ui.newLine();
 
-  ui.print('Infrastructure Operations:');
-  ui.print('  plan              Preview infrastructure changes');
-  ui.print('  apply             Apply infrastructure changes');
-  ui.print('  tf <cmd>          Terraform operations');
-  ui.print('  k8s <cmd>         Kubernetes operations');
-  ui.print('  helm <cmd>        Helm operations');
+  ui.print('Cloud Auth & Profiles:');
+  ui.print('  auth-refresh      Refresh AWS SSO, GCP, Azure credentials');
+  ui.print('  profile           Manage per-project profiles (AWS, kubectl, TF, GCP)');
+  ui.print('  login             Set up LLM provider authentication');
+  ui.print('  logout            Clear stored credentials');
   ui.newLine();
 
-  ui.print('Setup & Configuration:');
-  ui.print('  init              Initialize Nimbus workspace');
-  ui.print('  login             Set up authentication');
-  ui.print('  logout            Clear credentials');
-  ui.print('  config            Manage configuration');
+  ui.print('AI Agent:');
+  ui.print('  chat              Interactive DevOps agent TUI (same as nimbus)');
+  ui.print('  run               Run agent non-interactively with a prompt');
   ui.newLine();
 
-  ui.print('Utilities:');
+  ui.print('Setup & Config:');
+  ui.print('  init              Initialize Nimbus workspace (generates NIMBUS.md)');
+  ui.print('  config            Manage global configuration');
+  ui.print('  doctor            Run diagnostic checks on your installation');
   ui.print('  history           View command history');
-  ui.print('  doctor            Run diagnostic checks');
+  ui.print('  export            Export session to markdown/HTML/JSON');
   ui.print('  version           Show version info');
-  ui.print('  help              Show this help message');
+  ui.print('  audit             View audit logs');
   ui.newLine();
 
-  ui.print('Git & GitHub:');
-  ui.print('  git <cmd>         Git operations');
-  ui.print('  gh <cmd>          GitHub operations');
-  ui.newLine();
-
-  ui.print('Enterprise:');
-  ui.print('  team <cmd>        Team management');
-  ui.print('  billing <cmd>     Billing management');
-  ui.print('  usage             Usage dashboard');
-  ui.print('  audit             Audit logs');
+  ui.print('Slash Commands (in TUI):');
+  ui.print('  /plan             Run infrastructure plan');
+  ui.print('  /apply            Apply infrastructure changes (deploy mode)');
+  ui.print('  /k8s-ctx          Switch Kubernetes context');
+  ui.print('  /tf-ws            Switch Terraform workspace');
+  ui.print('  /mode             Switch agent mode (plan/build/deploy)');
+  ui.print('  /model            Switch LLM model');
+  ui.print('  /cost             Show session cost');
+  ui.print('  /diff             Show file diff modal');
+  ui.print('  /tree             Toggle file tree sidebar');
+  ui.print('  /terminal         Toggle terminal output pane');
+  ui.print('  ?                 Open keyboard shortcuts help');
   ui.newLine();
 
   ui.print('Get detailed help for a command:');

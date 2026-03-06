@@ -5,6 +5,7 @@
  */
 
 import { analytics } from './utils';
+import { VERSION } from './version';
 import {
   generateTerraformCommand,
   type GenerateTerraformOptions,
@@ -103,6 +104,9 @@ import {
   authProfileCommand,
 } from './commands';
 import { upgradeCommand, type UpgradeOptions } from './commands/upgrade';
+import { statusCommand, type StatusOptions } from './commands/status';
+import { rollbackCommand, type RollbackOptions } from './commands/rollback';
+import { rolloutCommand, type RolloutOptions } from './commands/rollout';
 import { requiresAuth, type LLMProviderName } from './auth';
 
 /** Top-level command aliases for convenience shortcuts. */
@@ -120,6 +124,47 @@ const COMMAND_ALIASES: Record<string, string[]> = {
   h: ['helm'],
 };
 
+async function showSubcommandHelp(command: string, _args: string[]): Promise<void> {
+  const { helpCommand } = await import('./commands/help');
+  // Print command-specific help based on command name
+  const COMMAND_HELP: Record<string, string> = {
+    chat: 'Usage: nimbus chat [--model <model>] [--mode plan|build|deploy] [--continue]\n  Start interactive AI chat session.',
+    run: 'Usage: nimbus run "<prompt>" [--auto-approve] [--format json|text] [--model <model>]\n  Run a non-interactive agent task.',
+    init: 'Usage: nimbus init [--cwd <dir>] [--quiet]\n  Generate NIMBUS.md with detected project context.',
+    login: 'Usage: nimbus login [--provider <name>]\n  Configure LLM provider credentials.',
+    logout: 'Usage: nimbus logout [--provider <name>]\n  Remove stored credentials.',
+    doctor: 'Usage: nimbus doctor [--fix] [--verbose] [--json] [--metrics]\n  Run diagnostic checks on Nimbus installation.',
+    cost: 'Usage: nimbus cost [--days <n>] [--json]\n  Show LLM usage costs.',
+    sessions: 'Usage: nimbus sessions [list|resume|delete] [<id>]\n  Manage chat sessions.',
+    audit: 'Usage: nimbus audit [--format json|text]\n  Run security and compliance audit.',
+    share: 'Usage: nimbus share [--session <id>] [--ttl <hours>]\n  Share a session.',
+    upgrade: 'Usage: nimbus upgrade\n  Upgrade Nimbus to the latest version.',
+    serve: 'Usage: nimbus serve [--port <port>] [--auth <user:pass>]\n  Start HTTP API server with SSE streaming.',
+    web: 'Usage: nimbus web [--port <port>]\n  Open Web UI in browser.',
+    'auth-refresh': 'Usage: nimbus auth-refresh [--provider aws|gcp|azure]\n  Refresh cloud provider credentials.',
+    completions: 'Usage: nimbus completions <install|uninstall>\n  Manage shell tab completions.',
+    alias: 'Usage: nimbus alias <list|create|remove> [<name>] [<expansion>]\n  Manage command aliases.',
+    logs: 'Usage: nimbus logs [--tail <n>] [--follow] [--namespace <ns>]\n  Stream Kubernetes/cloud logs.',
+    pipeline: 'Usage: nimbus pipeline [list|trigger|status] [<args>]\n  Manage CI/CD pipelines.',
+    drift: 'Usage: nimbus drift [--notify slack|email]\n  Detect infrastructure drift.',
+    deploy: 'Usage: nimbus deploy [--auto-approve] [--workspace <ws>] [--namespace <ns>] [--dry-run] [--no-apply]\n  Orchestrate full terraform plan + apply + kubectl rollout workflow.',
+    rollback: 'Usage: nimbus rollback [<resource>] [--dry-run]\n  Safely roll back infrastructure.',
+    profile: 'Usage: nimbus profile <name>\n  Set AWS_PROFILE for current session.',
+    schedule: 'Usage: nimbus schedule [list|add|remove] [<args>]\n  Manage scheduled agent tasks.',
+    incident: 'Usage: nimbus incident [create|list|update] [<args>]\n  Manage incidents.',
+    status: 'Usage: nimbus status [--json]\n  Show Nimbus and infra status.',
+    export: 'Usage: nimbus export [--session <id>] [--output <file>]\n  Export session as Markdown runbook.',
+    plugin: 'Usage: nimbus plugin <install|uninstall|list> [<name>]\n  Manage MCP plugins.',
+    runbook: 'Usage: nimbus runbook <file> [--dry-run]\n  Execute a runbook YAML file.',
+  };
+  const help = COMMAND_HELP[command];
+  if (help) {
+    process.stdout.write(help + '\n');
+  } else {
+    await helpCommand({});
+  }
+}
+
 /**
  * Run a CLI command directly.
  *
@@ -133,8 +178,31 @@ export async function runCommand(args: string[]): Promise<void> {
     args = [...COMMAND_ALIASES[args[0]], ...args.slice(1)];
   }
 
+  // --profile <name> global flag: load and apply a named config profile before
+  // dispatching to the subcommand. Non-critical — errors are silently swallowed.
+  const profileIdx = args.indexOf('--profile');
+  if (profileIdx !== -1 && args[profileIdx + 1]) {
+    const profileName = args[profileIdx + 1];
+    try {
+      const { loadProfile, applyProfile } = await import('./config/profiles');
+      const profile = loadProfile(profileName);
+      if (profile) {
+        applyProfile(profile);
+      } else {
+        process.stderr.write(`Profile not found: ${profileName}\n`);
+      }
+    } catch { /* non-critical */ }
+    args = [...args.slice(0, profileIdx), ...args.slice(profileIdx + 2)];
+  }
+
   const command = args[0];
   const subcommand = args[1];
+
+  // GAP-15: --help/-h flag on any subcommand
+  if (args.includes('--help') || args.includes('-h')) {
+    await showSubcommandHelp(command, args);
+    return;
+  }
 
   // Fire-and-forget analytics tracking for every CLI command invocation.
   // This is a no-op when POSTHOG_API_KEY is not set.
@@ -148,6 +216,17 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // nimbus login
   if (command === 'login') {
+    // G8: --cloud <provider> flag for cloud provider login
+    const cloudIdx = args.findIndex(a => a === '--cloud');
+    if (cloudIdx !== -1 && args[cloudIdx + 1]) {
+      const cloudProvider = args[cloudIdx + 1] as 'aws' | 'gcp' | 'azure';
+      if (['aws', 'gcp', 'azure'].includes(cloudProvider)) {
+        const { loginCloudCommand } = await import('./commands/login');
+        await loginCloudCommand(cloudProvider);
+        return;
+      }
+    }
+
     const options: LoginOptions = {};
 
     for (let i = 1; i < args.length; i++) {
@@ -319,6 +398,10 @@ export async function runCommand(args: string[]): Promise<void> {
         options.force = true;
       } else if (arg === '--check' || arg === '-c') {
         options.check = true;
+      } else if (arg === '--dry-run') {
+        options.dryRun = true;
+      } else if (arg === '--changelog') {
+        options.changelog = true;
       }
     }
 
@@ -343,6 +426,8 @@ export async function runCommand(args: string[]): Promise<void> {
         options.output = args[++i];
       } else if (arg === '--non-interactive') {
         options.nonInteractive = true;
+      } else if (arg === '--merge') {
+        options.merge = true;
       }
     }
 
@@ -353,7 +438,14 @@ export async function runCommand(args: string[]): Promise<void> {
   // nimbus serve — headless API server (no auth guard)
   if (command === 'serve') {
     const { serveCommand } = await import('./cli/serve');
-    const serveOptions: { port?: number; host?: string; auth?: string } = {};
+    const serveOptions: { port?: number; host?: string; auth?: string; background?: boolean; stop?: boolean } = {};
+
+    // M1: nimbus serve stop
+    if (subcommand === 'stop') {
+      serveOptions.stop = true;
+      await serveCommand(serveOptions);
+      return;
+    }
 
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
@@ -364,6 +456,8 @@ export async function runCommand(args: string[]): Promise<void> {
         serveOptions.host = args[++i];
       } else if (arg === '--auth' && args[i + 1]) {
         serveOptions.auth = args[++i];
+      } else if (arg === '--background' || arg === '-b') {
+        serveOptions.background = true;
       }
     }
 
@@ -379,7 +473,66 @@ export async function runCommand(args: string[]): Promise<void> {
       host: args.includes('--host') ? args[args.indexOf('--host') + 1] : undefined,
       auth: args.includes('--auth') ? args[args.indexOf('--auth') + 1] : undefined,
       uiUrl: args.includes('--ui-url') ? args[args.indexOf('--ui-url') + 1] : undefined,
+      noOpen: args.includes('--no-open'),
     });
+    return;
+  }
+
+  // nimbus logs <pod> — H1 shorthand
+  if (command === 'logs') {
+    const { logsCommand, parseLogsArgs } = await import('./commands/logs');
+    const { pod, options: logsOpts } = parseLogsArgs(args.slice(1));
+    await logsCommand(pod, logsOpts);
+    return;
+  }
+
+  // nimbus pipeline [subcommand] — H2
+  if (command === 'pipeline') {
+    const { pipelineCommand } = await import('./commands/pipeline');
+    await pipelineCommand(subcommand || 'status', args.slice(2));
+    return;
+  }
+
+  // nimbus alias — L2
+  if (command === 'alias') {
+    const { aliasCommand } = await import('./commands/alias');
+    await aliasCommand(subcommand || 'list', args.slice(2));
+    return;
+  }
+
+  // nimbus incident <url-or-id> [--notes "..."] — G14
+  if (command === 'incident') {
+    const { incidentCommand } = await import('./commands/incident');
+    const incidentInput = args[1] ?? '';
+    const notesIdx = args.indexOf('--notes');
+    const notes = notesIdx !== -1 ? args[notesIdx + 1] : undefined;
+    await incidentCommand(incidentInput, { notes });
+    return;
+  }
+
+  // nimbus runbook <list|run|create> — G15
+  if (command === 'runbook') {
+    const { runbookCommand } = await import('./commands/runbook');
+    await runbookCommand(subcommand || 'list', args.slice(2));
+    return;
+  }
+
+  // nimbus schedule <list|add|remove|run-now> — G13
+  if (command === 'schedule') {
+    const { scheduleCommand } = await import('./commands/schedule');
+    await scheduleCommand(subcommand || 'list', args.slice(2));
+    return;
+  }
+
+  // nimbus export [session-id] [--format md|html|json] [--output file] — G19
+  if (command === 'export') {
+    const { exportCommand } = await import('./commands/export');
+    const formatIdx = args.indexOf('--format');
+    const format = formatIdx !== -1 ? (args[formatIdx + 1] as 'md' | 'html' | 'json') : 'md';
+    const outputIdx = args.indexOf('--output');
+    const output = outputIdx !== -1 ? args[outputIdx + 1] : undefined;
+    const sessionId = args.slice(1).find(a => !a.startsWith('-') && a !== args[formatIdx + 1] && a !== args[outputIdx + 1]);
+    await exportCommand({ format, output, sessionId });
     return;
   }
 
@@ -946,6 +1099,10 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // nimbus tf <subcommand>
   if (command === 'tf') {
+    if (subcommand === '--version' || subcommand === '-v') {
+      console.log(`nimbus ${VERSION}`);
+      return;
+    }
     if (!subcommand) {
       console.error('Usage: nimbus tf <subcommand>');
       console.log('');
@@ -969,6 +1126,10 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // nimbus k8s <subcommand>
   if (command === 'k8s') {
+    if (subcommand === '--version' || subcommand === '-v') {
+      console.log(`nimbus ${VERSION}`);
+      return;
+    }
     if (!subcommand) {
       console.error('Usage: nimbus k8s <subcommand>');
       console.log('');
@@ -990,6 +1151,10 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // nimbus helm <subcommand>
   if (command === 'helm') {
+    if (subcommand === '--version' || subcommand === '-v') {
+      console.log(`nimbus ${VERSION}`);
+      return;
+    }
     if (!subcommand) {
       console.error('Usage: nimbus helm <subcommand>');
       console.log('');
@@ -1130,6 +1295,12 @@ export async function runCommand(args: string[]): Promise<void> {
     }
 
     await gitCommand(subcommand, args.slice(2));
+    return;
+  }
+
+  // nimbus diff — top-level alias for nimbus fs diff (M1)
+  if (command === 'diff') {
+    await fsCommand('diff', args.slice(1));
     return;
   }
 
@@ -1278,6 +1449,145 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus watch <glob> --run "prompt" (M3)
+  if (command === 'watch') {
+    const { watchCommand } = await import('./commands/watch');
+    const watchOptions: import('./commands/watch').WatchOptions = { glob: subcommand ?? '' };
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === '--run' && args[i + 1]) {
+        watchOptions.run = args[++i];
+      } else if (arg === '--debounce' && args[i + 1]) {
+        watchOptions.debounce = parseInt(args[++i], 10);
+      } else if (arg === '--auto-approve' || arg === '-y') {
+        watchOptions.autoApprove = true;
+      } else if (arg === '--max-runs' && args[i + 1]) {
+        watchOptions.maxRuns = parseInt(args[++i], 10);
+      } else if (!arg.startsWith('--') && !watchOptions.glob) {
+        watchOptions.glob = arg;
+      }
+    }
+    await watchCommand(watchOptions);
+    return;
+  }
+
+  // nimbus whoami — shorthand for auth status (H5)
+  if (command === 'whoami') {
+    await authStatusCommand({});
+    return;
+  }
+
+  // nimbus auth-refresh [--provider aws|gcp|azure]
+  if (command === 'auth-refresh') {
+    const { authRefreshCommand } = await import('./commands/auth-refresh');
+    const refreshOptions: { provider?: 'aws' | 'gcp' | 'azure' | 'all' } = {};
+
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === '--provider' && args[i + 1]) {
+        refreshOptions.provider = args[++i] as 'aws' | 'gcp' | 'azure' | 'all';
+      }
+    }
+
+    await authRefreshCommand(refreshOptions);
+    return;
+  }
+
+  // nimbus plugin <list|add|remove|init> (L3)
+  if (command === 'plugin') {
+    const { pluginCommand } = await import('./commands/plugin');
+    await pluginCommand(subcommand ?? 'list', args.slice(2));
+    return;
+  }
+
+  // nimbus mcp <list|add|remove|test> (M5) — MCP server management
+  if (command === 'mcp') {
+    const { mcpCommand } = await import('./commands/plugin');
+    await mcpCommand(subcommand ?? 'list', args.slice(2));
+    return;
+  }
+
+  // nimbus completions <install|uninstall> (L7)
+  if (command === 'completions') {
+    const { completionsCommand } = await import('./commands/completions');
+    await completionsCommand(subcommand ?? 'install');
+    return;
+  }
+
+  // nimbus team-context <push|pull> (L6)
+  if (command === 'team-context') {
+    const { teamContextCommand } = await import('./commands/team-context');
+    await teamContextCommand(subcommand ?? 'push', args.slice(2));
+    return;
+  }
+
+  // nimbus profile <list|create|set|delete|show> (H1)
+  if (command === 'profile') {
+    const { profileCommand } = await import('./commands/profile');
+    await profileCommand(subcommand ?? 'list', args.slice(2));
+    return;
+  }
+
+  // nimbus status — infrastructure status dashboard (G18)
+  if (command === 'status') {
+    const statusOptions: StatusOptions = {};
+    for (let i = 1; i < args.length; i++) {
+      if (args[i] === '--json') statusOptions.json = true;
+    }
+    await statusCommand(statusOptions);
+    return;
+  }
+
+  // nimbus context — full context snapshot (L3): alias for status with verbose details
+  if (command === 'context') {
+    const contextOptions: StatusOptions = { verbose: true };
+    for (let i = 1; i < args.length; i++) {
+      if (args[i] === '--json') contextOptions.json = true;
+    }
+    await statusCommand(contextOptions);
+    return;
+  }
+
+  // nimbus rollout — watch Kubernetes deployment rollout (L1)
+  if (command === 'rollout') {
+    const deployment = args[0];
+    if (!deployment) {
+      console.error('Usage: nimbus rollout <deployment> [--namespace <ns>] [--timeout <duration>]');
+      process.exit(1);
+    }
+    const rolloutOptions: RolloutOptions = { deployment };
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+      if ((arg === '--namespace' || arg === '-n') && args[i + 1]) rolloutOptions.namespace = args[++i];
+      else if (arg === '--timeout' && args[i + 1]) rolloutOptions.timeout = args[++i];
+    }
+    await rolloutCommand(rolloutOptions);
+    return;
+  }
+
+  // nimbus rollback — guided infrastructure rollback (G20)
+  if (command === 'rollback') {
+    const rollbackOptions: RollbackOptions = {};
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === '--helm' && args[i + 1]) rollbackOptions.helm = args[++i];
+      else if (arg === '--k8s' && args[i + 1]) rollbackOptions.k8s = args[++i];
+      else if (arg === '--namespace' && args[i + 1]) rollbackOptions.namespace = args[++i];
+      else if (arg === '--tf') rollbackOptions.tf = true;
+      else if (arg === '--terraform') rollbackOptions.terraform = true;
+      else if (arg === '--tf-dir' && args[i + 1]) rollbackOptions.tfDir = args[++i];
+    }
+    await rollbackCommand(rollbackOptions);
+    return;
+  }
+
+  // nimbus deploy — orchestrate full terraform + kubectl deployment workflow (C1)
+  if (command === 'deploy') {
+    const { deployCommand } = await import('./commands/deploy');
+    await deployCommand(args.slice(1));
+    return;
+  }
+
   // Unknown command
   console.error(`Unknown command: ${command} ${subcommand || ''}`);
   console.log('');
@@ -1306,6 +1616,7 @@ export async function runCommand(args: string[]): Promise<void> {
   console.log('    nimbus logout            - Clear all credentials');
   console.log('    nimbus auth status       - Show current authentication status');
   console.log('    nimbus auth list         - List all available providers');
+  console.log('    nimbus auth-refresh      - Re-validate and refresh cloud credentials');
   console.log('');
   console.log('  Infrastructure Generation:');
   console.log(

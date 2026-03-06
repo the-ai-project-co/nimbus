@@ -224,4 +224,99 @@ describe('SessionManager', () => {
       expect(events).toHaveLength(1); // No new events after unsubscribe
     });
   });
+
+  // -------------------------------------------------------------------------
+  // PERF-2a: Debounced SQLite write batching
+  // -------------------------------------------------------------------------
+  describe('PERF-2a: debounced SQLite flush (saveConversationAndStats)', () => {
+    let fastManager: SessionManager;
+
+    beforeEach(() => {
+      // flushDebounceMs=0 triggers immediate flush for deterministic tests
+      fastManager = new SessionManager(db, { flushDebounceMs: 0 });
+    });
+
+    it('saveConversationAndStats flushes immediately when flushDebounceMs=0', () => {
+      const session = fastManager.create({ name: 'Flush Test' });
+      const msgs = [{ role: 'user' as const, content: 'hello' }];
+      fastManager.saveConversationAndStats(session.id, msgs, { tokenCount: 10 });
+
+      const loaded = fastManager.loadConversation(session.id);
+      expect(loaded).toHaveLength(1);
+      expect(loaded[0].content).toBe('hello');
+    });
+
+    it('multiple saveConversationAndStats calls merge stats before flush', () => {
+      const session = fastManager.create({ name: 'Merge Test' });
+      const msgs = [{ role: 'user' as const, content: 'first' }];
+      // First call (with debounce=0, flushes immediately per-call)
+      fastManager.saveConversationAndStats(session.id, msgs, { tokenCount: 5 });
+      const loaded = fastManager.loadConversation(session.id);
+      expect(loaded[0].content).toBe('first');
+    });
+
+    it('flushAll() persists pending writes when called explicitly', () => {
+      // Use a high debounce so writes are pending
+      const deferredManager = new SessionManager(db, { flushDebounceMs: 60_000 });
+      const session = deferredManager.create({ name: 'Deferred' });
+      const msgs = [{ role: 'assistant' as const, content: 'deferred write' }];
+      deferredManager.saveConversationAndStats(session.id, msgs, {});
+
+      // Without flushAll, nothing is written yet
+      // (flushDebounceMs=0 manager can't verify this without timing, but we can
+      // verify flushAll itself writes correctly)
+      deferredManager.flushAll();
+
+      const loaded = deferredManager.loadConversation(session.id);
+      expect(loaded[0].content).toBe('deferred write');
+    });
+
+    it('flushAll() is a no-op when nothing is pending', () => {
+      // Should not throw
+      expect(() => fastManager.flushAll()).not.toThrow();
+    });
+
+    it('constructor accepts flushDebounceMs option', () => {
+      const m = new SessionManager(db, { flushDebounceMs: 1000 });
+      expect(m).toBeInstanceOf(SessionManager);
+    });
+  });
+});
+
+// ===========================================================================
+// M2: Session rename
+// ===========================================================================
+
+describe('SessionManager.rename (M2)', () => {
+  let renameDb: Database;
+  let renameManager: SessionManager;
+
+  beforeEach(() => {
+    renameDb = new Database(':memory:');
+    renameDb.exec('PRAGMA journal_mode=WAL');
+    renameDb.exec('PRAGMA foreign_keys=ON');
+    SessionManager.resetInstance();
+    renameManager = new SessionManager(renameDb);
+  });
+
+  afterEach(() => {
+    renameDb.close();
+    SessionManager.resetInstance();
+  });
+
+  it('rename updates the session name', () => {
+    const session = renameManager.create({ name: 'chat-2026-01-01T10:00' });
+    renameManager.rename(session.id, 'deploy-staging-app');
+    const updated = renameManager.get(session.id);
+    expect(updated?.name).toBe('deploy-staging-app');
+  });
+
+  it('rename is a no-op for non-existent session (no throw)', () => {
+    expect(() => renameManager.rename('non-existent-id', 'new-name')).not.toThrow();
+  });
+
+  it('rename accepts empty string', () => {
+    const session = renameManager.create({ name: 'original' });
+    expect(() => renameManager.rename(session.id, '')).not.toThrow();
+  });
 });

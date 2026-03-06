@@ -17,7 +17,10 @@ export interface FileChangeEvent {
 
 export class FileWatcher extends EventEmitter {
   private watcher: fs.FSWatcher | null = null;
-  private changes: FileChangeEvent[] = [];
+  /** Circular ring buffer for file-change events (avoids O(n) shift on cap). */
+  private readonly changesBuffer: FileChangeEvent[];
+  private changesHead = 0; // index of the next write slot
+  private changesSize = 0; // number of valid entries currently stored
   private readonly maxChanges = 100;
   private readonly ignorePatterns = [
     'node_modules',
@@ -31,6 +34,29 @@ export class FileWatcher extends EventEmitter {
 
   constructor(private readonly rootDir: string) {
     super();
+    this.changesBuffer = new Array(this.maxChanges);
+  }
+
+  /** Push a change event into the ring buffer (O(1)). */
+  private pushChange(event: FileChangeEvent): void {
+    this.changesBuffer[this.changesHead] = event;
+    this.changesHead = (this.changesHead + 1) % this.maxChanges;
+    if (this.changesSize < this.maxChanges) {
+      this.changesSize++;
+    }
+  }
+
+  /** Return all stored change events in chronological order. */
+  private getOrderedChanges(): FileChangeEvent[] {
+    if (this.changesSize === 0) return [];
+    const start = this.changesSize < this.maxChanges
+      ? 0
+      : this.changesHead; // oldest slot when buffer is full
+    const result: FileChangeEvent[] = new Array(this.changesSize);
+    for (let i = 0; i < this.changesSize; i++) {
+      result[i] = this.changesBuffer[(start + i) % this.maxChanges];
+    }
+    return result;
   }
 
   /**
@@ -64,10 +90,7 @@ export class FileWatcher extends EventEmitter {
           timestamp: Date.now(),
         };
 
-        this.changes.push(event);
-        if (this.changes.length > this.maxChanges) {
-          this.changes.shift();
-        }
+        this.pushChange(event);
 
         this.emit('change', event);
       });
@@ -98,10 +121,7 @@ export class FileWatcher extends EventEmitter {
                   path: fullPath,
                   timestamp: Date.now(),
                 };
-                this.changes.push(event);
-                if (this.changes.length > this.maxChanges) {
-                  this.changes.shift();
-                }
+                this.pushChange(event);
                 this.emit('change', event);
               });
             }
@@ -129,22 +149,52 @@ export class FileWatcher extends EventEmitter {
    * Get recent changes since a timestamp.
    */
   getChangesSince(timestamp: number): FileChangeEvent[] {
-    return this.changes.filter(c => c.timestamp > timestamp);
+    return this.getOrderedChanges().filter(c => c.timestamp > timestamp);
   }
 
   /**
    * Get a summary of recent changes for the agent context.
+   * When `devopsOnly` is true, filters to DevOps-relevant files only:
+   * .tf, .yaml, .yml, Dockerfile, docker-compose.*, Jenkinsfile, .github/workflows/*.
    */
-  getSummary(since?: number): string {
-    const relevant = since ? this.getChangesSince(since) : this.changes;
+  getSummary(since?: number, devopsOnly = false): string {
+    const relevant = since ? this.getChangesSince(since) : this.getOrderedChanges();
     if (relevant.length === 0) {
       return '';
     }
 
-    const uniquePaths = [...new Set(relevant.map(c => c.path))];
+    const filtered = devopsOnly
+      ? relevant.filter(c => {
+          const f = c.path.toLowerCase();
+          const base = path.basename(f);
+          return (
+            f.endsWith('.tf') ||
+            f.endsWith('.tfvars') ||
+            f.endsWith('.yaml') ||
+            f.endsWith('.yml') ||
+            base === 'dockerfile' ||
+            base.startsWith('dockerfile.') ||
+            base.startsWith('docker-compose') ||
+            base === 'jenkinsfile' ||
+            f.includes('.github/workflows')
+          );
+        })
+      : relevant;
+
+    if (filtered.length === 0) {
+      return '';
+    }
+
+    const uniquePaths = [...new Set(filtered.map(c => c.path))];
     const lines = uniquePaths.slice(-20).map(p => {
       const rel = path.relative(this.rootDir, p);
-      return `  - ${rel}`;
+      // Categorize for DevOps context
+      let category = '';
+      const lower = rel.toLowerCase();
+      if (lower.endsWith('.tf') || lower.endsWith('.tfvars')) category = ' [terraform]';
+      else if (lower.endsWith('.yaml') || lower.endsWith('.yml')) category = ' [yaml/k8s]';
+      else if (lower.includes('dockerfile')) category = ' [docker]';
+      return `  - ${rel}${category}`;
     });
 
     return `Files changed externally:\n${lines.join('\n')}`;
@@ -154,7 +204,8 @@ export class FileWatcher extends EventEmitter {
    * Clear the change history.
    */
   clearChanges(): void {
-    this.changes = [];
+    this.changesHead = 0;
+    this.changesSize = 0;
   }
 
   get isWatching(): boolean {

@@ -594,3 +594,48 @@ export function formatFindings(findings: SecurityFinding[]): string {
 
   return lines.join('\n');
 }
+
+// ---------------------------------------------------------------------------
+// Gap 12: Secret masking for tool output
+// ---------------------------------------------------------------------------
+
+interface SecretPattern {
+  pattern: RegExp;
+  label: string;
+}
+
+/**
+ * Patterns used to detect and redact secrets in tool output.
+ * Applied in order; earlier patterns take precedence.
+ */
+const SECRET_MASK_PATTERNS: SecretPattern[] = [
+  { pattern: /AKIA[0-9A-Z]{16}/g, label: '[AWS_ACCESS_KEY]' },
+  { pattern: /sk-ant-[a-zA-Z0-9\-]{40,}/g, label: '[ANTHROPIC_KEY]' },
+  { pattern: /ghp_[a-zA-Z0-9]{36}/g, label: '[GITHUB_TOKEN]' },
+  { pattern: /gho_[a-zA-Z0-9]{36}/g, label: '[GITHUB_OAUTH]' },
+  { pattern: /sk-[a-zA-Z0-9]{40,}/g, label: '[OPENAI_KEY]' },
+  { pattern: /AIza[0-9A-Za-z\-_]{35}/g, label: '[GOOGLE_API_KEY]' },
+  { pattern: /Bearer [a-zA-Z0-9._\-]{20,}/g, label: 'Bearer [BEARER_TOKEN]' },
+  { pattern: /password[=:\s]["']?[^\s"']{8,}/gi, label: 'password=[REDACTED]' },
+  { pattern: /passwd[=:\s]["']?[^\s"']{8,}/gi, label: 'passwd=[REDACTED]' },
+  { pattern: /token[=:\s]["']?[a-zA-Z0-9._\-]{20,}/gi, label: 'token=[REDACTED]' },
+  { pattern: /secret[=:\s]["']?[a-zA-Z0-9._\-]{16,}/gi, label: 'secret=[REDACTED]' },
+  { pattern: /-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----[\s\S]{0,2048}?-----END (?:RSA |EC |DSA )?PRIVATE KEY-----/g, label: '[PRIVATE_KEY_REDACTED]' },
+];
+
+/**
+ * Replace recognized secret patterns in a text string with safe placeholders.
+ *
+ * Applied to all tool output before it is shown in the TUI or stored in chat
+ * history, preventing accidental leakage of credentials through the UI.
+ *
+ * @param text - Raw tool output string.
+ * @returns The text with known secret patterns replaced by `[REDACTED]` labels.
+ */
+export function maskSecrets(text: string): string {
+  let masked = text;
+  for (const { pattern, label } of SECRET_MASK_PATTERNS) {
+    masked = masked.replace(pattern, label);
+  }
+  return masked;
+}

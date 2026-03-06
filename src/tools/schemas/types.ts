@@ -108,6 +108,35 @@ export interface ToolResult {
 }
 
 // ---------------------------------------------------------------------------
+// Tool Execute Context
+// ---------------------------------------------------------------------------
+
+/** Context passed to tool execute() for streaming and cancellation. */
+export interface ToolExecuteContext {
+  /** Callback invoked with each chunk of streaming output. */
+  onProgress?: (chunk: string) => void;
+  /** AbortSignal for cancellation. */
+  signal?: AbortSignal;
+  /**
+   * GAP-20: Per-tool timeout override in milliseconds.
+   * When set, the tool should use this value instead of its built-in default timeout.
+   */
+  timeout?: number;
+  /**
+   * C2: Session infrastructure context — active terraform workspace, kubectl context, etc.
+   * Tools use this as a fallback when the user doesn't explicitly specify a workspace/context.
+   */
+  infraContext?: {
+    terraformWorkspace?: string;
+    kubectlContext?: string;
+    awsProfile?: string;
+    awsRegion?: string;
+    gcpProject?: string;
+    azureSubscription?: string;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tool Definition
 // ---------------------------------------------------------------------------
 
@@ -165,9 +194,10 @@ export interface ToolDefinition {
    * the failure back to the LLM gracefully.
    *
    * @param input - The validated (parsed) input object.
+   * @param ctx - Optional context for streaming output and cancellation.
    * @returns A promise resolving to the tool's output.
    */
-  execute: (input: unknown) => Promise<ToolResult>;
+  execute: (input: unknown, ctx?: ToolExecuteContext) => Promise<ToolResult>;
 
   /**
    * Which permission tier this tool belongs to. Determines whether the

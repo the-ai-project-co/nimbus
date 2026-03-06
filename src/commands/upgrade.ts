@@ -24,6 +24,10 @@ export interface UpgradeOptions {
   force?: boolean;
   /** Check only, don't actually upgrade */
   check?: boolean;
+  /** Show what would be upgraded without actually upgrading */
+  dryRun?: boolean;
+  /** Show the changelog for the latest version */
+  changelog?: boolean;
 }
 
 /** Detected installation method for nimbus. */
@@ -174,6 +178,35 @@ async function fetchGitHubReleaseVersion(): Promise<string | null> {
     // Strip leading 'v' from tag name (e.g. 'v0.3.0' -> '0.3.0')
     const tag = data.tag_name ?? null;
     return tag ? tag.replace(/^v/, '') : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Changelog fetching
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch the raw CHANGELOG.md from GitHub. Returns the last ~20 lines on success,
+ * or null if unavailable.
+ */
+async function fetchChangelog(): Promise<string | null> {
+  try {
+    const urls = [
+      `https://raw.githubusercontent.com/${GITHUB_REPO}/main/CHANGELOG.md`,
+      `https://raw.githubusercontent.com/${GITHUB_REPO}/main/CHANGELOG`,
+    ];
+    for (const url of urls) {
+      const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (response.ok) {
+        const text = await response.text();
+        const lines = text.split('\n');
+        // Return last 20 lines or the full content if shorter
+        return lines.slice(-20).join('\n');
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -411,6 +444,30 @@ export async function upgradeCommand(options: UpgradeOptions = {}): Promise<void
     console.log(dim(`  Source: GitHub Releases (https://github.com/${GITHUB_REPO}/releases)`));
   }
   console.log('');
+
+  // --dry-run: show what would be upgraded without upgrading
+  if (options.dryRun) {
+    console.log(
+      `${yellow('Dry run:')} Current: ${bold(VERSION)} → Latest: ${bold(green(latestVersion))}`
+    );
+    console.log(dim(`  Source: ${source === 'github' ? 'GitHub Releases' : 'npm registry'}`));
+    console.log('');
+    console.log(dim('No changes were made. Remove --dry-run to perform the upgrade.'));
+    return;
+  }
+
+  // --changelog: fetch and display the changelog
+  if (options.changelog) {
+    console.log(bold(`Changelog for nimbus ${latestVersion}:`));
+    console.log('');
+    const cl = await fetchChangelog();
+    if (cl) {
+      console.log(cl);
+    } else {
+      console.log(dim(`Changelog not available. View releases at: https://github.com/${GITHUB_REPO}/releases`));
+    }
+    return;
+  }
 
   if (options.check) {
     return;

@@ -13,28 +13,80 @@
  *   - Reverse search (Ctrl+R) through history
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
+import { spawnSync } from 'node:child_process';
+import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 /** Maximum number of history entries to keep. */
 const MAX_HISTORY = 100;
 
+/** Path to the persistent input history file. */
+const HISTORY_FILE = join(homedir(), '.nimbus', 'input-history.json');
+
+/** Load persisted input history from disk (returns [] on any error). */
+function loadHistory(): string[] {
+  try {
+    if (!existsSync(HISTORY_FILE)) return [];
+    const raw = readFileSync(HISTORY_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.slice(-MAX_HISTORY) as string[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+/** Save input history to disk (fire-and-forget, ignores errors). */
+function saveHistory(entries: string[]): void {
+  try {
+    const dir = join(homedir(), '.nimbus');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(HISTORY_FILE, JSON.stringify(entries.slice(-MAX_HISTORY)), 'utf-8');
+  } catch { /* non-critical */ }
+}
+
 /** All recognized slash commands for autocomplete. */
 const SLASH_COMMANDS = [
+  '/alias',
+  '/apply',
+  '/branch',
+  '/auth-refresh',
   '/clear',
   '/compact',
   '/context',
+  '/cost',
+  '/diff',
+  '/drift',
+  '/explain',
+  '/export',
   '/help',
+  '/init',
+  '/k8s-ctx',
   '/model',
   '/models',
   '/mode',
   '/new',
+  '/plan',
+  '/profile',
   '/redo',
+  '/rollback',
+  '/search',
   '/sessions',
   '/switch',
+  '/terminal',
+  '/tf-ws',
+  '/theme',
+  '/tools',
+  '/tree',
   '/undo',
+  '/watch',
+  '/workspace',
 ];
+
+/** L1: Known subagent names for @agent completions. */
+const AGENT_NAMES = ['explore', 'infra', 'security', 'cost', 'general'];
 
 /** Props accepted by the InputBox component. */
 export interface InputBoxProps {
@@ -46,6 +98,14 @@ export interface InputBoxProps {
   placeholder?: string;
   /** Whether the input is disabled (e.g. while the agent is processing). */
   disabled?: boolean;
+  /** Current agent mode — controls prompt character and color (Gap 11). */
+  mode?: 'plan' | 'build' | 'deploy';
+  /** Called when the input line count changes (for StatusBar multi-line indicator). */
+  onLineCountChange?: (count: number) => void;
+  /** GAP-21: Pre-fill the input with this text (e.g. @filepath from TreePane). */
+  prefill?: string;
+  /** H3: Fetch dynamic completions for slash command arguments (e.g. /k8s-ctx, /tf-ws). */
+  onFetchCompletions?: (prefix: string) => Promise<string[]>;
 }
 
 /**
@@ -54,15 +114,30 @@ export interface InputBoxProps {
  * fires the optional onAbort callback. Up/Down arrows navigate history.
  * Tab autocompletes slash commands. Ctrl+R opens reverse search.
  */
-export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: InputBoxProps) {
-  const [value, setValue] = useState('') as [string, React.Dispatch<React.SetStateAction<string>>];
+export function InputBox({ onSubmit, onAbort, placeholder, disabled = false, mode = 'build', onLineCountChange, prefill, onFetchCompletions }: InputBoxProps) {
+  const [value, setValue] = useState(prefill ?? '') as [string, React.Dispatch<React.SetStateAction<string>>];
+  // GAP-21: When prefill changes externally, update the input value
+  const prevPrefill = useRef(prefill);
+  if (prefill !== prevPrefill.current) {
+    prevPrefill.current = prefill;
+    if (prefill !== undefined) {
+      setValue(prefill);
+    }
+  }
 
-  // History: most recent entry is at the end
-  const history = useRef<string[]>([]);
+  // History: most recent entry is at the end (C1: loaded from disk)
+  const history = useRef<string[]>(loadHistory());
   // -1 means "not browsing history" (showing current draft)
   const historyIndex = useRef(-1);
   // Stores the in-progress text before the user started browsing history
   const draft = useRef('');
+
+  // C1: Persist history to disk on unmount
+  useEffect(() => {
+    return () => {
+      saveHistory(history.current);
+    };
+  }, []);
 
   // Slash command autocomplete state
   const [slashHint, setSlashHint] = useState('');
@@ -73,6 +148,13 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
   const [fileHint, setFileHint] = useState('');
   const fileSuggestionIndex = useRef(0);
+
+  // H3: Dynamic completions for slash command arguments
+  const [dynamicSuggestions, setDynamicSuggestions] = useState<string[]>([]);
+  const [dynamicHint, setDynamicHint] = useState('');
+  const dynamicSuggestionIndex = useRef(0);
+  // Cache: prefix → {items, ts}
+  const dynamicCache = useRef<Map<string, { items: string[]; ts: number }>>(new Map());
 
   // Ctrl+R search mode
   const [searchMode, setSearchMode] = useState(false);
@@ -94,6 +176,8 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
         if (h.length > MAX_HISTORY) {
           h.shift();
         }
+        // C1: Persist to disk on every new entry
+        saveHistory(h);
       }
 
       // Reset history navigation
@@ -108,6 +192,22 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
   // Handle Escape, Up/Down arrows, Tab autocomplete, Ctrl+R
   useInput(
     (input, key) => {
+      // --- Ctrl+E: open $EDITOR for multi-line input composition (Gap 3) ---
+      if (input === 'e' && key.ctrl) {
+        const editor = process.env.EDITOR ?? process.env.VISUAL ?? 'nano';
+        const tmpFile = `/tmp/nimbus-input-${Date.now()}.md`;
+        try {
+          writeFileSync(tmpFile, value, 'utf-8');
+          spawnSync(editor, [tmpFile], { stdio: 'inherit' });
+          const edited = readFileSync(tmpFile, 'utf-8');
+          try { unlinkSync(tmpFile); } catch { /* ignore */ }
+          setValue(edited);
+        } catch {
+          /* editor not available — ignore */
+        }
+        return;
+      }
+
       // --- Ctrl+R: toggle search mode ---
       if (input === 'r' && key.ctrl) {
         if (!searchMode) {
@@ -158,6 +258,43 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
 
         // Slash command completion
         if (value.startsWith('/')) {
+          // H3: Dynamic argument completions for /k8s-ctx, /tf-ws, /model, /profile
+          const dynamicPrefixes = ['/k8s-ctx ', '/tf-ws ', '/model ', '/profile '];
+          const dynMatch = dynamicPrefixes.find(p => value.startsWith(p));
+          if (dynMatch && onFetchCompletions) {
+            const partial = value.slice(dynMatch.length);
+            // Cycle through already-fetched suggestions
+            if (dynamicSuggestions.length > 0) {
+              const filtered = partial ? dynamicSuggestions.filter(s => s.startsWith(partial)) : dynamicSuggestions;
+              if (filtered.length > 0) {
+                const idx = dynamicSuggestionIndex.current % filtered.length;
+                setValue(`${dynMatch}${filtered[idx]}`);
+                dynamicSuggestionIndex.current = idx + 1;
+                setDynamicHint(`[${filtered.length} options, Tab to cycle]`);
+                return;
+              }
+            }
+            // Fetch completions (non-blocking, cache 30s)
+            const cacheKey = dynMatch;
+            const cached = dynamicCache.current.get(cacheKey);
+            const CACHE_TTL = 30_000;
+            if (!cached || Date.now() - cached.ts > CACHE_TTL) {
+              onFetchCompletions(value).then(items => {
+                dynamicCache.current.set(cacheKey, { items, ts: Date.now() });
+                setDynamicSuggestions(items);
+                dynamicSuggestionIndex.current = 0;
+                if (items.length > 0) {
+                  setValue(`${dynMatch}${items[0]}`);
+                  setDynamicHint(`[${items.length} options, Tab to cycle]`);
+                }
+              }).catch(() => { /* ignore */ });
+            } else {
+              setDynamicSuggestions(cached.items);
+              dynamicSuggestionIndex.current = 0;
+            }
+            return;
+          }
+
           const prefix = value.toLowerCase();
           const matches = SLASH_COMMANDS.filter(cmd => cmd.startsWith(prefix));
           if (matches.length === 0) {
@@ -286,16 +423,23 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
     );
   }
 
+  // Gap 11: mode-specific prompt character and color
+  const promptLabel = mode === 'plan' ? '[plan]> ' : mode === 'deploy' ? '[DEPLOY]> ' : '[build]> ';
+  const promptColor = mode === 'plan' ? 'blue' : mode === 'deploy' ? 'red' : 'green';
+
   // --- Normal input UI ---
   return (
     <Box paddingX={1}>
-      <Text bold color="green">
-        {'> '}
+      <Text bold color={promptColor}>
+        {promptLabel}
       </Text>
       <TextInput
         value={value}
         onChange={v => {
-          setValue(v);
+          // L2: Guard against large paste (>10KB) which would freeze the Ink UI
+          const safeV = v.length > 10_000 ? v.slice(0, 10_000) : v;
+          setValue(safeV);
+          onLineCountChange?.(safeV.split('\n').length);
           // If user types while browsing history, exit history mode
           if (historyIndex.current !== -1) {
             historyIndex.current = -1;
@@ -305,10 +449,17 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
             setSlashHint('');
             lastSuggestions.current = [];
           }
-          // @file mention detection
+          // @file / @agent mention detection
           const atMatch = v.match(/@(\S*)$/);
           if (atMatch) {
             const partial = atMatch[1];
+            // L1: Try agent names first
+            const agentMatches = AGENT_NAMES.filter(a => a.startsWith(partial.toLowerCase()));
+            if (agentMatches.length > 0 && partial.length > 0) {
+              setFileSuggestions(agentMatches.map(a => `@${a} `));
+              fileSuggestionIndex.current = 0;
+              setFileHint(`[${agentMatches.length} agent${agentMatches.length > 1 ? 's' : ''}, Tab to complete]`);
+            } else {
             try {
               // eslint-disable-next-line @typescript-eslint/no-var-requires
               const fs = require('node:fs');
@@ -332,6 +483,7 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
               setFileSuggestions([]);
               setFileHint('');
             }
+            }
           } else {
             if (fileSuggestions.length > 0) {
               setFileSuggestions([]);
@@ -340,11 +492,12 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false }: I
           }
         }}
         onSubmit={handleSubmit}
-        placeholder={placeholder ?? 'Type a message... (paste multi-line supported)'}
+        placeholder={placeholder ?? 'Type a DevOps command... (e.g. "terraform plan", "check pods", "list releases")'}
       />
       {isMultiLine && <Text color="cyan">{` [${lineCount} lines]`}</Text>}
       {slashHint && <Text dimColor>{` ${slashHint}`}</Text>}
       {fileHint && <Text dimColor>{` ${fileHint}`}</Text>}
+      {dynamicHint && <Text dimColor>{` ${dynamicHint}`}</Text>}
     </Box>
   );
 }

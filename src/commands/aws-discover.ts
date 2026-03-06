@@ -7,13 +7,104 @@
  */
 
 import { writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import { logger } from '../utils';
-import { RestClient } from '../clients';
 import { createWizard, ui, select, multiSelect, type WizardStep, type StepResult } from '../wizard';
 
-// AWS Tools Service client
-const awsToolsUrl = process.env.AWS_TOOLS_SERVICE_URL || 'http://localhost:3009';
-const awsClient = new RestClient(awsToolsUrl);
+// ---- CLI helpers ----
+
+function cliGetAwsProfiles(): string[] {
+  try {
+    const out = execFileSync('aws', ['configure', 'list-profiles'], {
+      encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'],
+    }) as string;
+    return out.trim().split('\n').map(s => s.trim()).filter(Boolean);
+  } catch {
+    return ['default'];
+  }
+}
+
+function cliValidateAwsProfile(profile: string): { accountId?: string; valid: boolean; error?: string } {
+  try {
+    const out = execFileSync('aws', ['sts', 'get-caller-identity', '--profile', profile, '--output', 'json'], {
+      encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'],
+    }) as string;
+    const data = JSON.parse(out);
+    return { valid: true, accountId: data.Account };
+  } catch (e: any) {
+    return { valid: false, error: e.message?.slice(0, 100) };
+  }
+}
+
+function cliDiscoverResources(profile: string, regions?: string[], services?: string[]): DiscoveryInventory {
+  const env = { ...process.env, AWS_PROFILE: profile };
+  const resources: DiscoveredResource[] = [];
+  const byType: Record<string, number> = {};
+  const byRegion: Record<string, number> = {};
+  const byService: Record<string, number> = {};
+  const allServices = services || ['EC2', 'S3', 'RDS', 'EKS'];
+
+  const addResources = (items: Array<{ id: string; type: string; region: string; name?: string }>) => {
+    for (const item of items) {
+      resources.push({ id: item.id, type: item.type, region: item.region, name: item.name, properties: {} });
+      byType[item.type] = (byType[item.type] ?? 0) + 1;
+      byRegion[item.region] = (byRegion[item.region] ?? 0) + 1;
+      const svc = item.type.split('::')[0] ?? item.type;
+      byService[svc] = (byService[svc] ?? 0) + 1;
+    }
+  };
+
+  const targetRegions = regions?.length ? regions : ['us-east-1'];
+
+  for (const region of targetRegions) {
+    const regionEnv = { ...env, AWS_DEFAULT_REGION: region };
+
+    if (!services || allServices.includes('EC2') || allServices.includes('all')) {
+      try {
+        const out = execFileSync('aws', ['ec2', 'describe-instances', '--query', 'Reservations[*].Instances[*].{id:InstanceId,name:Tags[?Key==`Name`].Value|[0]}', '--output', 'json'], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'], env: regionEnv }) as string;
+        const instances = JSON.parse(out).flat();
+        addResources(instances.map((i: any) => ({ id: i.id, type: 'AWS::EC2::Instance', region, name: i.name })));
+      } catch { /* skip */ }
+    }
+
+    if (!services || allServices.includes('RDS') || allServices.includes('all')) {
+      try {
+        const out = execFileSync('aws', ['rds', 'describe-db-instances', '--query', 'DBInstances[*].DBInstanceIdentifier', '--output', 'json'], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'], env: regionEnv }) as string;
+        const dbs = JSON.parse(out);
+        addResources(dbs.map((id: string) => ({ id, type: 'AWS::RDS::DBInstance', region, name: id })));
+      } catch { /* skip */ }
+    }
+
+    if (!services || allServices.includes('EKS') || allServices.includes('all')) {
+      try {
+        const out = execFileSync('aws', ['eks', 'list-clusters', '--output', 'json'], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'], env: regionEnv }) as string;
+        const clusters = JSON.parse(out).clusters ?? [];
+        addResources(clusters.map((name: string) => ({ id: name, type: 'AWS::EKS::Cluster', region, name })));
+      } catch { /* skip */ }
+    }
+  }
+
+  // S3 is global
+  if (!services || allServices.includes('S3') || allServices.includes('all')) {
+    try {
+      const out = execFileSync('aws', ['s3', 'ls'], { encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'], env }) as string;
+      const buckets = out.trim().split('\n').filter(Boolean).map(l => l.split(' ').pop()!);
+      addResources(buckets.map(name => ({ id: name, type: 'AWS::S3::Bucket', region: 'us-east-1', name })));
+    } catch { /* skip */ }
+  }
+
+  return {
+    resources,
+    byType,
+    byRegion,
+    byService,
+    summary: {
+      totalResources: resources.length,
+      resourcesByService: byService,
+      resourcesByRegion: byRegion,
+    },
+  };
+}
 
 /**
  * Discovery context for wizard
@@ -160,35 +251,16 @@ function createWizardSteps(): WizardStep<AwsDiscoverContext>[] {
  * Step 1: AWS Configuration
  */
 async function awsConfigStep(ctx: AwsDiscoverContext): Promise<StepResult> {
-  // Fetch available profiles
+  // Fetch available profiles via AWS CLI
   ui.startSpinner({ message: 'Fetching AWS profiles...' });
-
-  let profiles: Array<{ name: string; source: string; region?: string; isSSO: boolean }> = [];
-
-  try {
-    const profilesResponse = await awsClient.get<{
-      profiles: Array<{ name: string; source: string; region?: string; isSSO: boolean }>;
-    }>('/api/aws/profiles');
-
-    if (profilesResponse.success && profilesResponse.data?.profiles) {
-      profiles = profilesResponse.data.profiles;
-    }
-
-    ui.stopSpinnerSuccess(`Found ${profiles.length} AWS profiles`);
-  } catch (error) {
-    ui.stopSpinnerFail('Could not fetch AWS profiles');
-    profiles = [{ name: 'default', source: 'credentials', isSSO: false }];
-  }
+  const profileNames = cliGetAwsProfiles();
+  ui.stopSpinnerSuccess(`Found ${profileNames.length} AWS profile(s)`);
 
   // Profile selection
   let selectedProfile = ctx.awsProfile;
 
   if (!selectedProfile) {
-    const profileOptions = profiles.map(p => ({
-      value: p.name,
-      label: p.name + (p.isSSO ? ' (SSO)' : ''),
-      description: `Source: ${p.source}${p.region ? `, Region: ${p.region}` : ''}`,
-    }));
+    const profileOptions = profileNames.map(p => ({ value: p, label: p }));
 
     selectedProfile = await select({
       message: 'Select AWS profile:',
@@ -201,34 +273,17 @@ async function awsConfigStep(ctx: AwsDiscoverContext): Promise<StepResult> {
     }
   }
 
-  // Validate credentials
+  // Validate credentials via AWS CLI
   ui.startSpinner({ message: `Validating credentials for profile "${selectedProfile}"...` });
+  const validation = cliValidateAwsProfile(selectedProfile);
 
-  try {
-    const validateResponse = await awsClient.post<{
-      valid: boolean;
-      accountId?: string;
-      accountAlias?: string;
-      error?: string;
-    }>('/api/aws/profiles/validate', { profile: selectedProfile });
-
-    if (!validateResponse.success || !validateResponse.data?.valid) {
-      ui.stopSpinnerFail(`Invalid credentials: ${validateResponse.data?.error || 'Unknown error'}`);
-      return { success: false, error: 'Invalid AWS credentials' };
-    }
-
-    ui.stopSpinnerSuccess(
-      `Authenticated to account ${validateResponse.data.accountId}${
-        validateResponse.data.accountAlias ? ` (${validateResponse.data.accountAlias})` : ''
-      }`
-    );
-
-    ctx.awsAccountId = validateResponse.data.accountId;
-    ctx.awsAccountAlias = validateResponse.data.accountAlias;
-  } catch (error: any) {
-    ui.stopSpinnerFail(`Failed to validate credentials: ${error.message}`);
-    return { success: false, error: 'Credential validation failed' };
+  if (!validation.valid) {
+    ui.stopSpinnerFail(`Invalid credentials: ${validation.error || 'Unknown error'}`);
+    return { success: false, error: 'Invalid AWS credentials' };
   }
+
+  ui.stopSpinnerSuccess(`Authenticated to account ${validation.accountId || 'unknown'}`);
+  ctx.awsAccountId = validation.accountId;
 
   // Region selection
   ui.newLine();
@@ -253,32 +308,23 @@ async function awsConfigStep(ctx: AwsDiscoverContext): Promise<StepResult> {
   let selectedRegions: string[] = ctx.awsRegions || [];
 
   if (regionChoice === 'specific' && selectedRegions.length === 0) {
-    // Fetch available regions
-    ui.startSpinner({ message: 'Fetching available regions...' });
+    // Hardcoded common AWS regions (no service needed)
+    const regionOptions = [
+      { value: 'us-east-1', label: 'us-east-1 - N. Virginia' },
+      { value: 'us-east-2', label: 'us-east-2 - Ohio' },
+      { value: 'us-west-1', label: 'us-west-1 - N. California' },
+      { value: 'us-west-2', label: 'us-west-2 - Oregon' },
+      { value: 'eu-west-1', label: 'eu-west-1 - Ireland' },
+      { value: 'eu-central-1', label: 'eu-central-1 - Frankfurt' },
+      { value: 'ap-southeast-1', label: 'ap-southeast-1 - Singapore' },
+      { value: 'ap-northeast-1', label: 'ap-northeast-1 - Tokyo' },
+    ];
 
-    try {
-      const regionsResponse = await awsClient.get<{
-        regions: Array<{ name: string; displayName: string }>;
-      }>(`/api/aws/regions?profile=${selectedProfile}`);
-
-      ui.stopSpinnerSuccess(`Found ${regionsResponse.data?.regions?.length || 0} regions`);
-
-      if (regionsResponse.success && regionsResponse.data?.regions) {
-        const regionOptions = regionsResponse.data.regions.map(r => ({
-          value: r.name,
-          label: `${r.name} - ${r.displayName}`,
-        }));
-
-        selectedRegions = (await multiSelect({
-          message: 'Select regions to scan:',
-          options: regionOptions,
-          required: true,
-        })) as string[];
-      }
-    } catch (error) {
-      ui.stopSpinnerFail('Could not fetch regions');
-      selectedRegions = ['us-east-1'];
-    }
+    selectedRegions = (await multiSelect({
+      message: 'Select regions to scan:',
+      options: regionOptions,
+      required: true,
+    })) as string[];
   }
 
   return {
@@ -347,104 +393,17 @@ async function serviceSelectionStep(ctx: AwsDiscoverContext): Promise<StepResult
 }
 
 /**
- * Step 3: Discovery
+ * Step 3: Discovery — uses AWS CLI directly (no REST service)
  */
 async function discoveryStep(ctx: AwsDiscoverContext): Promise<StepResult> {
-  ui.print('  Starting infrastructure discovery...');
-  ui.newLine();
-
+  ui.startSpinner({ message: 'Discovering AWS infrastructure via CLI...' });
   try {
-    // Start discovery
-    const startResponse = await awsClient.post<{
-      sessionId: string;
-      status: string;
-    }>('/api/aws/discover', {
-      profile: ctx.awsProfile,
-      regions: ctx.awsRegions || 'all',
-      services: ctx.servicesToScan,
-      excludeServices: ctx.excludeServices,
-    });
-
-    if (!startResponse.success || !startResponse.data?.sessionId) {
-      return { success: false, error: 'Failed to start discovery' };
-    }
-
-    const sessionId = startResponse.data.sessionId;
-    ctx.discoverySessionId = sessionId;
-
-    // Poll for progress with visual feedback
-    let completed = false;
-    let lastUpdate = '';
-
-    while (!completed) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const statusResponse = await awsClient.get<{
-        status: string;
-        progress: {
-          regionsScanned: number;
-          totalRegions: number;
-          servicesScanned: number;
-          totalServices: number;
-          resourcesFound: number;
-          currentRegion?: string;
-          currentService?: string;
-          errors: string[];
-        };
-        inventory?: DiscoveryInventory;
-      }>(`/api/aws/discover/${sessionId}`);
-
-      if (!statusResponse.success) {
-        continue;
-      }
-
-      const { status, progress, inventory } = statusResponse.data!;
-
-      // Build progress message
-      const progressMsg = buildProgressMessage(progress);
-      if (progressMsg !== lastUpdate) {
-        ui.clearLine();
-        ui.write(progressMsg);
-        lastUpdate = progressMsg;
-      }
-
-      if (status === 'completed') {
-        completed = true;
-        ctx.inventory = inventory;
-
-        ui.newLine();
-        ui.newLine();
-        ui.success(`Discovery complete! Found ${progress.resourcesFound} resources`);
-
-        if (progress.errors.length > 0) {
-          ui.newLine();
-          ui.warning(`${progress.errors.length} errors occurred during discovery:`);
-          for (const err of progress.errors.slice(0, 5)) {
-            ui.print(`    ${ui.dim(err)}`);
-          }
-          if (progress.errors.length > 5) {
-            ui.print(`    ${ui.dim(`... and ${progress.errors.length - 5} more`)}`);
-          }
-        }
-      } else if (status === 'failed') {
-        ui.newLine();
-        ui.error('Discovery failed');
-        return { success: false, error: 'Discovery failed' };
-      } else if (status === 'cancelled') {
-        ui.newLine();
-        ui.warning('Discovery was cancelled');
-        return { success: false, error: 'Discovery cancelled' };
-      }
-    }
-
-    return {
-      success: true,
-      data: {
-        discoverySessionId: sessionId,
-        inventory: ctx.inventory,
-      },
-    };
+    const inventory = cliDiscoverResources(ctx.awsProfile || 'default', ctx.awsRegions, ctx.servicesToScan);
+    ctx.inventory = inventory;
+    ui.stopSpinnerSuccess(`Discovery complete! Found ${inventory.resources.length} resource(s)`);
+    return { success: true, data: { inventory } };
   } catch (error: any) {
+    ui.stopSpinnerFail('Discovery failed');
     return { success: false, error: error.message };
   }
 }
@@ -552,94 +511,28 @@ async function runNonInteractive(options: AwsDiscoverOptions): Promise<Discovery
   ui.info(`Regions: ${options.regions?.join(', ') || 'all'}`);
   ui.info(`Services: ${options.services?.join(', ') || 'all'}`);
 
-  // Validate credentials
+  // Validate credentials via AWS CLI
   ui.startSpinner({ message: 'Validating credentials...' });
-
-  try {
-    const validateResponse = await awsClient.post<{
-      valid: boolean;
-      accountId?: string;
-      error?: string;
-    }>('/api/aws/profiles/validate', { profile: options.profile });
-
-    if (!validateResponse.success || !validateResponse.data?.valid) {
-      ui.stopSpinnerFail(`Invalid credentials: ${validateResponse.data?.error || 'Unknown error'}`);
-      return null;
-    }
-
-    ui.stopSpinnerSuccess(`Authenticated to account ${validateResponse.data.accountId}`);
-  } catch (error: any) {
-    ui.stopSpinnerFail(`Credential validation failed: ${error.message}`);
+  const validation = cliValidateAwsProfile(options.profile!);
+  if (!validation.valid) {
+    ui.stopSpinnerFail(`Invalid credentials: ${validation.error || 'Unknown error'}`);
     return null;
   }
+  ui.stopSpinnerSuccess(`Authenticated to account ${validation.accountId || 'unknown'}`);
 
-  // Start discovery
-  ui.startSpinner({ message: 'Starting discovery...' });
-
+  // Discover via AWS CLI
+  ui.startSpinner({ message: 'Discovering infrastructure...' });
   try {
-    const startResponse = await awsClient.post<{
-      sessionId: string;
-    }>('/api/aws/discover', {
-      profile: options.profile,
-      regions: options.regions || 'all',
-      services: options.services,
-      excludeServices: options.excludeServices,
-    });
+    const inventory = cliDiscoverResources(options.profile!, options.regions, options.services);
+    ui.stopSpinnerSuccess(`Discovery complete! Found ${inventory.resources.length} resource(s)`);
 
-    if (!startResponse.success || !startResponse.data?.sessionId) {
-      ui.stopSpinnerFail('Failed to start discovery');
-      return null;
+    displayInventorySummary(inventory);
+
+    if (options.outputFile) {
+      await saveInventory(inventory, options.outputFile, options.outputFormat || 'json');
     }
 
-    const sessionId = startResponse.data.sessionId;
-    ui.stopSpinnerSuccess(`Discovery started (session: ${sessionId})`);
-
-    // Poll for completion
-    ui.startSpinner({ message: 'Scanning infrastructure...' });
-
-    let completed = false;
-    let inventory: DiscoveryInventory | undefined;
-
-    while (!completed) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const statusResponse = await awsClient.get<{
-        status: string;
-        progress: { resourcesFound: number };
-        inventory?: DiscoveryInventory;
-      }>(`/api/aws/discover/${sessionId}`);
-
-      if (!statusResponse.success) {
-        continue;
-      }
-
-      const { status, progress } = statusResponse.data!;
-
-      ui.updateSpinner(`Scanning... ${progress.resourcesFound} resources found`);
-
-      if (status === 'completed') {
-        completed = true;
-        inventory = statusResponse.data!.inventory;
-        ui.stopSpinnerSuccess(`Discovery complete! Found ${progress.resourcesFound} resources`);
-      } else if (status === 'failed' || status === 'cancelled') {
-        ui.stopSpinnerFail(`Discovery ${status}`);
-        return null;
-      }
-    }
-
-    if (inventory) {
-      // Display summary
-      displayInventorySummary(inventory);
-
-      // Save to file if requested
-      if (options.outputFile) {
-        await saveInventory(inventory, options.outputFile, options.outputFormat || 'json');
-      }
-
-      return inventory;
-    }
-
-    return null;
+    return inventory;
   } catch (error: any) {
     ui.stopSpinnerFail(`Discovery failed: ${error.message}`);
     return null;

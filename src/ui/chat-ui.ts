@@ -28,6 +28,8 @@ import {
   approveActionForSession,
   type PermissionSessionState,
 } from '../agent/permissions';
+import { buildSystemPrompt } from '../agent/system-prompt';
+import { expandFileReferences } from '../agent/expand-files';
 
 /**
  * Simple code block highlighter for terminal display.
@@ -149,13 +151,16 @@ export class ChatUI {
       // Session persistence is non-critical
     }
 
-    // Add system prompt to history if provided
-    if (options.systemPrompt) {
-      this.history.push({
-        role: 'system',
-        content: options.systemPrompt,
-      });
-    }
+    // Add system prompt to history (use buildSystemPrompt for full DevOps context)
+    const systemPromptContent = options.systemPrompt ?? buildSystemPrompt({
+      mode: this.currentMode,
+      tools: defaultToolRegistry.getAll(),
+      cwd: process.cwd(),
+    });
+    this.history.push({
+      role: 'system',
+      content: systemPromptContent,
+    });
   }
 
   /**
@@ -394,11 +399,11 @@ export class ChatUI {
   }
 
   private getPersonaSystemPrompt(tone: PersonaTone): string {
-    const baseIdentity = `You are Nimbus, an AI-powered cloud engineering assistant. You help users with:
+    const baseIdentity = `You are Nimbus, an AI-powered DevOps engineering agent. You help users with:
 
-- Infrastructure as Code (Terraform, CloudFormation, Pulumi)
-- Kubernetes operations and configurations
+- Infrastructure as Code (Terraform, Kubernetes, Helm)
 - Cloud provider operations (AWS, GCP, Azure)
+- Kubernetes operations and configurations
 - Helm chart management and deployment
 - DevOps best practices and CI/CD pipelines
 - Troubleshooting infrastructure issues`;
@@ -514,39 +519,12 @@ export class ChatUI {
     });
   }
 
-  /**
-   * Expand @path/to/file references in text with file contents.
-   */
-  private expandFileReferences(text: string): string {
-    const fileRefs = text.match(/@([\w./_-]+)/g);
-    if (!fileRefs) {
-      return text;
-    }
-
-    let expanded = text;
-    for (const ref of fileRefs) {
-      const filePath = ref.slice(1);
-      try {
-        const resolved = path.resolve(process.cwd(), filePath);
-        const content = fs.readFileSync(resolved, 'utf-8');
-        const truncated =
-          content.length > 10000
-            ? `${content.slice(0, 10000)}\n... (truncated — showing 10,000 of ${content.length.toLocaleString()} chars)`
-            : content;
-        expanded = expanded.replace(ref, `\n<file path="${filePath}">\n${truncated}\n</file>`);
-      } catch {
-        // File not found — leave the @reference as-is
-      }
-    }
-    return expanded;
-  }
-
   private async sendMessage(userMessage: string): Promise<void> {
     this.isProcessing = true;
     this.abortController = new AbortController();
 
-    // Expand @file references
-    const expandedMessage = this.expandFileReferences(userMessage);
+    // Expand @file references using the shared module
+    const expandedMessage = expandFileReferences(userMessage, process.cwd());
 
     // Add user message to display history
     this.history.push({
@@ -556,14 +534,28 @@ export class ChatUI {
 
     ui.newLine();
 
-    // Show a thinking indicator until the first text chunk arrives
-    process.stdout.write(ui.dim('  Thinking...'));
+    // Animated spinner until the first text chunk arrives
+    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let spinnerIdx = 0;
+    let spinnerCleared = false;
+    const spinnerInterval = setInterval(() => {
+      if (!spinnerCleared) {
+        process.stderr.write(`\r${spinnerFrames[spinnerIdx++ % spinnerFrames.length]} Thinking...`);
+      }
+    }, 80);
     let thinkingCleared = false;
     const clearThinking = () => {
       if (!thinkingCleared) {
         thinkingCleared = true;
         // Clear the "Thinking..." text
         process.stdout.write('\r\x1b[K');
+      }
+    };
+    const clearSpinner = () => {
+      if (!spinnerCleared) {
+        spinnerCleared = true;
+        clearInterval(spinnerInterval);
+        process.stderr.write('\r\x1b[K'); // clear spinner line
       }
     };
 
@@ -586,6 +578,7 @@ export class ChatUI {
         sessionId: this.sessionId || undefined,
 
         onText: text => {
+          clearSpinner();
           clearThinking();
           if (!textStarted) {
             process.stdout.write(ui.color('Nimbus: ', 'blue'));
@@ -639,6 +632,10 @@ export class ChatUI {
         },
       });
 
+      // Ensure spinner and thinking indicator are cleared
+      clearSpinner();
+      clearThinking();
+
       // Ensure we end the text output
       if (textStarted) {
         process.stdout.write('\n');
@@ -648,11 +645,10 @@ export class ChatUI {
       this.agentHistory = result.messages;
       tokenCount = result.usage.totalTokens;
 
-      // Persist conversation to SQLite
+      // Persist conversation + stats atomically to SQLite
       if (this.sessionManager && this.sessionId) {
         try {
-          this.sessionManager.saveConversation(this.sessionId, this.agentHistory);
-          this.sessionManager.updateSession(this.sessionId, {
+          this.sessionManager.saveConversationAndStats(this.sessionId, this.agentHistory, {
             tokenCount: result.usage.totalTokens,
             costUSD: result.totalCost,
           });
@@ -704,6 +700,7 @@ export class ChatUI {
         ui.info('Operation interrupted.');
       }
     } catch (error: any) {
+      clearSpinner();
       clearThinking();
       if (textStarted) {
         process.stdout.write('\n');

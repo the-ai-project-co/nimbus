@@ -14,7 +14,7 @@
  * All tests use mocks -- no real API calls are made.
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, it, expect, vi, beforeEach } from 'vitest';
 import type { ToolCompletionRequest, StreamChunk } from '../llm/types';
 
 // ---------------------------------------------------------------------------
@@ -726,5 +726,53 @@ describe('OpenAICompatibleProvider.streamWithTools', () => {
     expect(createArg.tool_choice).toEqual({ type: 'function', function: { name: 'bash' } });
     expect(createArg.temperature).toBe(0.5);
     expect(createArg.max_tokens).toBe(1024);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PERF-2c: Unbuffered streaming in LLMRouter fallback branch
+// ---------------------------------------------------------------------------
+
+describe('PERF-2c: LLMRouter unbuffered streaming', () => {
+  it('streamWithTools fallback loop no longer buffers chunks before yielding', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/llm/router.ts'), 'utf-8');
+    // Extract only the streamWithTools section (between the streamWithTools guards)
+    const swStart = src.indexOf('Use native streaming-with-tools if providers support it');
+    const swEnd = src.indexOf('If all providers with streamWithTools failed', swStart);
+    const swSection = swStart > 0 && swEnd > swStart ? src.slice(swStart, swEnd) : '';
+    // The streamWithTools fallback section should NOT contain buffering
+    expect(swSection).not.toContain('bufferedChunks');
+    // It should contain yield chunk directly
+    expect(swSection).toContain('yield chunk;');
+  });
+
+  it('router.ts yields each chunk immediately inside the for-await loop', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/llm/router.ts'), 'utf-8');
+    // The yield statement should appear inside the for-await (before circuitBreaker.recordSuccess)
+    expect(src).toContain('yield chunk;');
+    // circuitBreaker.recordSuccess comes after the loop ends (done chunk received)
+    expect(src).toContain('circuitBreaker.recordSuccess(p.name);');
+  });
+
+  it('circuitBreaker.recordSuccess is called after stream ends (not before yield)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/llm/router.ts'), 'utf-8');
+    // Find the fallback for-loop block that has yield chunk
+    const yieldIdx = src.indexOf('yield chunk;');
+    const recordSuccessIdx = src.indexOf('circuitBreaker.recordSuccess(p.name);');
+    // recordSuccess should appear AFTER the yield in the source
+    expect(recordSuccessIdx).toBeGreaterThan(yieldIdx);
+  });
+
+  it('stream error path still calls circuitBreaker.recordFailure', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/llm/router.ts'), 'utf-8');
+    expect(src).toContain('circuitBreaker.recordFailure(p.name);');
   });
 });

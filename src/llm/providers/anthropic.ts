@@ -104,22 +104,45 @@ export class AnthropicProvider extends BaseProvider {
     }
   }
 
+  /** H4: Format a rate limit error with actionable guidance. */
+  private formatRateLimitError(error: unknown): Error {
+    const retryAfter = (error as { headers?: Record<string, string> })?.headers?.['retry-after'];
+    const waitMsg = retryAfter ? `Wait ${retryAfter}s and retry` : 'Wait ~60 seconds and retry';
+    return new Error(
+      `Rate limit reached. Options:\n` +
+      `  • ${waitMsg}\n` +
+      `  • Switch to a faster model: /model claude-haiku-4-5\n` +
+      `  • Check usage: https://console.anthropic.com/settings/usage`
+    );
+  }
+
+  /** H4: Return true if the error is an Anthropic rate limit (429). */
+  private isRateLimitError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const e = error as { status?: number; error?: { type?: string } };
+    return e.status === 429 || e.error?.type === 'rate_limit_error';
+  }
+
   async completeWithTools(request: ToolCompletionRequest): Promise<LLMResponse> {
     const systemPrompt = this.extractSystemPrompt(request.messages);
     const messages = this.convertMessages(this.filterSystemMessages(request.messages));
 
     const toolChoice = this.convertToolChoice(request.toolChoice);
-    const response = await this.client.messages.create({
-      model: request.model || this.defaultModel,
-      max_tokens: request.maxTokens || 4096,
-      messages,
-      system: systemPrompt,
-      ...(request.toolChoice !== 'none' && { tools: this.convertTools(request.tools) }),
-      ...(toolChoice && { tool_choice: toolChoice }),
-      temperature: request.temperature,
-    });
-
-    return this.convertResponse(response);
+    try {
+      const response = await this.client.messages.create({
+        model: request.model || this.defaultModel,
+        max_tokens: request.maxTokens || 4096,
+        messages,
+        system: systemPrompt,
+        ...(request.toolChoice !== 'none' && { tools: this.convertTools(request.tools) }),
+        ...(toolChoice && { tool_choice: toolChoice }),
+        temperature: request.temperature,
+      });
+      return this.convertResponse(response);
+    } catch (error) {
+      if (this.isRateLimitError(error)) throw this.formatRateLimitError(error);
+      throw error;
+    }
   }
 
   async *streamWithTools(request: ToolCompletionRequest): AsyncIterable<StreamChunk> {
@@ -127,15 +150,21 @@ export class AnthropicProvider extends BaseProvider {
     const messages = this.convertMessages(this.filterSystemMessages(request.messages));
 
     const toolChoice = this.convertToolChoice(request.toolChoice);
-    const stream = await this.client.messages.stream({
-      model: request.model || this.defaultModel,
-      max_tokens: request.maxTokens || 4096,
-      messages,
-      system: systemPrompt,
-      ...(request.toolChoice !== 'none' && { tools: this.convertTools(request.tools) }),
-      ...(toolChoice && { tool_choice: toolChoice }),
-      temperature: request.temperature,
-    });
+    let stream: Awaited<ReturnType<typeof this.client.messages.stream>>;
+    try {
+      stream = await this.client.messages.stream({
+        model: request.model || this.defaultModel,
+        max_tokens: request.maxTokens || 4096,
+        messages,
+        system: systemPrompt,
+        ...(request.toolChoice !== 'none' && { tools: this.convertTools(request.tools) }),
+        ...(toolChoice && { tool_choice: toolChoice }),
+        temperature: request.temperature,
+      });
+    } catch (error) {
+      if (this.isRateLimitError(error)) throw this.formatRateLimitError(error);
+      throw error;
+    }
 
     let usage: StreamChunk['usage'] | undefined;
     let inputTokensFromStart = 0; // Captured from message_start event
@@ -165,7 +194,7 @@ export class AnthropicProvider extends BaseProvider {
           yield { done: false, toolCallStart: { id: currentToolId, name: currentToolName } };
         }
       } else if (event.type === 'content_block_delta') {
-        if (event.delta.type === 'text_delta') {
+        if (event.delta.type === 'text_delta' && event.delta.text) {
           yield { content: event.delta.text, done: false };
         } else if ((event.delta as any).type === 'input_json_delta') {
           const existing = toolCallAccumulator.get(toolCallIndex);

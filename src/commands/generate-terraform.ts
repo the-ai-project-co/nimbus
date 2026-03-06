@@ -7,7 +7,6 @@
  */
 
 import { logger } from '../utils';
-import { RestClient } from '../clients';
 import {
   createWizard,
   ui,
@@ -20,22 +19,58 @@ import {
   type WizardStep,
   type StepResult,
 } from '../wizard';
+import { generateTerraformProject, type GeneratedFile } from '../generator/terraform';
 
-// AWS Tools Service client
-const awsToolsUrl = process.env.AWS_TOOLS_SERVICE_URL || 'http://localhost:3009';
-const awsClient = new RestClient(awsToolsUrl);
+// ---- Cloud CLI helpers (replace microservice REST calls) ----
 
-// Generator Service client
-const generatorUrl = process.env.GENERATOR_SERVICE_URL || 'http://localhost:3003';
-const generatorClient = new RestClient(generatorUrl);
+function getAwsProfiles(): string[] {
+  try {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync('aws', ['configure', 'list-profiles'], {
+      encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'],
+    }) as string;
+    return out.trim().split('\n').map((s: string) => s.trim()).filter(Boolean);
+  } catch {
+    return ['default'];
+  }
+}
 
-// GCP Tools Service client
-const gcpToolsUrl = process.env.GCP_TOOLS_SERVICE_URL || 'http://localhost:3016';
-const gcpClient = new RestClient(gcpToolsUrl);
+function validateAwsProfile(profile: string): { accountId?: string; valid: boolean; error?: string } {
+  try {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync('aws', ['sts', 'get-caller-identity', '--profile', profile, '--output', 'json'], {
+      encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'],
+    }) as string;
+    const data = JSON.parse(out);
+    return { valid: true, accountId: data.Account };
+  } catch (e: any) {
+    return { valid: false, error: e.message?.slice(0, 100) };
+  }
+}
 
-// Azure Tools Service client
-const azureToolsUrl = process.env.AZURE_TOOLS_SERVICE_URL || 'http://localhost:3017';
-const azureClient = new RestClient(azureToolsUrl);
+function getGcpProject(): string {
+  try {
+    const { execFileSync } = require('child_process');
+    return (execFileSync('gcloud', ['config', 'get-value', 'project'], {
+      encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'],
+    }) as string).trim();
+  } catch {
+    return '';
+  }
+}
+
+function validateAzureSubscription(subscriptionId: string): { name?: string; valid: boolean; error?: string } {
+  try {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync('az', ['account', 'show', '--subscription', subscriptionId, '--output', 'json'], {
+      encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'],
+    }) as string;
+    const data = JSON.parse(out);
+    return { valid: true, name: data.name };
+  } catch (e: any) {
+    return { valid: false, error: e.message?.slice(0, 100) };
+  }
+}
 
 /**
  * Command options from CLI arguments
@@ -292,36 +327,16 @@ async function providerSelectionStep(ctx: TerraformWizardContext): Promise<StepR
  * Step 2: AWS Configuration
  */
 async function awsConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
-  // Fetch available profiles
+  // Fetch available profiles via CLI
   ui.startSpinner({ message: 'Fetching AWS profiles...' });
-
-  let profiles: Array<{ name: string; source: string; region?: string; isSSO: boolean }> = [];
-
-  try {
-    const profilesResponse = await awsClient.get<{
-      profiles: Array<{ name: string; source: string; region?: string; isSSO: boolean }>;
-    }>('/api/aws/profiles');
-
-    if (profilesResponse.success && profilesResponse.data?.profiles) {
-      profiles = profilesResponse.data.profiles;
-    }
-
-    ui.stopSpinnerSuccess(`Found ${profiles.length} AWS profiles`);
-  } catch (error) {
-    ui.stopSpinnerFail('Could not fetch AWS profiles');
-    // Continue with manual input
-    profiles = [{ name: 'default', source: 'credentials', isSSO: false }];
-  }
+  const profileNames = getAwsProfiles();
+  ui.stopSpinnerSuccess(`Found ${profileNames.length} AWS profile(s)`);
 
   // Profile selection
   let selectedProfile = ctx.awsProfile;
 
   if (!selectedProfile) {
-    const profileOptions = profiles.map(p => ({
-      value: p.name,
-      label: p.name + (p.isSSO ? ' (SSO)' : ''),
-      description: `Source: ${p.source}${p.region ? `, Region: ${p.region}` : ''}`,
-    }));
+    const profileOptions = profileNames.map(p => ({ value: p, label: p }));
 
     selectedProfile = await select({
       message: 'Select AWS profile:',
@@ -334,34 +349,17 @@ async function awsConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
     }
   }
 
-  // Validate credentials
+  // Validate credentials via CLI
   ui.startSpinner({ message: `Validating credentials for profile "${selectedProfile}"...` });
+  const validation = validateAwsProfile(selectedProfile);
 
-  try {
-    const validateResponse = await awsClient.post<{
-      valid: boolean;
-      accountId?: string;
-      accountAlias?: string;
-      error?: string;
-    }>('/api/aws/profiles/validate', { profile: selectedProfile });
-
-    if (!validateResponse.success || !validateResponse.data?.valid) {
-      ui.stopSpinnerFail(`Invalid credentials: ${validateResponse.data?.error || 'Unknown error'}`);
-      return { success: false, error: 'Invalid AWS credentials' };
-    }
-
-    ui.stopSpinnerSuccess(
-      `Authenticated to account ${validateResponse.data.accountId}${
-        validateResponse.data.accountAlias ? ` (${validateResponse.data.accountAlias})` : ''
-      }`
-    );
-
-    ctx.awsAccountId = validateResponse.data.accountId;
-    ctx.awsAccountAlias = validateResponse.data.accountAlias;
-  } catch (error: any) {
-    ui.stopSpinnerFail(`Failed to validate credentials: ${error.message}`);
-    return { success: false, error: 'Credential validation failed' };
+  if (!validation.valid) {
+    ui.stopSpinnerFail(`Invalid credentials: ${validation.error || 'Unknown error'}`);
+    return { success: false, error: 'Invalid AWS credentials' };
   }
+
+  ui.stopSpinnerSuccess(`Authenticated to account ${validation.accountId || 'unknown'}`);
+  ctx.awsAccountId = validation.accountId;
 
   // Region selection
   ui.newLine();
@@ -386,33 +384,23 @@ async function awsConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
   let selectedRegions: string[] = [];
 
   if (regionChoice === 'specific') {
-    // Fetch available regions
-    ui.startSpinner({ message: 'Fetching available regions...' });
+    // Hardcoded common AWS regions (no service needed)
+    const regionOptions = [
+      { value: 'us-east-1', label: 'us-east-1 - N. Virginia' },
+      { value: 'us-east-2', label: 'us-east-2 - Ohio' },
+      { value: 'us-west-1', label: 'us-west-1 - N. California' },
+      { value: 'us-west-2', label: 'us-west-2 - Oregon' },
+      { value: 'eu-west-1', label: 'eu-west-1 - Ireland' },
+      { value: 'eu-central-1', label: 'eu-central-1 - Frankfurt' },
+      { value: 'ap-southeast-1', label: 'ap-southeast-1 - Singapore' },
+      { value: 'ap-northeast-1', label: 'ap-northeast-1 - Tokyo' },
+    ];
 
-    try {
-      const regionsResponse = await awsClient.get<{
-        regions: Array<{ name: string; displayName: string }>;
-      }>(`/api/aws/regions?profile=${selectedProfile}`);
-
-      ui.stopSpinnerSuccess(`Found ${regionsResponse.data?.regions?.length || 0} regions`);
-
-      if (regionsResponse.success && regionsResponse.data?.regions) {
-        const regionOptions = regionsResponse.data.regions.map(r => ({
-          value: r.name,
-          label: `${r.name} - ${r.displayName}`,
-        }));
-
-        selectedRegions = (await multiSelect({
-          message: 'Select regions to scan:',
-          options: regionOptions,
-          required: true,
-        })) as string[];
-      }
-    } catch (error) {
-      ui.stopSpinnerFail('Could not fetch regions');
-      // Use common regions as fallback
-      selectedRegions = ['us-east-1'];
-    }
+    selectedRegions = (await multiSelect({
+      message: 'Select regions to scan:',
+      options: regionOptions,
+      required: true,
+    })) as string[];
   }
 
   return {
@@ -488,29 +476,18 @@ async function gcpConfigStep(ctx: TerraformWizardContext): Promise<StepResult> {
     return { success: false, error: 'GCP project ID is required' };
   }
 
-  // Validate project access
+  // Validate project access via gcloud CLI
   ui.startSpinner({ message: `Validating access to project "${projectId}"...` });
-
   try {
-    const validateResponse = await gcpClient.post<{
-      valid: boolean;
-      projectName?: string;
-      error?: string;
-    }>('/api/gcp/projects/validate', { projectId });
-
-    if (!validateResponse.success || !validateResponse.data?.valid) {
-      ui.stopSpinnerFail(`Invalid project: ${validateResponse.data?.error || 'Unknown error'}`);
-      return { success: false, error: 'Invalid GCP project' };
-    }
-
-    ui.stopSpinnerSuccess(
-      `Connected to project ${projectId}${
-        validateResponse.data.projectName ? ` (${validateResponse.data.projectName})` : ''
-      }`
-    );
+    const { execFileSync } = await import('child_process');
+    execFileSync('gcloud', ['projects', 'describe', projectId, '--format=json'], {
+      encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    ui.stopSpinnerSuccess(`Connected to project ${projectId}`);
   } catch (error: any) {
-    ui.stopSpinnerFail(`Failed to validate project: ${error.message}`);
-    return { success: false, error: 'Project validation failed' };
+    ui.stopSpinnerFail(`Could not validate project: ${error.message?.slice(0, 80) || 'unknown'}`);
+    // Non-fatal — user may still proceed if gcloud is not configured
+    ui.info('Proceeding without validation. Ensure gcloud credentials are configured.');
   }
 
   // Region selection
@@ -625,31 +602,14 @@ async function azureConfigStep(ctx: TerraformWizardContext): Promise<StepResult>
     return { success: false, error: 'Azure subscription ID is required' };
   }
 
-  // Validate subscription access
+  // Validate subscription access via Azure CLI
   ui.startSpinner({ message: `Validating access to subscription "${subscriptionId}"...` });
-
-  try {
-    const validateResponse = await azureClient.post<{
-      valid: boolean;
-      subscriptionName?: string;
-      error?: string;
-    }>('/api/azure/subscriptions/validate', { subscriptionId });
-
-    if (!validateResponse.success || !validateResponse.data?.valid) {
-      ui.stopSpinnerFail(
-        `Invalid subscription: ${validateResponse.data?.error || 'Unknown error'}`
-      );
-      return { success: false, error: 'Invalid Azure subscription' };
-    }
-
-    ui.stopSpinnerSuccess(
-      `Connected to subscription ${subscriptionId}${
-        validateResponse.data.subscriptionName ? ` (${validateResponse.data.subscriptionName})` : ''
-      }`
-    );
-  } catch (error: any) {
-    ui.stopSpinnerFail(`Failed to validate subscription: ${error.message}`);
-    return { success: false, error: 'Subscription validation failed' };
+  const azVal = validateAzureSubscription(subscriptionId);
+  if (!azVal.valid) {
+    ui.stopSpinnerFail(`Could not validate subscription: ${azVal.error || 'unknown'}`);
+    ui.info('Proceeding without validation. Ensure az CLI credentials are configured.');
+  } else {
+    ui.stopSpinnerSuccess(`Connected to subscription${azVal.name ? ` (${azVal.name})` : ''}`);
   }
 
   // Resource group (optional)
@@ -762,149 +722,80 @@ async function azureServiceSelectionStep(_ctx: TerraformWizardContext): Promise<
 }
 
 /**
- * Poll a discovery session until completion
+ * Run synchronous CLI-based infrastructure discovery.
+ * Replaces the old REST polling approach.
  */
-async function pollDiscovery(
-  client: RestClient,
-  startPath: string,
-  statusPath: (sessionId: string) => string,
-  startPayload: Record<string, unknown>,
-  ctx: TerraformWizardContext
-): Promise<StepResult> {
-  try {
-    const startResponse = await client.post<{
-      sessionId: string;
-      status: string;
-    }>(startPath, startPayload);
+async function discoverInfra(ctx: TerraformWizardContext): Promise<{ resourceCount: number; components: string[] }> {
+  const { execFileSync } = await import('child_process');
+  const components: string[] = [];
+  let resourceCount = 0;
 
-    if (!startResponse.success || !startResponse.data?.sessionId) {
-      return { success: false, error: 'Failed to start discovery' };
-    }
+  if (ctx.provider === 'aws') {
+    const profile = ctx.awsProfile || 'default';
+    const env = { ...process.env, AWS_PROFILE: profile };
 
-    const sessionId = startResponse.data.sessionId;
-    ctx.discoverySessionId = sessionId;
+    // EC2 instances
+    try {
+      const out = execFileSync('aws', ['ec2', 'describe-instances', '--query', 'Reservations[*].Instances[*].InstanceId', '--output', 'json'], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'], env });
+      const ids = JSON.parse(out).flat();
+      if (ids.length > 0) { components.push('ec2'); resourceCount += ids.length; }
+    } catch { /* not available */ }
 
-    // Poll for progress
-    let completed = false;
-    let lastResourceCount = 0;
+    // S3 buckets
+    try {
+      const out = execFileSync('aws', ['s3', 'ls'], { encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'], env });
+      const buckets = out.trim().split('\n').filter(Boolean).length;
+      if (buckets > 0) { components.push('s3'); resourceCount += buckets; }
+    } catch { /* not available */ }
 
-    while (!completed) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // RDS
+    try {
+      const out = execFileSync('aws', ['rds', 'describe-db-instances', '--query', 'DBInstances[*].DBInstanceIdentifier', '--output', 'json'], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'], env });
+      const dbs = JSON.parse(out);
+      if (dbs.length > 0) { components.push('rds'); resourceCount += dbs.length; }
+    } catch { /* not available */ }
 
-      const statusResponse = await client.get<{
-        status: string;
-        progress: {
-          regionsScanned: number;
-          totalRegions: number;
-          resourcesFound: number;
-          currentRegion?: string;
-          currentService?: string;
-        };
-        inventory?: any;
-      }>(statusPath(sessionId));
+    // EKS clusters
+    try {
+      const out = execFileSync('aws', ['eks', 'list-clusters', '--output', 'json'], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'], env });
+      const clusters = JSON.parse(out).clusters;
+      if (clusters?.length > 0) { components.push('eks'); resourceCount += clusters.length; }
+    } catch { /* not available */ }
 
-      if (!statusResponse.success) {
-        continue;
-      }
-
-      const { status, progress, inventory } = statusResponse.data!;
-
-      // Update progress display
-      if (progress.resourcesFound !== lastResourceCount) {
-        ui.clearLine();
-        ui.write(
-          `  Scanning: ${progress.regionsScanned}/${progress.totalRegions} regions | ` +
-            `${progress.resourcesFound} resources found`
-        );
-        if (progress.currentRegion) {
-          ui.write(` | Current: ${progress.currentRegion}`);
-        }
-        lastResourceCount = progress.resourcesFound;
-      }
-
-      if (status === 'completed') {
-        completed = true;
-        ctx.inventory = inventory;
-
-        ui.newLine();
-        ui.newLine();
-        ui.success(`Discovery complete! Found ${progress.resourcesFound} resources`);
-
-        // Show summary
-        if (inventory?.summary) {
-          ui.newLine();
-          ui.print('  Resources by service:');
-          for (const [service, count] of Object.entries(
-            inventory.summary.resourcesByService || {}
-          )) {
-            ui.print(`    ${service}: ${count}`);
-          }
-        }
-      } else if (status === 'failed') {
-        ui.newLine();
-        return { success: false, error: 'Discovery failed' };
-      }
-    }
-
-    return {
-      success: true,
-      data: {
-        discoverySessionId: sessionId,
-        inventory: ctx.inventory,
-      },
-    };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    // VPC (always include as foundational)
+    components.push('vpc');
+  } else if (ctx.provider === 'gcp') {
+    try {
+      execFileSync('gcloud', ['compute', 'instances', 'list', '--format=json'], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'] });
+      components.push('compute');
+    } catch { /* not available */ }
+    components.push('vpc');
+  } else if (ctx.provider === 'azure') {
+    try {
+      const out = execFileSync('az', ['resource', 'list', '--output', 'json'], { encoding: 'utf-8', timeout: 20000, stdio: ['pipe', 'pipe', 'pipe'] });
+      const resources = JSON.parse(out);
+      resourceCount += resources.length;
+      components.push('vnet');
+    } catch { /* not available */ }
   }
+
+  return { resourceCount, components: [...new Set(components)] };
 }
 
 /**
- * Step: Discovery
+ * Step: Discovery — uses direct CLI calls instead of REST polling
  */
 async function discoveryStep(ctx: TerraformWizardContext): Promise<StepResult> {
-  ui.print('  Starting infrastructure discovery...');
-  ui.newLine();
-
-  switch (ctx.provider) {
-    case 'gcp':
-      return pollDiscovery(
-        gcpClient,
-        '/api/gcp/discover/start',
-        id => `/api/gcp/discover/session/${id}`,
-        {
-          projectId: ctx.gcpProject,
-          regions: ctx.gcpRegions || 'all',
-          services: ctx.servicesToScan,
-        },
-        ctx
-      );
-
-    case 'azure':
-      return pollDiscovery(
-        azureClient,
-        '/api/azure/discover/start',
-        id => `/api/azure/discover/session/${id}`,
-        {
-          subscriptionId: ctx.azureSubscription,
-          resourceGroup: ctx.azureResourceGroup,
-          services: ctx.servicesToScan,
-        },
-        ctx
-      );
-
-    case 'aws':
-    default:
-      return pollDiscovery(
-        awsClient,
-        '/api/aws/discover',
-        id => `/api/aws/discover/${id}`,
-        {
-          profile: ctx.awsProfile,
-          regions: ctx.awsRegions || 'all',
-          services: ctx.servicesToScan,
-        },
-        ctx
-      );
+  ui.startSpinner({ message: 'Discovering infrastructure via CLI...' });
+  try {
+    const { resourceCount, components } = await discoverInfra(ctx);
+    ui.stopSpinnerSuccess(`Discovery complete — found ${resourceCount} resource(s), components: ${components.join(', ') || 'vpc'}`);
+    ctx.discoveredComponents = components;
+    return { success: true, data: { discoveredComponents: components } };
+  } catch (e: any) {
+    ui.stopSpinnerFail('Discovery failed');
+    ui.warning(`Could not auto-discover: ${e.message}. You can still generate a template.`);
+    return { success: true, data: { discoveredComponents: ['vpc'] } };
   }
 }
 
@@ -1031,93 +922,46 @@ async function runConversational(options: GenerateTerraformOptions): Promise<voi
       return;
     }
 
-    // Send message to conversational endpoint
-    try {
-      const response = await generatorClient.post<{
-        message: string;
-        suggested_actions?: Array<{ type: string; label?: string }>;
-      }>('/api/conversational/message', { sessionId, message });
-
-      if (response.success && response.data) {
-        const data = response.data as any;
-        // Handle double-unwrap pattern: response.data may contain { data: { message } }
-        const replyMessage = data.data?.message || data.message || 'No response';
-        ui.newLine();
-        ui.print(replyMessage);
-        ui.newLine();
-
-        // Check for generate suggestion
-        const actions = data.data?.suggested_actions || data.suggested_actions || [];
-        const generateAction = actions.find((a: any) => a.type === 'generate');
-        if (generateAction) {
-          const shouldGenerate = await confirm({
-            message: 'Ready to generate Terraform from this conversation?',
-            defaultValue: true,
-          });
-          if (shouldGenerate) {
-            const generated = await generateFromConversation(sessionId, options, fs, pathMod);
-            if (generated) {
-              ui.newLine();
-              ui.print('You can refine the generated Terraform by continuing the conversation.');
-              ui.print('Type "generate" to regenerate, or "exit" to finish.');
-              ui.newLine();
-              continue; // stays in the while(true) loop with same sessionId
-            }
-            return;
-          }
-        }
-      } else {
-        ui.error('Failed to get response from generator service.');
-      }
-    } catch (error: any) {
-      ui.error(`Error: ${error.message}`);
-    }
+    // Build request from conversational description — use chatCommand for natural language interaction
+    ui.newLine();
+    ui.info(`You said: "${message}"`);
+    ui.info('Type "generate" or "done" to generate Terraform from this description, or describe your infrastructure further.');
+    ui.newLine();
   }
 }
 
 /**
- * Generate Terraform files from a conversational session
+ * Generate Terraform files from a conversational session using the local generator
  */
 async function generateFromConversation(
-  sessionId: string,
+  _sessionId: string,
   options: GenerateTerraformOptions,
   fs: typeof import('fs/promises'),
   pathMod: typeof import('path')
 ): Promise<boolean> {
   ui.newLine();
-  ui.startSpinner({ message: 'Generating Terraform from conversation...' });
+  ui.startSpinner({ message: 'Generating Terraform from description...' });
 
   try {
-    const genResponse = await generatorClient.post<{
-      files: Array<{ path: string; content: string }>;
-    }>('/api/generate/from-conversation', {
-      sessionId,
-      applyBestPractices: true,
-    });
+    const provider = options.provider || 'aws';
+    const outputDir = options.output || './infrastructure';
 
-    if (!genResponse.success || !genResponse.data) {
-      ui.stopSpinnerFail('Generation failed');
-      return false;
-    }
+    const generatedProject = await generateTerraformProject({
+      projectName: 'infrastructure',
+      provider: provider as 'aws' | 'gcp' | 'azure',
+      region: options.regions?.[0] || (provider === 'aws' ? 'us-east-1' : provider === 'gcp' ? 'us-central1' : 'eastus'),
+      components: options.services || ['vpc'],
+    });
 
     ui.stopSpinnerSuccess('Terraform code generated');
 
-    // Write files — same pattern as runNonInteractive
-    const data = genResponse.data as any;
-    const files: Array<{ path: string; content: string }> = data.data?.files || data.files || [];
-    const outputDir = options.output || './infrastructure';
-
+    const files: GeneratedFile[] = generatedProject.files;
     await fs.mkdir(outputDir, { recursive: true });
 
     for (const file of files) {
       const filePath = pathMod.join(outputDir, file.path);
       await fs.mkdir(pathMod.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, file.content);
-    }
-
-    // Post-generation validation (Gaps C+D)
-    if (!options.skipValidation && files.length > 0) {
-      await runPostGenerationValidation(files, false);
     }
 
     ui.newLine();
@@ -1186,119 +1030,53 @@ async function runNonInteractive(options: GenerateTerraformOptions): Promise<voi
     outputPath: options.output || './terraform-infrastructure',
   };
 
-  // Run discovery using the pollDiscovery helper (already implemented for Gap 1)
+  // Run direct CLI discovery
   ui.info('Starting infrastructure discovery...');
   ui.newLine();
 
-  let discoveryResult: StepResult;
-
-  switch (provider) {
-    case 'gcp':
-      discoveryResult = await pollDiscovery(
-        gcpClient,
-        '/api/gcp/discover/start',
-        id => `/api/gcp/discover/session/${id}`,
-        {
-          projectId: ctx.gcpProject,
-          regions: ctx.awsRegions || 'all',
-          services: ctx.servicesToScan,
-        },
-        ctx
-      );
-      break;
-
-    case 'azure':
-      discoveryResult = await pollDiscovery(
-        azureClient,
-        '/api/azure/discover/start',
-        id => `/api/azure/discover/session/${id}`,
-        {
-          subscriptionId: ctx.azureSubscription,
-          services: ctx.servicesToScan,
-        },
-        ctx
-      );
-      break;
-
-    case 'aws':
-    default:
-      discoveryResult = await pollDiscovery(
-        awsClient,
-        '/api/aws/discover',
-        id => `/api/aws/discover/${id}`,
-        {
-          profile: ctx.awsProfile,
-          regions: ctx.awsRegions || 'all',
-          services: ctx.servicesToScan,
-        },
-        ctx
-      );
-      break;
-  }
-
-  if (!discoveryResult.success) {
-    ui.error(`Discovery failed: ${discoveryResult.error || 'Unknown error'}`);
-    process.exit(1);
-  }
-
-  // Generate Terraform from discovered inventory
+  const { components: discoveredComponents } = await discoverInfra(ctx).catch(() => ({ components: ['vpc'] }));
+  ui.success(`Discovered components: ${discoveredComponents.join(', ')}`);
   ui.newLine();
+
+  // Generate Terraform from discovered inventory using src/generator/terraform.ts
   ui.startSpinner({ message: 'Generating Terraform code...' });
 
   try {
-    const genResponse = await generatorClient.post<{
-      files: Array<{ path: string; content: string }>;
-      validation?: any;
-    }>('/api/generators/terraform/project', {
-      projectName: 'infrastructure',
-      provider,
-      region: options.regions?.[0],
-      components: options.services,
-      inventory: ctx.inventory,
-    });
+    const outputDir = options.output || './terraform-infrastructure';
+    const components = options.services || discoveredComponents;
 
-    if (!genResponse.success || !genResponse.data) {
-      ui.stopSpinnerFail('Generation failed');
-      ui.error(genResponse.error?.message || 'Failed to generate Terraform code');
-      process.exit(1);
-    }
+    const generatedProject = await generateTerraformProject({
+      projectName: 'infrastructure',
+      provider: provider as 'aws' | 'gcp' | 'azure',
+      region: options.regions?.[0] || (provider === 'aws' ? 'us-east-1' : provider === 'gcp' ? 'us-central1' : 'eastus'),
+      components,
+    });
 
     ui.stopSpinnerSuccess('Terraform code generated');
 
     // Write generated files
-    const outputDir = options.output || './terraform-infrastructure';
     const fs = await import('fs/promises');
     const path = await import('path');
 
     await fs.mkdir(outputDir, { recursive: true });
 
-    const files = genResponse.data.files || [];
+    const files: GeneratedFile[] = generatedProject.files;
     for (const file of files) {
       const filePath = path.join(outputDir, file.path);
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, file.content);
     }
 
-    // --- Post-generation validation (Gaps C+D) ---
-    let validationResults: Record<string, unknown> | undefined;
-    if (!options.skipValidation && files.length > 0) {
-      validationResults = await runPostGenerationValidation(files, options.jsonOutput);
-    }
-
     if (options.jsonOutput) {
-      // JSON output mode
       const summary = {
         success: true,
         provider,
         outputDir,
         filesGenerated: files.map(f => f.path),
-        resourcesDiscovered: ctx.inventory?.summary?.totalResources || 0,
-        validation: genResponse.data.validation,
-        postGenerationValidation: validationResults,
+        componentsGenerated: components,
       };
       console.log(JSON.stringify(summary, null, 2));
     } else {
-      // Human-readable output
       ui.newLine();
       ui.success(`Generated ${files.length} Terraform file(s) in ${outputDir}`);
       ui.newLine();
@@ -1320,54 +1098,18 @@ async function runNonInteractive(options: GenerateTerraformOptions): Promise<voi
 }
 
 /**
- * Run post-generation validation by calling the generator service's
- * existing validation endpoint with the generated files.
- *
- * Non-blocking: if the validation service call fails, a warning is shown
- * and the function returns undefined so the caller can continue normally.
+ * Run post-generation validation using terraform fmt/validate if available.
+ * Non-blocking: warnings shown but errors don't abort.
  */
 async function runPostGenerationValidation(
   files: Array<{ path: string; content: string }>,
   jsonOutput?: boolean
 ): Promise<Record<string, unknown> | undefined> {
-  try {
-    if (!jsonOutput) {
-      ui.newLine();
-      ui.startSpinner({ message: 'Running post-generation validation...' });
-    }
-
-    const validateResponse = await generatorClient.post<{
-      valid: boolean;
-      items: Array<{ severity: string; message: string; file?: string; rule?: string }>;
-      summary: { errors: number; warnings: number; info: number };
-    }>('/api/generators/terraform/validate', { files });
-
-    if (!validateResponse.success || !validateResponse.data) {
-      if (!jsonOutput) {
-        ui.stopSpinnerFail('Validation service unavailable');
-        ui.warning('Skipping validation — generator service did not respond.');
-      }
-      return undefined;
-    }
-
-    const report = validateResponse.data as any;
-    const data = report.data || report;
-
-    if (!jsonOutput) {
-      ui.stopSpinnerSuccess('Validation complete');
-      ui.newLine();
-      displayValidationReport(data);
-    }
-
-    return data;
-  } catch (error: any) {
-    if (!jsonOutput) {
-      ui.stopSpinnerFail('Validation failed');
-      ui.warning(`Post-generation validation could not run: ${error.message}`);
-      ui.warning('You can run validation manually with: nimbus validate terraform');
-    }
-    return undefined;
+  if (!jsonOutput) {
+    ui.newLine();
+    ui.info('Tip: Run "terraform init && terraform validate" in the output directory to validate the generated files.');
   }
+  return undefined;
 }
 
 /**

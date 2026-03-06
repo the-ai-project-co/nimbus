@@ -333,6 +333,55 @@ describe('generateNimbusMd()', () => {
 
     expect(md).toContain('**Package Manager:** bun');
   });
+
+  test('G5: includes Guardrails section when infra is detected', () => {
+    const md = generateNimbusMd(
+      {
+        projectName: 'infra-app',
+        projectType: 'typescript',
+        infraTypes: ['terraform', 'kubernetes'],
+        cloudProviders: ['aws'],
+        hasGit: true,
+      },
+      '/tmp/infra-app'
+    );
+
+    expect(md).toContain('## Guardrails');
+    expect(md).toContain('Never run `terraform destroy`');
+    expect(md).toContain('Protected Kubernetes namespaces');
+    expect(md).toContain('Always show terraform plan before apply');
+  });
+
+  test('G5: omits Guardrails section when no infra detected', () => {
+    const md = generateNimbusMd(
+      {
+        projectName: 'pure-code',
+        projectType: 'typescript',
+        infraTypes: [],
+        cloudProviders: [],
+        hasGit: false,
+      },
+      '/tmp/pure-code'
+    );
+
+    expect(md).not.toContain('## Guardrails');
+  });
+
+  test('G5: always includes Forbidden placeholder section', () => {
+    const md = generateNimbusMd(
+      {
+        projectName: 'any-app',
+        projectType: 'typescript',
+        infraTypes: [],
+        cloudProviders: [],
+        hasGit: false,
+      },
+      '/tmp/any-app'
+    );
+
+    expect(md).toContain('## Forbidden');
+    expect(md).toContain('<!-- List operations Nimbus must never perform');
+  });
 });
 
 // ============================================================================
@@ -386,13 +435,15 @@ describe('runInit()', () => {
     expect(content).toContain('type: typescript');
   });
 
-  test('throws if NIMBUS.md exists without --force', async () => {
+  test('skips if NIMBUS.md exists without --force (quiet mode)', async () => {
     // First init
     await runInit({ cwd: tmpDir, quiet: true });
     expect(fs.existsSync(path.join(tmpDir, 'NIMBUS.md'))).toBe(true);
 
-    // Second init should throw
-    await expect(runInit({ cwd: tmpDir, quiet: true })).rejects.toThrow('NIMBUS.md already exists');
+    // Second init in quiet mode should skip without throwing
+    const result = await runInit({ cwd: tmpDir, quiet: true });
+    expect(result.filesCreated).toHaveLength(0);
+    expect(result.nimbusmdPath).toBe(path.join(tmpDir, 'NIMBUS.md'));
   });
 
   test('overwrites with --force', async () => {

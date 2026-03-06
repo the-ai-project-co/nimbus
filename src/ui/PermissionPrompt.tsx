@@ -41,6 +41,14 @@ const RISK_COLORS: Record<RiskLevel, string> = {
   critical: 'magenta',
 };
 
+/** H4: Human-readable descriptions of each risk tier. */
+const RISK_DESCRIPTIONS: Record<RiskLevel, string> = {
+  low:      'Read-only — safe to auto-approve',
+  medium:   'Modifies local files — review before approving',
+  high:     'System or cloud operation — approve with caution',
+  critical: 'Destructive or irreversible — explicit confirmation required',
+};
+
 /**
  * Format tool input into a list of truncated key=value lines.
  */
@@ -112,11 +120,15 @@ export function PermissionPrompt({
       </Box>
 
       {/* Risk level */}
-      <Box marginBottom={1}>
+      <Box>
         <Text dimColor>Risk: </Text>
         <Text bold color={riskColor}>
           {riskLevel.toUpperCase()}
         </Text>
+      </Box>
+      {/* H4: Risk description */}
+      <Box marginBottom={1}>
+        <Text dimColor>{RISK_DESCRIPTIONS[riskLevel]}</Text>
       </Box>
 
       {/* Parameters */}
@@ -132,19 +144,19 @@ export function PermissionPrompt({
         <Text color="green" bold inverse={pressed === 'a'}>
           [a]
         </Text>
-        <Text> Approve </Text>
+        <Text>=approve  </Text>
         <Text color="red" bold inverse={pressed === 'r'}>
           [r]
         </Text>
-        <Text> Reject </Text>
+        <Text>=reject  </Text>
         <Text color="cyan" bold inverse={pressed === 'A'}>
           [A]
         </Text>
-        <Text> Approve all </Text>
+        <Text>=approve-all-session  </Text>
         <Text color="blue" bold inverse={pressed === 's'}>
           [s]
         </Text>
-        <Text> Session</Text>
+        <Text>=approve-this-tool-session</Text>
       </Box>
     </Box>
   );

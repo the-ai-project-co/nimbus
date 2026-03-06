@@ -50,6 +50,10 @@ export interface ServeOptions {
   host?: string;
   /** HTTP Basic Auth credentials in "user:pass" format. */
   auth?: string;
+  /** Run server as a background daemon (M1). */
+  background?: boolean;
+  /** Stop a running background server (M1). */
+  stop?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +202,69 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
   const port = options.port ?? 4200;
   const host = options.host ?? 'localhost';
 
+  // M1: stop a running background server
+  if (options.stop) {
+    const { join } = await import('node:path');
+    const { homedir } = await import('node:os');
+    const { readFileSync, unlinkSync, existsSync } = await import('node:fs');
+    const pidFile = join(homedir(), '.nimbus', 'serve.pid');
+    if (!existsSync(pidFile)) {
+      console.log('No background nimbus serve process found.');
+      return;
+    }
+    const pid = parseInt(readFileSync(pidFile, 'utf-8').trim(), 10);
+    try {
+      process.kill(pid, 'SIGTERM');
+      unlinkSync(pidFile);
+      console.log(`Stopped nimbus serve (PID: ${pid})`);
+    } catch (e: any) {
+      console.error(`Failed to stop process ${pid}: ${e.message}`);
+      unlinkSync(pidFile);
+    }
+    return;
+  }
+
+  // M1: daemonize — spawn detached child and exit
+  if (options.background) {
+    const { spawn } = await import('node:child_process');
+    const { join } = await import('node:path');
+    const { homedir } = await import('node:os');
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    const nimbusDir = join(homedir(), '.nimbus');
+    mkdirSync(nimbusDir, { recursive: true });
+    const childArgs = [process.argv[1], 'serve', '--port', String(port)];
+    if (options.host) childArgs.push('--host', options.host);
+    if (options.auth) childArgs.push('--auth', options.auth);
+    const child = spawn(process.execPath, childArgs, {
+      detached: true,
+      stdio: 'ignore',
+      env: process.env,
+    });
+    child.unref();
+    writeFileSync(join(nimbusDir, 'serve.pid'), String(child.pid), 'utf-8');
+    console.log(`nimbus serve started in background (PID: ${child.pid})`);
+    console.log(`Stop with: nimbus serve stop`);
+    return;
+  }
+
+  // G19: Security guard — non-localhost binding requires explicit auth
+  const isLocalhost = !host || host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  if (!isLocalhost && !options.auth) {
+    throw new Error(
+      `Cannot bind nimbus serve to ${host} without authentication.\n` +
+      'Use --auth user:pass to enable HTTP Basic Auth, or bind to localhost only.'
+    );
+  }
+
+  // G19: Auto-generate token for localhost when no auth provided
+  let autoToken: string | undefined;
+  if (isLocalhost && !options.auth) {
+    const { randomBytes } = await import('node:crypto');
+    autoToken = randomBytes(16).toString('hex');
+    process.stderr.write(`\nNimbus API token: ${autoToken}\n`);
+    process.stderr.write('Pass as: Authorization: Bearer <token>\n\n');
+  }
+
   // ------------------------------------------------------------------
   // Initialize core systems
   // ------------------------------------------------------------------
@@ -220,7 +287,7 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
     })
   );
 
-  // Optional HTTP Basic Auth
+  // HTTP Basic Auth (explicit or auto-generated token)
   if (options.auth) {
     const colonIdx = options.auth.indexOf(':');
     if (colonIdx > 0) {
@@ -228,6 +295,16 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
       const pass = options.auth.slice(colonIdx + 1);
       app.onBeforeHandle(createAuthMiddleware({ username: user, password: pass }));
     }
+  } else if (autoToken) {
+    // G19: Bearer token auth for localhost when no explicit auth provided
+    const capturedToken = autoToken;
+    app.onBeforeHandle((ctx: any) => {
+      const authHeader = (ctx.request as Request).headers.get('Authorization') ?? '';
+      if (authHeader !== `Bearer ${capturedToken}`) {
+        ctx.set.status = 401;
+        return { error: 'Unauthorized. Pass Authorization: Bearer <token>' };
+      }
+    });
   }
 
   // ------------------------------------------------------------------

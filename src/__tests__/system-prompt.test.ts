@@ -9,7 +9,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { buildSystemPrompt, loadNimbusMd } from '../agent/system-prompt';
+import { buildSystemPrompt, loadNimbusMd, extractForbiddenRules } from '../agent/system-prompt';
 import type { ToolDefinition } from '../tools/schemas/types';
 import { z } from 'zod';
 
@@ -51,7 +51,9 @@ describe('buildSystemPrompt', () => {
   test('includes base identity', () => {
     const prompt = buildSystemPrompt({ mode: 'build', tools: [] });
     expect(prompt).toContain('You are Nimbus');
-    expect(prompt).toContain('AI-powered DevOps');
+    // C2: new DevOps-operator-first framing
+    expect(prompt).toContain('autonomous DevOps operator');
+    expect(prompt).toContain('RUN commands and query live state');
   });
 
   test('includes mode-specific instructions for "plan"', () => {
@@ -165,5 +167,82 @@ describe('loadNimbusMd', () => {
 
     const result = loadNimbusMd(tmpDir);
     expect(result).toBe('root-level');
+  });
+});
+
+// ===========================================================================
+// G14: extractForbiddenRules
+// ===========================================================================
+
+describe('extractForbiddenRules (G14)', () => {
+  test('extracts bullet items from ## Forbidden section', () => {
+    const content = `
+## Safety Rules
+
+- Do not break prod
+
+## Forbidden
+
+- Never destroy the production database
+- Never delete the S3 bucket
+- Never run rm -rf /
+
+## Custom Instructions
+
+Some other stuff
+`;
+    const rules = extractForbiddenRules(content);
+    expect(rules).toHaveLength(3);
+    expect(rules[0]).toBe('Never destroy the production database');
+    expect(rules[1]).toBe('Never delete the S3 bucket');
+    expect(rules[2]).toBe('Never run rm -rf /');
+  });
+
+  test('returns empty array when no Forbidden section', () => {
+    const content = '## Safety Rules\n\n- Be careful\n';
+    expect(extractForbiddenRules(content)).toEqual([]);
+  });
+
+  test('ignores HTML comment lines', () => {
+    const content = `
+## Forbidden
+
+<!-- Example: - Never destroy the database -->
+- Never touch prod
+`;
+    const rules = extractForbiddenRules(content);
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toBe('Never touch prod');
+  });
+
+  test('G14: prompt includes HARD CONSTRAINTS block when Forbidden section has entries', () => {
+    const nimbusContent = `
+## Forbidden
+
+- Never destroy the production database
+- Never run terraform destroy in prod
+`;
+    const prompt = buildSystemPrompt({
+      mode: 'build',
+      tools: [],
+      nimbusInstructions: nimbusContent,
+    });
+    expect(prompt).toContain('HARD CONSTRAINTS');
+    expect(prompt).toContain('Never destroy the production database');
+    expect(prompt).toContain('STRICTLY FORBIDDEN');
+  });
+
+  test('G14: prompt does not include HARD CONSTRAINTS when Forbidden section is empty/comments', () => {
+    const nimbusContent = `
+## Forbidden
+
+<!-- List operations Nimbus must never perform in this project -->
+`;
+    const prompt = buildSystemPrompt({
+      mode: 'build',
+      tools: [],
+      nimbusInstructions: nimbusContent,
+    });
+    expect(prompt).not.toContain('HARD CONSTRAINTS');
   });
 });

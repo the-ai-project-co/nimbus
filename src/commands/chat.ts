@@ -30,6 +30,10 @@ export interface ChatOptions {
   ui?: 'ink' | 'readline';
   /** Resume the most recent chat session */
   continue?: boolean;
+  /** Pre-loaded initial prompt sent as the first user message automatically */
+  initialPrompt?: string;
+  /** Initial agent mode */
+  mode?: 'plan' | 'build' | 'deploy';
 }
 
 /**
@@ -108,6 +112,8 @@ export async function chatCommand(options: ChatOptions = {}): Promise<void> {
         systemPrompt: options.systemPrompt,
         showTokenCount: options.showTokenCount,
         resumeSessionId,
+        initialPrompt: options.initialPrompt,
+        mode: options.mode as any,
       });
       return;
     } catch {
@@ -282,11 +288,11 @@ function getPersonaSystemPrompt(
   verbosity: 'minimal' | 'normal' | 'detailed'
 ): string {
   // Base identity shared across all personas
-  const baseIdentity = `You are Nimbus, an AI-powered cloud engineering assistant. You help users with:
+  const baseIdentity = `You are Nimbus, an AI-powered DevOps engineering agent. You help users with:
 
-- Infrastructure as Code (Terraform, CloudFormation, Pulumi)
-- Kubernetes operations and configurations
+- Infrastructure as Code (Terraform, Kubernetes, Helm)
 - Cloud provider operations (AWS, GCP, Azure)
+- Kubernetes operations and configurations
 - DevOps best practices and CI/CD pipelines
 - Troubleshooting infrastructure issues`;
 

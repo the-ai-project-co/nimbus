@@ -44,6 +44,11 @@ export interface InitOptions {
   fromExisting?: string;
   /** Maximum directory depth for project scanning */
   maxDepth?: number;
+  /**
+   * Merge mode (M2): append ## Local Overrides to existing NIMBUS.md
+   * instead of overwriting it.
+   */
+  merge?: boolean;
 }
 
 const NIMBUS_DIR = '.nimbus';

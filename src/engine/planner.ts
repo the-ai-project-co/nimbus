@@ -115,6 +115,17 @@ const VALID_CATEGORIES = new Set(['security', 'cost', 'availability', 'performan
 // Planner
 // ==========================================
 
+/** Detect the primary domain of a task description. */
+function detectDomain(task: AgentTask): 'terraform' | 'kubernetes' | 'helm' | 'generic' {
+  const desc = (task.type + ' ' + JSON.stringify(task.context)).toLowerCase();
+  if (desc.includes('helm') || desc.includes('chart') || desc.includes('release')) return 'helm';
+  if (desc.includes('kubectl') || desc.includes('kubernetes') || desc.includes('pod') || desc.includes('deployment') || desc.includes('k8s')) return 'kubernetes';
+  if (desc.includes('terraform') || desc.includes('.tf') || desc.includes('infrastructure') || desc.includes('provider')) return 'terraform';
+  // Default to terraform for infrastructure tasks
+  if (task.type === 'deploy' || task.type === 'generate') return 'terraform';
+  return 'generic';
+}
+
 export class Planner {
   private router: LLMRouter;
 
@@ -230,6 +241,16 @@ export class Planner {
     const steps: PlanStep[] = [];
     let order = 1;
 
+    // Domain-specific step generation
+    const domain = detectDomain(task);
+    if (domain === 'terraform') {
+      return this.generateTerraformSteps(task);
+    } else if (domain === 'kubernetes') {
+      return this.generateKubernetesSteps(task);
+    } else if (domain === 'helm') {
+      return this.generateHelmSteps(task);
+    }
+
     // Step 1: Validate requirements
     steps.push({
       id: `step_${order++}`,
@@ -325,7 +346,7 @@ export class Planner {
         },
         status: 'pending',
         depends_on: [steps[steps.length - 1].id],
-        rollback_action: 'destroy_deployment',
+        rollback_action: `terraform_destroy:${task.context.environment ?? '.'}` as string,
         rollback_parameters: {
           provider: task.context.provider,
           environment: task.context.environment,
@@ -363,6 +384,52 @@ export class Planner {
       depends_on: [steps[steps.length - 1].id],
     });
 
+    return steps;
+  }
+
+  private generateTerraformSteps(task: AgentTask): PlanStep[] {
+    const steps: PlanStep[] = [];
+    let order = 1;
+    const env = task.context.environment ?? '.';
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'terraform init — initialize providers and modules', action: 'terraform_init', parameters: { workdir: env }, status: 'pending' });
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'terraform validate — check configuration syntax', action: 'terraform_validate', parameters: { workdir: env }, status: 'pending', depends_on: ['step_1'] });
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'terraform plan — preview changes', action: 'terraform_plan', parameters: { workdir: env }, status: 'pending', depends_on: ['step_2'] });
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'Review plan output with human', action: 'review_plan', parameters: { workdir: env }, status: 'pending', depends_on: ['step_3'] });
+    if (task.type === 'deploy') {
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'deploy', description: 'terraform apply — apply approved changes', action: 'terraform_apply', parameters: { workdir: env }, status: 'pending', depends_on: ['step_4'], rollback_action: `terraform_destroy:${env}`, rollback_parameters: { workdir: env } });
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'terraform output — capture outputs', action: 'terraform_output', parameters: { workdir: env }, status: 'pending', depends_on: ['step_5'] });
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'verify', description: 'Verify deployed infrastructure resources', action: 'verify_infra', parameters: { workdir: env }, status: 'pending', depends_on: ['step_6'] });
+    }
+    return steps;
+  }
+
+  private generateKubernetesSteps(task: AgentTask): PlanStep[] {
+    const steps: PlanStep[] = [];
+    let order = 1;
+    const env = task.context.environment ?? '.';
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'Validate Kubernetes manifests (dry-run client)', action: 'kubectl_dry_run', parameters: { workdir: env }, status: 'pending' });
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'kubectl diff — show what would change', action: 'kubectl_diff', parameters: { workdir: env }, status: 'pending', depends_on: ['step_1'] });
+    if (task.type === 'deploy') {
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'deploy', description: 'kubectl apply — deploy manifests', action: 'kubectl_apply', parameters: { workdir: env }, status: 'pending', depends_on: ['step_2'], rollback_action: 'kubectl_rollout_undo:deployment/app:default' });
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'verify', description: 'kubectl rollout status — wait for rollout', action: 'kubectl_rollout_status', parameters: { workdir: env }, status: 'pending', depends_on: ['step_3'] });
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'verify', description: 'Verify all pods are running', action: 'verify_pods', parameters: { workdir: env }, status: 'pending', depends_on: ['step_4'] });
+    }
+    return steps;
+  }
+
+  private generateHelmSteps(task: AgentTask): PlanStep[] {
+    const steps: PlanStep[] = [];
+    let order = 1;
+    const release = task.context.components[0] ?? 'app';
+    const ns = task.context.environment ?? 'default';
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'helm lint — validate chart templates', action: 'helm_lint', parameters: { release, namespace: ns }, status: 'pending' });
+    steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'helm template — render and preview manifests', action: 'helm_template', parameters: { release, namespace: ns }, status: 'pending', depends_on: ['step_1'] });
+    if (task.type === 'deploy') {
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'validate', description: 'helm diff upgrade — show what would change', action: 'helm_diff', parameters: { release, namespace: ns }, status: 'pending', depends_on: ['step_2'] });
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'deploy', description: 'helm upgrade --install --atomic — deploy release', action: 'helm_upgrade', parameters: { release, namespace: ns }, status: 'pending', depends_on: ['step_3'], rollback_action: `helm_rollback:${release}:0:${ns}` });
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'verify', description: 'helm test — run chart tests', action: 'helm_test', parameters: { release, namespace: ns }, status: 'pending', depends_on: ['step_4'] });
+      steps.push({ id: `step_${order++}`, order: steps.length + 1, type: 'verify', description: 'Verify release is deployed and healthy', action: 'verify_release', parameters: { release, namespace: ns }, status: 'pending', depends_on: ['step_5'] });
+    }
     return steps;
   }
 

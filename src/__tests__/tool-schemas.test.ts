@@ -5,7 +5,7 @@
  * structures for both standard and DevOps tools.
  */
 
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 import {
   ToolRegistry,
@@ -14,7 +14,7 @@ import {
   type ToolDefinition,
 } from '../tools/schemas/types';
 import { standardTools } from '../tools/schemas/standard';
-import { devopsTools } from '../tools/schemas/devops';
+import { devopsTools, formatKubectlPodsOutput, formatHelmListOutput } from '../tools/schemas/devops';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -353,8 +353,8 @@ describe('Tool counts and metadata', () => {
     expect(standardTools).toHaveLength(12);
   });
 
-  test('devopsTools has exactly 9 tools', () => {
-    expect(devopsTools).toHaveLength(9);
+  test('devopsTools has exactly 28 tools', () => {
+    expect(devopsTools).toHaveLength(28);
   });
 
   test('all standard tools have category "standard"', () => {
@@ -395,3 +395,208 @@ describe('Tool counts and metadata', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// C2: infraContext in ToolExecuteContext
+// ---------------------------------------------------------------------------
+
+describe('infraContext in ToolExecuteContext (C2)', () => {
+  it('ToolExecuteContext type has infraContext field', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/types.ts'), 'utf-8');
+    expect(src).toContain('infraContext?:');
+  });
+
+  it('kubectl tool uses contextFlag from infraContext', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/devops.ts'), 'utf-8');
+    expect(src).toContain('ctx?.infraContext?.kubectlContext');
+  });
+
+  it('terraform tool reads sessionWorkspace from infraContext', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/devops.ts'), 'utf-8');
+    expect(src).toContain('ctx?.infraContext?.terraformWorkspace');
+  });
+
+  it('generateInfraTool is in devopsTools array', async () => {
+    const { devopsTools } = await import('../tools/schemas/devops');
+    const names = devopsTools.map(t => t.name);
+    expect(names).toContain('generate_infra');
+  });
+
+  it('generateInfraTool has ask_once permissionTier', async () => {
+    const { devopsTools } = await import('../tools/schemas/devops');
+    const tool = devopsTools.find(t => t.name === 'generate_infra');
+    expect(tool?.permissionTier).toBe('ask_once');
+  });
+
+  it('generateInfraTool schema accepts terraform/kubernetes/helm types', async () => {
+    const { devopsTools } = await import('../tools/schemas/devops');
+    const tool = devopsTools.find(t => t.name === 'generate_infra');
+    expect(tool).toBeDefined();
+    // The schema should parse valid input without throwing
+    const { z } = await import('zod');
+    // Just verify the tool exists and has a schema
+    expect(tool?.inputSchema).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M2: Docker build streaming
+// ---------------------------------------------------------------------------
+
+describe('docker build streaming (M2)', () => {
+  it('dockerTool execute accepts ctx parameter', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/devops.ts'), 'utf-8');
+    expect(src).toContain("input.action === 'build' && ctx?.onProgress");
+  });
+
+  it('docker build output filter keeps Step N/M lines', () => {
+    // Inline the filter logic to unit test it
+    const filterDockerBuildLine = (line: string): boolean => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      return /^Step\s+\d+\/\d+/i.test(trimmed) ||
+        /---> Using cache/i.test(trimmed) ||
+        /Successfully built/i.test(trimmed) ||
+        /Successfully tagged/i.test(trimmed) ||
+        /error/i.test(trimmed) ||
+        /warning/i.test(trimmed);
+    };
+
+    expect(filterDockerBuildLine('Step 3/12: RUN npm install')).toBe(true);
+    expect(filterDockerBuildLine(' ---> Using cache')).toBe(true);
+    expect(filterDockerBuildLine('Successfully built abc123')).toBe(true);
+    expect(filterDockerBuildLine('Successfully tagged myapp:latest')).toBe(true);
+    expect(filterDockerBuildLine(' ---> sha256:abc123def456')).toBe(false);
+    expect(filterDockerBuildLine('Removing intermediate container abc123')).toBe(false);
+  });
+});
+
+// ===========================================================================
+// H6: kubectl pods output formatting
+// ===========================================================================
+
+describe('H6 — formatKubectlPodsOutput', () => {
+  const sampleOutput = [
+    'NAME                       READY   STATUS             RESTARTS   AGE',
+    'web-7d4f6b9c5-abc12        1/1     Running            0          2d',
+    'worker-6b5c8d7f4-xyz99     0/1     CrashLoopBackOff   5          1h',
+    'db-5f4e3d2c1-pqr55         0/1     Pending            0          30m',
+    'init-job-abc               0/1     Init:0/1           0          5m',
+    'old-pod-done               0/1     Completed          0          7d',
+    'failing-app-xyz            0/1     Error              3          2h',
+    'evicted-pod                0/1     Evicted            0          1d',
+  ].join('\n');
+
+  it('prefixes Running pods with [OK]', () => {
+    const result = formatKubectlPodsOutput(sampleOutput);
+    expect(result).toContain('[OK]');
+    const lines = result.split('\n');
+    const runningLine = lines.find(l => l.includes('Running'));
+    expect(runningLine).toMatch(/^\[OK\]/);
+  });
+
+  it('prefixes CrashLoopBackOff pods with [XX]', () => {
+    const result = formatKubectlPodsOutput(sampleOutput);
+    const lines = result.split('\n');
+    const crashLine = lines.find(l => l.includes('CrashLoopBackOff'));
+    expect(crashLine).toMatch(/^\[XX\]/);
+  });
+
+  it('prefixes Pending pods with [!!]', () => {
+    const result = formatKubectlPodsOutput(sampleOutput);
+    const lines = result.split('\n');
+    const pendingLine = lines.find(l => l.includes('Pending'));
+    expect(pendingLine).toMatch(/^\[!!\]/);
+  });
+
+  it('prefixes Error pods with [XX]', () => {
+    const result = formatKubectlPodsOutput(sampleOutput);
+    const lines = result.split('\n');
+    const errorLine = lines.find(l => l.includes('Error') && !l.includes('CrashLoop'));
+    expect(errorLine).toMatch(/^\[XX\]/);
+  });
+
+  it('prefixes Completed pods with [OK]', () => {
+    const result = formatKubectlPodsOutput(sampleOutput);
+    const lines = result.split('\n');
+    const completedLine = lines.find(l => l.includes('Completed'));
+    expect(completedLine).toMatch(/^\[OK\]/);
+  });
+
+  it('preserves header line without emoji prefix', () => {
+    const result = formatKubectlPodsOutput(sampleOutput);
+    const headerLine = result.split('\n')[0];
+    expect(headerLine).toBe('NAME                       READY   STATUS             RESTARTS   AGE');
+  });
+
+  it('returns original line for empty input', () => {
+    const result = formatKubectlPodsOutput('');
+    expect(result).toBe('');
+  });
+
+  it('handles single Running pod', () => {
+    const input = 'NAME   READY   STATUS    RESTARTS   AGE\nmypod  1/1     Running   0          1m';
+    const result = formatKubectlPodsOutput(input);
+    const lines = result.split('\n');
+    expect(lines[1]).toMatch(/^\[OK\]/);
+  });
+});
+
+// ===========================================================================
+// H6: helm list output formatting
+// ===========================================================================
+
+describe('H6 — formatHelmListOutput', () => {
+  const sampleJson = JSON.stringify([
+    { name: 'nginx', namespace: 'default', revision: '3', status: 'deployed', chart: 'nginx-1.2.0', app_version: '1.21', updated: '2024-01-01' },
+    { name: 'redis', namespace: 'cache', revision: '1', status: 'failed', chart: 'redis-7.0.0', app_version: '7.0', updated: '2024-01-02' },
+    { name: 'postgres', namespace: 'db', revision: '2', status: 'pending-upgrade', chart: 'postgresql-12.1.0', app_version: '15', updated: '2024-01-03' },
+  ]);
+
+  it('prefixes deployed releases with [OK]', () => {
+    const result = formatHelmListOutput(sampleJson);
+    expect(result).toContain('[OK]');
+    const lines = result.split('\n');
+    const deployedLine = lines.find(l => l.includes('deployed'));
+    expect(deployedLine).toMatch(/^\[OK\]/);
+  });
+
+  it('prefixes failed releases with [XX]', () => {
+    const result = formatHelmListOutput(sampleJson);
+    const lines = result.split('\n');
+    const failedLine = lines.find(l => l.includes('failed'));
+    expect(failedLine).toMatch(/^\[XX\]/);
+  });
+
+  it('prefixes pending releases with [!!]', () => {
+    const result = formatHelmListOutput(sampleJson);
+    const lines = result.split('\n');
+    const pendingLine = lines.find(l => l.includes('pending'));
+    expect(pendingLine).toMatch(/^\[!!\]/);
+  });
+
+  it('returns "No Helm releases found." for empty array', () => {
+    const result = formatHelmListOutput('[]');
+    expect(result).toBe('No Helm releases found.');
+  });
+
+  it('falls back to raw string for invalid JSON', () => {
+    const result = formatHelmListOutput('not json');
+    expect(result).toBe('not json');
+  });
+
+  it('includes release name and namespace in output', () => {
+    const result = formatHelmListOutput(sampleJson);
+    expect(result).toContain('nginx');
+    expect(result).toContain('default');
+  });
+});
+

@@ -114,3 +114,6 @@ export function getLanguageForFile(filePath: string): LanguageConfig | undefined
 export function getLanguagePriority(): LanguageConfig[] {
   return [...LANGUAGE_CONFIGS];
 }
+
+/** Language IDs relevant for DevOps workflows. */
+export const DEVOPS_LANGUAGE_IDS = ['terraform', 'yaml', 'docker'] as const;

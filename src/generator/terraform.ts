@@ -1865,3 +1865,11 @@ output "alias_arn" {
     }
   }
 }
+
+/**
+ * Convenience function — instantiate the generator and run it.
+ * Used by generate-terraform.ts and aws-terraform.ts.
+ */
+export async function generateTerraformProject(config: TerraformProjectConfig): Promise<GeneratedProject> {
+  return new TerraformProjectGenerator().generate(config);
+}

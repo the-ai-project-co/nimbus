@@ -4,10 +4,9 @@
  * CLI commands for managing infrastructure templates
  */
 
-import { RestClient } from '../clients';
+import { getDb } from '../state/db';
+import { randomUUID } from 'crypto';
 import { ui } from '../wizard/ui';
-
-const STATE_SERVICE_URL = process.env.STATE_SERVICE_URL || 'http://localhost:3004';
 
 export interface TemplateCommandOptions {
   type?: string;
@@ -24,34 +23,35 @@ async function templateListCommand(options: TemplateCommandOptions = {}): Promis
   ui.startSpinner({ message: 'Fetching templates...' });
 
   try {
-    const client = new RestClient(STATE_SERVICE_URL);
-    const params = options.type ? `?type=${encodeURIComponent(options.type)}` : '';
-    const result = await client.get<any>(`/api/state/templates${params}`);
+    const db = getDb();
+    const templates = db
+      .prepare(
+        'SELECT * FROM templates WHERE (? IS NULL OR type=?) ORDER BY created_at DESC'
+      )
+      .all(options.type ?? null, options.type ?? null) as Array<Record<string, unknown>>;
 
-    if (result.success && result.data) {
-      const templates = Array.isArray(result.data) ? result.data : [];
-      ui.stopSpinnerSuccess(`Found ${templates.length} template(s)`);
+    ui.stopSpinnerSuccess(`Found ${templates.length} template(s)`);
 
-      if (templates.length > 0) {
-        ui.table({
-          columns: [
-            { key: 'id', header: 'ID' },
-            { key: 'name', header: 'Name' },
-            { key: 'type', header: 'Type' },
-            { key: 'createdAt', header: 'Created' },
-          ],
-          data: templates.map((t: any) => ({
-            id: t.id?.substring(0, 8) || '-',
-            name: t.name || '-',
-            type: t.type || '-',
-            createdAt: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '-',
-          })),
-        });
-      } else {
-        ui.info('No templates found. Use "nimbus template save" to create one.');
-      }
+    if (templates.length > 0) {
+      ui.table({
+        columns: [
+          { key: 'id', header: 'ID' },
+          { key: 'name', header: 'Name' },
+          { key: 'type', header: 'Type' },
+          { key: 'createdAt', header: 'Created' },
+        ],
+        data: templates.map((t) => ({
+          id: typeof t.id === 'string' ? t.id.substring(0, 8) : '-',
+          name: typeof t.name === 'string' ? t.name : '-',
+          type: typeof t.type === 'string' ? t.type : '-',
+          createdAt:
+            typeof t.created_at === 'string'
+              ? new Date(t.created_at).toLocaleDateString()
+              : '-',
+        })),
+      });
     } else {
-      ui.stopSpinnerFail('Failed to fetch templates');
+      ui.info('No templates found. Use "nimbus template save" to create one.');
     }
   } catch (error: any) {
     ui.stopSpinnerFail('Error fetching templates');
@@ -70,22 +70,31 @@ async function templateGetCommand(
   ui.startSpinner({ message: 'Fetching template...' });
 
   try {
-    const client = new RestClient(STATE_SERVICE_URL);
-    const result = await client.get<any>(`/api/state/templates/${encodeURIComponent(id)}`);
+    const db = getDb();
+    const template = db
+      .prepare('SELECT * FROM templates WHERE id LIKE ?')
+      .get(id + '%') as Record<string, unknown> | undefined;
 
-    if (result.success && result.data) {
+    if (template) {
       ui.stopSpinnerSuccess('Template retrieved');
-      const template = result.data;
 
       ui.print(`  ${ui.color('Name:', 'cyan')} ${template.name || '-'}`);
       ui.print(`  ${ui.color('Type:', 'cyan')} ${template.type || '-'}`);
       ui.print(`  ${ui.color('ID:', 'cyan')} ${template.id || '-'}`);
-      ui.print(`  ${ui.color('Created:', 'cyan')} ${template.createdAt || '-'}`);
+      ui.print(`  ${ui.color('Created:', 'cyan')} ${template.created_at || '-'}`);
 
-      if (template.variables && Object.keys(template.variables).length > 0) {
+      let variables: Record<string, unknown> = {};
+      try {
+        variables =
+          typeof template.variables === 'string'
+            ? JSON.parse(template.variables)
+            : {};
+      } catch { /* ignore */ }
+
+      if (Object.keys(variables).length > 0) {
         ui.newLine();
         ui.print(`  ${ui.color('Variables:', 'cyan')}`);
-        for (const [key, val] of Object.entries(template.variables)) {
+        for (const [key, val] of Object.entries(variables)) {
           ui.print(`    ${key}: ${JSON.stringify(val)}`);
         }
       }
@@ -134,22 +143,14 @@ async function templateSaveCommand(options: TemplateCommandOptions = {}): Promis
   ui.startSpinner({ message: 'Saving template...' });
 
   try {
-    const client = new RestClient(STATE_SERVICE_URL);
-    const result = await client.post<any>('/api/state/templates', {
-      name: options.name,
-      type: options.type || 'terraform',
-      content,
-      variables: {},
-    });
+    const db = getDb();
+    const id = randomUUID();
+    db.prepare(
+      'INSERT INTO templates (id,name,type,content,variables,created_at,updated_at) VALUES (?,?,?,?,?,datetime("now"),datetime("now"))'
+    ).run(id, options.name, options.type || 'terraform', content, '{}');
 
-    if (result.success) {
-      ui.stopSpinnerSuccess(`Template "${options.name}" saved`);
-      if (result.data?.id) {
-        ui.info(`ID: ${result.data.id}`);
-      }
-    } else {
-      ui.stopSpinnerFail('Failed to save template');
-    }
+    ui.stopSpinnerSuccess(`Template "${options.name}" saved`);
+    ui.info(`ID: ${id}`);
   } catch (error: any) {
     ui.stopSpinnerFail('Error saving template');
     ui.error(error.message);
@@ -164,13 +165,13 @@ async function templateDeleteCommand(id: string): Promise<void> {
   ui.startSpinner({ message: 'Deleting template...' });
 
   try {
-    const client = new RestClient(STATE_SERVICE_URL);
-    const result = await client.delete<any>(`/api/state/templates/${encodeURIComponent(id)}`);
+    const db = getDb();
+    const result = db.prepare('DELETE FROM templates WHERE id=?').run(id);
 
-    if (result.success) {
+    if ((result as any).changes > 0) {
       ui.stopSpinnerSuccess('Template deleted');
     } else {
-      ui.stopSpinnerFail('Failed to delete template');
+      ui.stopSpinnerFail('Template not found');
     }
   } catch (error: any) {
     ui.stopSpinnerFail('Error deleting template');

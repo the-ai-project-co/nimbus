@@ -132,7 +132,7 @@ async function welcomeStep(_ctx: LoginWizardContext): Promise<StepResult> {
   ui.box({
     title: 'Welcome to Nimbus',
     content: [
-      'AI-Powered Cloud Engineering Agent',
+      'AI-Powered DevOps Engineering Agent',
       '',
       "Let's get you set up with authentication",
       'and LLM provider configuration.',
@@ -626,6 +626,91 @@ async function runNonInteractive(options: LoginOptions): Promise<boolean> {
 
   ui.success(`${providerInfo.displayName} configured with model ${model}`);
   return true;
+}
+
+/**
+ * Login to a cloud provider (AWS, GCP, Azure) via their CLI tools.
+ * G8: Guided cloud provider login flow.
+ */
+export async function loginCloudCommand(provider: 'aws' | 'gcp' | 'azure'): Promise<void> {
+  const { execFileSync } = await import('node:child_process');
+  const { existsSync } = await import('node:fs');
+  const { execSync } = await import('node:child_process');
+
+  const checkInPath = (cmd: string): boolean => {
+    try {
+      execSync(`which ${cmd}`, { stdio: ['pipe', 'pipe', 'pipe'] });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (provider === 'aws') {
+    if (!checkInPath('aws')) {
+      ui.error('AWS CLI not found in PATH.');
+      ui.print('Install it:');
+      if (process.platform === 'darwin') {
+        ui.print('  brew install awscli');
+      } else {
+        ui.print('  https://aws.amazon.com/cli/');
+      }
+      return;
+    }
+    ui.info('Starting AWS credential configuration...');
+    ui.newLine();
+    try {
+      execFileSync('aws', ['configure'], { stdio: 'inherit' });
+      ui.newLine();
+      ui.success('AWS credentials configured.');
+      ui.print('For SSO login, run: aws sso login --profile <profile>');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      ui.error(`AWS configure failed: ${msg}`);
+    }
+  } else if (provider === 'gcp') {
+    if (!checkInPath('gcloud')) {
+      ui.error('gcloud CLI not found in PATH.');
+      ui.print('Install it:');
+      if (process.platform === 'darwin') {
+        ui.print('  brew install --cask google-cloud-sdk');
+      } else {
+        ui.print('  https://cloud.google.com/sdk/docs/install');
+      }
+      return;
+    }
+    ui.info('Starting GCP application default credentials login...');
+    ui.newLine();
+    try {
+      execFileSync('gcloud', ['auth', 'application-default', 'login'], { stdio: 'inherit' });
+      ui.newLine();
+      ui.success('GCP credentials configured.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      ui.error(`GCP login failed: ${msg}`);
+    }
+  } else if (provider === 'azure') {
+    if (!checkInPath('az')) {
+      ui.error('Azure CLI not found in PATH.');
+      ui.print('Install it:');
+      if (process.platform === 'darwin') {
+        ui.print('  brew install azure-cli');
+      } else {
+        ui.print('  https://learn.microsoft.com/en-us/cli/azure/install-azure-cli');
+      }
+      return;
+    }
+    ui.info('Starting Azure login...');
+    ui.newLine();
+    try {
+      execFileSync('az', ['login'], { stdio: 'inherit' });
+      ui.newLine();
+      ui.success('Azure credentials configured.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      ui.error(`Azure login failed: ${msg}`);
+    }
+  }
 }
 
 export default loginCommand;

@@ -99,70 +99,75 @@ export function DeployPreview({ preview, onDecide }: DeployPreviewProps) {
   const counts = summaryCounts(preview.changes);
 
   return (
-    <Box flexDirection="column" borderStyle="double" borderColor="yellow" paddingX={1} paddingY={1}>
-      {/* Title */}
-      <Box marginBottom={1}>
-        <Text bold color="yellow">
-          Deploy Preview
-        </Text>
-        <Text dimColor> ({preview.tool})</Text>
-      </Box>
+    <Box flexDirection="column">
+      {/* G20: Tip line before the main content box */}
+      <Text dimColor>Tip: Run /plan to review changes in detail before applying.</Text>
 
-      {/* Summary counts */}
-      <Box marginBottom={1}>
-        <Text color="green">+{counts.add} to add</Text>
-        <Text> </Text>
-        <Text color="yellow">~{counts.change} to change</Text>
-        <Text> </Text>
-        <Text color="red">-{counts.destroy} to destroy</Text>
-      </Box>
-
-      {/* Change table */}
-      <Box flexDirection="column" marginBottom={1}>
-        {preview.changes.map((change, idx) => (
-          <ChangeRow key={idx} change={change} />
-        ))}
-        {preview.changes.length === 0 && <Text dimColor>No resource changes detected.</Text>}
-      </Box>
-
-      {/* Cost impact */}
-      {preview.costImpact && (
-        <Box>
-          <Text dimColor>Cost impact: </Text>
-          <Text>{preview.costImpact}</Text>
+      <Box flexDirection="column" borderStyle="double" borderColor="yellow" paddingX={1} paddingY={1}>
+        {/* Title */}
+        <Box marginBottom={1}>
+          <Text bold color="yellow">
+            Deploy Preview
+          </Text>
+          <Text dimColor> ({preview.tool})</Text>
         </Box>
-      )}
 
-      {/* Blast radius */}
-      {preview.blastRadius && (
-        <Box>
-          <Text dimColor>Blast radius: </Text>
-          <Text color="yellow">{preview.blastRadius}</Text>
+        {/* Summary counts */}
+        <Box marginBottom={1}>
+          <Text color="green">+{counts.add} to add</Text>
+          <Text> </Text>
+          <Text color="yellow">~{counts.change} to change</Text>
+          <Text> </Text>
+          <Text color="red">-{counts.destroy} to destroy</Text>
         </Box>
-      )}
 
-      {/* Affected services */}
-      {preview.affectedServices && preview.affectedServices.length > 0 && (
-        <Box>
-          <Text dimColor>Affected services: </Text>
-          <Text>{preview.affectedServices.join(', ')}</Text>
+        {/* Change table */}
+        <Box flexDirection="column" marginBottom={1}>
+          {preview.changes.map((change, idx) => (
+            <ChangeRow key={idx} change={change} />
+          ))}
+          {preview.changes.length === 0 && <Text dimColor>No resource changes detected.</Text>}
         </Box>
-      )}
 
-      {/* Action keys */}
-      <Box marginTop={1}>
-        <Text color="green" bold>
-          [a]
-        </Text>
-        <Text> Approve </Text>
-        <Text color="red" bold>
-          [r]
-        </Text>
-        <Text> Reject </Text>
-        <Text color="cyan" bold>
-          [p]
-        </Text>
-        <Text> Show full plan</Text>
+        {/* Cost impact */}
+        {preview.costImpact && (
+          <Box>
+            <Text dimColor>Cost impact: </Text>
+            <Text>{preview.costImpact}</Text>
+          </Box>
+        )}
+
+        {/* Blast radius */}
+        {preview.blastRadius && (
+          <Box>
+            <Text dimColor>Blast radius: </Text>
+            <Text color="yellow">{preview.blastRadius}</Text>
+          </Box>
+        )}
+
+        {/* Affected services */}
+        {preview.affectedServices && preview.affectedServices.length > 0 && (
+          <Box>
+            <Text dimColor>Affected services: </Text>
+            <Text>{preview.affectedServices.join(', ')}</Text>
+          </Box>
+        )}
+
+        {/* Action keys */}
+        <Box marginTop={1}>
+          <Text color="green" bold>
+            [a]
+          </Text>
+          <Text> Approve </Text>
+          <Text color="red" bold>
+            [r]
+          </Text>
+          <Text> Reject </Text>
+          <Text color="cyan" bold>
+            [p]
+          </Text>
+          <Text> Show full plan</Text>
+        </Box>
       </Box>
     </Box>
   );

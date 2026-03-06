@@ -55,7 +55,7 @@ export async function historyCommand(options: HistoryOptions = {}): Promise<void
 
   ui.header('Command History');
 
-  // Build query options
+  // Build query options — support tool=<name> and last=<N> filter shorthands (L1)
   const queryOptions: HistoryQueryOptions = {
     limit: options.limit || 20,
     command: options.filter,
@@ -63,6 +63,13 @@ export async function historyCommand(options: HistoryOptions = {}): Promise<void
     until: options.until,
     status: options.status,
   };
+
+  if (options.filter?.startsWith('tool=')) {
+    queryOptions.command = options.filter.slice(5);
+  } else if (options.filter?.startsWith('last=')) {
+    queryOptions.limit = parseInt(options.filter.slice(5), 10) || queryOptions.limit;
+    queryOptions.command = undefined; // clear the default filter pass-through
+  }
 
   const entries = await historyManager.getEntries(queryOptions);
 

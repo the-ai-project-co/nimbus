@@ -167,23 +167,32 @@ export function createPermissionState(): PermissionSessionState {
  * Check whether a tool invocation should be allowed, prompted, or blocked.
  *
  * Evaluation order:
- *   1. User-level tool overrides from {@link PermissionConfig.toolOverrides}.
- *   2. Tool-specific pattern matching for `bash`, `kubectl`, `terraform`,
+ *   1. If {@link autoApprove} is `true`, immediately return `'allow'`
+ *      (used by CI / `--auto-approve` / `--non-interactive` flags).
+ *   2. User-level tool overrides from {@link PermissionConfig.toolOverrides}.
+ *   3. Tool-specific pattern matching for `bash`, `kubectl`, `terraform`,
  *      and `helm` tools.
- *   3. The tool's declared {@link ToolDefinition.permissionTier}.
+ *   4. The tool's declared {@link ToolDefinition.permissionTier}.
  *
  * @param tool         - The tool definition.
  * @param input        - The parsed tool input.
  * @param sessionState - Session-level tracking for ask-once decisions.
  * @param config       - Optional user permission config overrides.
+ * @param autoApprove  - When `true`, bypass all tier logic and return `'allow'`
+ *                       immediately (H2 — CI auto-approve flag).
  * @returns A {@link PermissionDecision} indicating the action to take.
  */
 export function checkPermission(
   tool: ToolDefinition,
   input: unknown,
   sessionState: PermissionSessionState,
-  config?: PermissionConfig
+  config?: PermissionConfig,
+  autoApprove?: boolean  // H2: CI auto-approve flag
 ): PermissionDecision {
+  // H2: When running in CI / --auto-approve / --non-interactive mode,
+  // bypass all tier logic and immediately allow the tool call.
+  if (autoApprove) return 'allow';
+
   // 1. Check user overrides first
   if (config?.toolOverrides?.[tool.name]) {
     const overrideTier = config.toolOverrides[tool.name];
@@ -445,6 +454,44 @@ function checkHelmPermission(
 
   // install, upgrade, uninstall, rollback -> always ask
   return 'ask';
+}
+
+// ---------------------------------------------------------------------------
+// G14: Forbidden rules enforcement
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether a tool invocation matches any forbidden rule from NIMBUS.md.
+ *
+ * Rules are plain-text descriptions. We do a case-insensitive substring match
+ * against the tool name and serialized input. If any rule matches, return
+ * `'block'`; otherwise return `null` (no opinion).
+ *
+ * @param toolName     - The tool being invoked.
+ * @param input        - The parsed tool input.
+ * @param forbiddenRules - Array of rule strings extracted from `## Forbidden`.
+ * @returns `'block'` if forbidden, `null` otherwise.
+ */
+export function checkForbiddenPatterns(
+  toolName: string,
+  input: unknown,
+  forbiddenRules: readonly string[]
+): 'block' | null {
+  if (forbiddenRules.length === 0) return null;
+
+  const inputStr = JSON.stringify(input ?? {}).toLowerCase();
+  const toolLower = toolName.toLowerCase();
+
+  for (const rule of forbiddenRules) {
+    const ruleLower = rule.toLowerCase();
+    // Check if the rule mentions this tool or its input contains the rule keywords
+    const keywords = ruleLower.split(/\s+/).filter(w => w.length > 3);
+    const matchCount = keywords.filter(kw => toolLower.includes(kw) || inputStr.includes(kw)).length;
+    if (matchCount >= Math.min(2, keywords.length)) {
+      return 'block';
+    }
+  }
+  return null;
 }
 
 /**

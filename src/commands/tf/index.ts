@@ -22,6 +22,7 @@ export interface TfCommandOptions {
   recursive?: boolean;
   diff?: boolean;
   type?: 'plan' | 'apply';
+  workspace?: string;
 }
 
 /**
@@ -114,28 +115,88 @@ export async function tfPlanCommand(options: TfCommandOptions = {}): Promise<voi
 }
 
 /**
- * Apply Terraform changes
+ * Apply Terraform changes — shows plan first and prompts for confirmation
+ * unless --auto-approve or a planFile is provided.
  */
 export async function tfApplyCommand(options: TfCommandOptions = {}): Promise<void> {
   const directory = options.directory || process.cwd();
+  const { confirm } = await import('../../wizard/prompts');
+  const os = await import('os');
+  const path = await import('path');
 
   ui.header('Terraform Apply');
   ui.info(`Directory: ${directory}`);
 
-  if (!options.autoApprove && !options.planFile) {
-    ui.warning('Running with -auto-approve flag or specify a plan file for non-interactive mode');
-  }
-
-  ui.startSpinner({ message: 'Applying Terraform changes...' });
-
   try {
     const available = await terraformClient.isAvailable();
     if (!available) {
-      ui.stopSpinnerFail('Terraform Tools Service not available');
+      ui.error('Terraform Tools Service not available');
       ui.error('Please ensure the Terraform Tools Service is running.');
       return;
     }
 
+    // Select workspace if specified
+    if (options.workspace) {
+      ui.startSpinner({ message: `Selecting workspace "${options.workspace}"...` });
+      await terraformClient.workspace.select(options.workspace, directory);
+      ui.stopSpinnerSuccess(`Workspace: ${options.workspace}`);
+    }
+
+    // If no planFile and not auto-approving, run plan first and prompt
+    if (!options.planFile && !options.autoApprove) {
+      const tmpPlanPath = path.join(os.tmpdir(), `nimbus-tfplan-${Date.now()}.bin`);
+
+      ui.startSpinner({ message: 'Running terraform plan...' });
+      const planResult = await terraformClient.plan(directory, {
+        varFile: options.varFile,
+        vars: options.vars,
+        out: tmpPlanPath,
+      });
+
+      if (!planResult.success) {
+        ui.stopSpinnerFail('Terraform plan failed');
+        if (planResult.error) ui.error(planResult.error);
+        return;
+      }
+
+      if (!planResult.hasChanges) {
+        ui.stopSpinnerSuccess('No changes — infrastructure is up-to-date');
+        return;
+      }
+
+      ui.stopSpinnerSuccess('Plan complete');
+      if (planResult.output) {
+        ui.box({ title: 'Terraform Plan', content: planResult.output });
+      }
+
+      const proceed = await confirm({ message: 'Apply these changes?', defaultValue: false });
+      if (!proceed) {
+        ui.info('Apply cancelled.');
+        return;
+      }
+
+      // Apply using the saved plan file
+      ui.startSpinner({ message: 'Applying Terraform changes...' });
+      const applyResult = await terraformClient.apply(directory, {
+        planFile: tmpPlanPath,
+        varFile: options.varFile,
+        vars: options.vars,
+      });
+
+      if (applyResult.success) {
+        ui.stopSpinnerSuccess('Terraform apply completed successfully');
+        if (applyResult.output) {
+          ui.box({ title: 'Apply Output', content: applyResult.output });
+        }
+      } else {
+        ui.stopSpinnerFail('Terraform apply failed');
+        if (applyResult.error) ui.error(applyResult.error);
+      }
+      return;
+    }
+
+    // auto-approve or explicit planFile path: apply directly
+    ui.startSpinner({ message: 'Applying Terraform changes...' });
     const result = await terraformClient.apply(directory, {
       planFile: options.planFile,
       autoApprove: options.autoApprove,
@@ -150,9 +211,7 @@ export async function tfApplyCommand(options: TfCommandOptions = {}): Promise<vo
       }
     } else {
       ui.stopSpinnerFail('Terraform apply failed');
-      if (result.error) {
-        ui.error(result.error);
-      }
+      if (result.error) ui.error(result.error);
     }
   } catch (error: any) {
     ui.stopSpinnerFail('Error applying Terraform changes');

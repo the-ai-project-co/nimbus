@@ -917,8 +917,39 @@ export class Executor {
       // Execute rollback action
       this.log(executionId, 'info', `Executing rollback: ${step.rollback_action}`);
 
-      // Simulate rollback
-      await this.sleep(1000);
+      // Parse and execute the rollback action
+      const action = step.rollback_action;
+      const [prefix, ...rest] = action.split(':');
+      
+      let rollbackCmd: string;
+      if (prefix === 'terraform_destroy') {
+        const workdir = rest.join(':');
+        rollbackCmd = `terraform -chdir=${workdir} destroy -auto-approve -no-color`;
+      } else if (prefix === 'kubectl_rollout_undo') {
+        const [resource, namespace] = rest;
+        rollbackCmd = `kubectl rollout undo ${resource}${namespace ? ` -n ${namespace}` : ''}`;
+      } else if (prefix === 'helm_rollback') {
+        const [release, revision, namespace] = rest;
+        rollbackCmd = `helm rollback ${release} ${revision ?? '0'}${namespace ? ` -n ${namespace}` : ''}`;
+      } else if (prefix === 'bash') {
+        rollbackCmd = rest.join(':');
+      } else {
+        this.log(executionId, 'warn', `Unknown rollback prefix "${prefix}" — skipping`);
+        rollbackCmd = '';
+      }
+      
+      if (rollbackCmd) {
+        this.log(executionId, 'info', `Running: ${rollbackCmd}`);
+        await new Promise<void>((resolve, reject) => {
+          const { exec } = require('node:child_process') as typeof import('node:child_process');
+          exec(rollbackCmd, { timeout: 600_000 }, (error, stdout, stderr) => {
+            if (stdout) this.log(executionId, 'info', stdout);
+            if (stderr) this.log(executionId, 'info', stderr);
+            if (error) reject(error);
+            else resolve();
+          });
+        });
+      }
 
       const completedAt = new Date();
 
