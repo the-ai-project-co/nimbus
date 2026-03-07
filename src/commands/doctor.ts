@@ -110,7 +110,7 @@ async function checkLLMProvider(options: DoctorOptions): Promise<CheckResult> {
   }
 
   // Check credentials file
-  const credentialsFile = path.join(os.homedir(), '.nimbus', 'credentials.json');
+  const credentialsFile = path.join(os.homedir(), '.nimbus', 'auth.json');
   let hasStoredCredentials = false;
 
   try {
@@ -384,7 +384,7 @@ async function checkCoreServices(options: DoctorOptions): Promise<CheckResult> {
   }
 
   // Check LLM credentials
-  const credFile = path.join(os.homedir(), '.nimbus', 'credentials.json');
+  const credFile = path.join(os.homedir(), '.nimbus', 'auth.json');
   let llmStatus = 'not configured';
   let llmDetails: string | undefined;
   try {
@@ -1186,7 +1186,7 @@ export async function runStartupChecks(): Promise<StartupCheckResult> {
       const { join } = await import('node:path');
       const { homedir } = await import('node:os');
       const { readFileSync, existsSync } = await import('node:fs');
-      const credsFile = join(homedir(), '.nimbus', 'credentials.json');
+      const credsFile = join(homedir(), '.nimbus', 'auth.json');
       if (existsSync(credsFile)) {
         const creds = JSON.parse(readFileSync(credsFile, 'utf-8'));
         if (Object.keys(creds.providers ?? {}).length === 0) {

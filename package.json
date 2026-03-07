@@ -1,6 +1,6 @@
 {
   "name": "@build-astron-co/nimbus",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "AI-Powered DevOps Engineering Agent",
   "main": "dist/src/nimbus.js",
   "bin": {

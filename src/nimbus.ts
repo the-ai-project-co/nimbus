@@ -177,6 +177,7 @@ async function main() {
       'version',
       'doctor',
       'onboarding',
+      'login',
       'upgrade',
       'update',
     ]);
