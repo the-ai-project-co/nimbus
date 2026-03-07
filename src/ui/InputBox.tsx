@@ -83,6 +83,15 @@ const SLASH_COMMANDS = [
   '/undo',
   '/watch',
   '/workspace',
+  '/deploy',
+  '/rollback',
+  '/incident',
+  '/runbook',
+  '/plugin',
+  '/share',
+  '/status',
+  '/remember',
+  '/logs',
 ];
 
 /** L1: Known subagent names for @agent completions. */
@@ -492,7 +501,7 @@ export function InputBox({ onSubmit, onAbort, placeholder, disabled = false, mod
           }
         }}
         onSubmit={handleSubmit}
-        placeholder={placeholder ?? 'Type a DevOps command... (e.g. "terraform plan", "check pods", "list releases")'}
+        placeholder={placeholder ?? 'Ask me anything DevOps... (? for help, /help for commands)'}
       />
       {isMultiLine && <Text color="cyan">{` [${lineCount} lines]`}</Text>}
       {slashHint && <Text dimColor>{` ${slashHint}`}</Text>}

@@ -108,6 +108,51 @@ function getRecentPodLogs(serviceName: string): string {
   }
 }
 
+/** M8: Gather incident timeline from multiple sources. */
+async function gatherIncidentTimeline(options: {
+  namespace?: string;
+  since?: string;
+}): Promise<string> {
+  const { execFileSync } = await import('node:child_process');
+  const events: Array<{ time: string; event: string; severity: 'info' | 'warning' | 'critical' }> = [];
+
+  const run = (cmd: string, args: string[]): string => {
+    try {
+      return execFileSync(cmd, args, { encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    } catch { return ''; }
+  };
+
+  // K8s pod restart events
+  const ns = options.namespace ? ['-n', options.namespace] : ['-A'];
+  const k8sEvents = run('kubectl', ['get', 'events', ...ns, '--field-selector=reason=BackOff', '--sort-by=.lastTimestamp', '--no-headers']);
+  if (k8sEvents) {
+    for (const line of k8sEvents.split('\n').slice(0, 10)) {
+      if (line.trim()) events.push({ time: new Date().toISOString(), event: `[K8s] ${line.trim()}`, severity: 'warning' });
+    }
+  }
+
+  // Helm history
+  const helmHistory = run('helm', ['history', '--max=5', '--output=json', options.namespace ?? 'default']);
+  if (helmHistory) {
+    try {
+      const hist = JSON.parse(helmHistory) as Array<{ updated: string; status: string; description: string; revision: number }>;
+      for (const h of hist) {
+        events.push({ time: h.updated, event: `[Helm] Revision ${h.revision}: ${h.status} — ${h.description}`, severity: h.status.includes('FAIL') ? 'critical' : 'info' });
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (events.length === 0) return '';
+
+  events.sort((a, b) => a.time.localeCompare(b.time));
+  const timeline = events.map(e => {
+    const icon = e.severity === 'critical' ? '[!!]' : e.severity === 'warning' ? '[!]' : '[i]';
+    return `${icon} ${e.time.slice(0, 19).replace('T', ' ')} ${e.event}`;
+  }).join('\n');
+
+  return `\n=== Incident Timeline ===\n${timeline}\n=========================\n`;
+}
+
 /**
  * Run the incident command — builds incident context and launches the agent.
  */
@@ -157,6 +202,12 @@ export async function incidentCommand(
   }
 
   contextParts.push('\n## Your Task\nHelp resolve this incident. Start by diagnosing root cause from the context above, then suggest and (with permission) execute remediation steps.');
+
+  // M8: Gather incident timeline from K8s events and Helm history
+  const timeline = await gatherIncidentTimeline({ namespace: undefined, since: undefined });
+  if (timeline) {
+    contextParts.push(timeline);
+  }
 
   const initialPrompt = contextParts.join('\n');
 

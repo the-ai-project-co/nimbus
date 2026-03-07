@@ -44,8 +44,9 @@ describe('src/compat/sqlite.ts fallback implementation (G1)', () => {
     expect(sqliteSrc).toContain('sql.js');
   });
 
-  it('contains the in-memory warning text', () => {
-    expect(sqliteSrc).toContain('in-memory');
+  it('contains the sql.js persistence implementation', () => {
+    // sql.js fallback now persists to disk via node:fs (file-backed, not in-memory)
+    expect(sqliteSrc).toContain('persist');
   });
 
   it('contains the better-sqlite3 require call', () => {

@@ -15,11 +15,12 @@
  */
 
 import { VERSION } from './version';
+import { setLatestVersion } from './update-state';
 
 /**
  * Non-blocking update check. Fires a single HTTPS HEAD request to npm
- * and prints a one-liner to stderr if a newer version exists. The check
- * uses a 3-second timeout so it never slows startup.
+ * and notifies the TUI (via update-state) if a newer version exists.
+ * Uses a 1.5s timeout so it never slows startup.
  */
 function checkForUpdates(): void {
   // Only check for interactive TTY sessions, not in CI
@@ -31,7 +32,7 @@ function checkForUpdates(): void {
   (async () => {
     try {
       // Small delay so the check doesn't compete with startup I/O
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 3000));
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 1500);
 
@@ -66,9 +67,8 @@ function checkForUpdates(): void {
       }
 
       if (isNewer) {
-        process.stderr.write(
-          `\x1b[33m  Update available: ${VERSION} → ${latest}. Run: nimbus upgrade\x1b[0m\n`
-        );
+        // Notify the TUI via shared state (shows badge in StatusBar)
+        setLatestVersion(latest);
       }
     } catch {
       // Network errors are silently ignored
