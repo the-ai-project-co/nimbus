@@ -55,6 +55,8 @@ export interface SessionInfo {
   infraCostDelta?: string;
   /** LLM connectivity health (GAP-2). */
   llmHealth?: 'checking' | 'ok' | 'error';
+  /** Newer version available (shown as badge in StatusBar). */
+  updateAvailable?: string;
 }
 
 /** A single resource-level change shown in the deploy preview. */

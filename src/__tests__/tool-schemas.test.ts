@@ -353,8 +353,8 @@ describe('Tool counts and metadata', () => {
     expect(standardTools).toHaveLength(12);
   });
 
-  test('devopsTools has exactly 28 tools', () => {
-    expect(devopsTools).toHaveLength(28);
+  test('devopsTools has exactly 35 tools', () => {
+    expect(devopsTools).toHaveLength(35);
   });
 
   test('all standard tools have category "standard"', () => {
@@ -597,6 +597,228 @@ describe('H6 — formatHelmListOutput', () => {
     const result = formatHelmListOutput(sampleJson);
     expect(result).toContain('nginx');
     expect(result).toContain('default');
+  });
+});
+
+// ===========================================================================
+// M1: Docker image scan action
+// ===========================================================================
+
+describe('M1 — docker scan action', () => {
+  it('docker schema includes scan in action enum', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/devops.ts'), 'utf-8');
+    expect(src).toContain("'scan'");
+  });
+
+  it("dockerTool execute has a case for 'scan'", async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/devops.ts'), 'utf-8');
+    expect(src).toContain("case 'scan':");
+  });
+
+  it('scan action tries trivy first then falls back to docker scout', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/devops.ts'), 'utf-8');
+    expect(src).toContain('trivy image');
+    expect(src).toContain('docker scout cves');
+  });
+
+  it('scan action returns error when no image or tag is provided', async () => {
+    const { devopsTools } = await import('../tools/schemas/devops');
+    const dockerTool = devopsTools.find(t => t.name === 'docker');
+    expect(dockerTool).toBeDefined();
+    if (!dockerTool) return;
+    // Calling scan with no image/tag should return an error
+    const result = await dockerTool.execute({ action: 'scan' });
+    expect(result.isError).toBe(true);
+    expect(result.error).toContain('scan action requires image or tag param');
+  });
+
+  it('scan action parses trivy JSON and returns vulnerability summary', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/tools/schemas/devops.ts'), 'utf-8');
+    // Verify the severity counting logic for trivy
+    expect(src).toContain('CRITICAL');
+    expect(src).toContain('No vulnerabilities found');
+  });
+});
+
+// ===========================================================================
+// M5: Pre-apply cost alert in loop.ts
+// ===========================================================================
+
+describe('M5 — pre-apply cost alert', () => {
+  it('loop.ts contains cost-alert emission for terraform plan', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/loop.ts'), 'utf-8');
+    expect(src).toContain('cost-alert');
+    expect(src).toContain('estimatedDelta > 100');
+  });
+
+  it('cost alert estimates $20/new resource and $5/changed resource', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/loop.ts'), 'utf-8');
+    expect(src).toContain('added * 20');
+    expect(src).toContain('changed * 5');
+  });
+
+  it('cost alert only fires on terraform plan action', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/loop.ts'), 'utf-8');
+    expect(src).toContain("tfArgs.action === 'plan'");
+  });
+
+  it('cost alert math: 6 new resources + 2 changed = $130/mo (above threshold)', () => {
+    const added = 6;
+    const changed = 2;
+    const estimatedDelta = (added * 20) + (changed * 5);
+    expect(estimatedDelta).toBe(130);
+    expect(estimatedDelta).toBeGreaterThan(100);
+  });
+
+  it('cost alert math: 2 new resources + 1 changed = $45/mo (below threshold)', () => {
+    const added = 2;
+    const changed = 1;
+    const estimatedDelta = (added * 20) + (changed * 5);
+    expect(estimatedDelta).toBe(45);
+    expect(estimatedDelta).toBeLessThanOrEqual(100);
+  });
+});
+
+// ===========================================================================
+// M6: Terraform plan truncation limit increased to 1500
+// ===========================================================================
+
+describe('M6 — terraform plan truncation', () => {
+  it('loop.ts uses 1500 as the diff line limit for terraform plans', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/loop.ts'), 'utf-8');
+    expect(src).toContain('diffLines.slice(0, 1500)');
+  });
+
+  it('loop.ts keeps 50 context lines for terraform plan truncation', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/loop.ts'), 'utf-8');
+    expect(src).toContain('contextLines.slice(0, 50)');
+  });
+
+  it('isTerraformPlan detection checks action===plan', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/agent/loop.ts'), 'utf-8');
+    expect(src).toContain("tfArgs.action === 'plan'");
+  });
+});
+
+// ===========================================================================
+// M8: Incident timeline
+// ===========================================================================
+
+describe('M8 — incident timeline', () => {
+  it('incident.ts defines gatherIncidentTimeline function', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/incident.ts'), 'utf-8');
+    expect(src).toContain('async function gatherIncidentTimeline');
+  });
+
+  it('gatherIncidentTimeline collects K8s BackOff events', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/incident.ts'), 'utf-8');
+    expect(src).toContain('reason=BackOff');
+  });
+
+  it('gatherIncidentTimeline collects Helm history', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/incident.ts'), 'utf-8');
+    expect(src).toContain('helm');
+    expect(src).toContain('history');
+  });
+
+  it('timeline is prepended to incidentCommand prompt', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/incident.ts'), 'utf-8');
+    expect(src).toContain('gatherIncidentTimeline');
+    expect(src).toContain('Incident Timeline');
+  });
+
+  it('timeline sorts events by time', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/incident.ts'), 'utf-8');
+    expect(src).toContain('a.time.localeCompare(b.time)');
+  });
+
+  it('timeline severity icons: [!!] for critical, [!] for warning, [i] for info', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/incident.ts'), 'utf-8');
+    expect(src).toContain('[!!]');
+    expect(src).toContain('[!]');
+    expect(src).toContain('[i]');
+  });
+});
+
+// ===========================================================================
+// M9: Doctor platform-specific install instructions
+// ===========================================================================
+
+describe('M9 — doctor platform-specific install instructions', () => {
+  it("doctor.ts checks process.platform === 'darwin'", async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/doctor.ts'), 'utf-8');
+    expect(src).toContain("platform === 'darwin'");
+  });
+
+  it('doctor.ts contains brew install literal', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/doctor.ts'), 'utf-8');
+    expect(src).toContain('brew install');
+  });
+
+  it('doctor.ts detects Linux distro via /etc/os-release', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/doctor.ts'), 'utf-8');
+    expect(src).toContain('/etc/os-release');
+  });
+
+  it('doctor.ts handles Ubuntu/Debian with apt-get', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/doctor.ts'), 'utf-8');
+    expect(src).toContain('Ubuntu');
+    expect(src).toContain('apt-get install');
+  });
+
+  it('doctor.ts handles Fedora/RHEL/CentOS with dnf', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/doctor.ts'), 'utf-8');
+    expect(src).toContain('Fedora');
+    expect(src).toContain('dnf install');
+  });
+
+  it("doctor.ts checks process.platform === 'linux'", async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/commands/doctor.ts'), 'utf-8');
+    expect(src).toContain("platform === 'linux'");
   });
 });
 

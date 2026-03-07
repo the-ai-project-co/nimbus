@@ -177,3 +177,37 @@ describe('PD_API_TOKEN guard (G14)', () => {
     ).resolves.not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// M8: gatherIncidentTimeline source-level assertions
+// ---------------------------------------------------------------------------
+
+describe('M8: gatherIncidentTimeline (incident timeline)', () => {
+  it('defines gatherIncidentTimeline as an async function', () => {
+    expect(INCIDENT_SRC).toContain('async function gatherIncidentTimeline');
+  });
+
+  it('gathers K8s BackOff events via kubectl', () => {
+    expect(INCIDENT_SRC).toContain('reason=BackOff');
+  });
+
+  it('collects Helm history for timeline', () => {
+    expect(INCIDENT_SRC).toContain('helm');
+    expect(INCIDENT_SRC).toContain('[Helm] Revision');
+  });
+
+  it('sorts events chronologically', () => {
+    expect(INCIDENT_SRC).toContain('a.time.localeCompare(b.time)');
+  });
+
+  it('uses severity icons in timeline output', () => {
+    expect(INCIDENT_SRC).toContain('[!!]');
+    expect(INCIDENT_SRC).toContain('[!]');
+    expect(INCIDENT_SRC).toContain('[i]');
+  });
+
+  it('incidentCommand calls gatherIncidentTimeline and prepends result', () => {
+    expect(INCIDENT_SRC).toContain('gatherIncidentTimeline');
+    expect(INCIDENT_SRC).toContain('=== Incident Timeline ===');
+  });
+});

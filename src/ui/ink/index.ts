@@ -252,10 +252,39 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   } catch (sessionErr) {
     // C5: Surface SQLite failure prominently in the TUI (not just stderr)
     const errMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr);
-    const tuiWarning = `Session persistence unavailable: ${errMsg}. Chat history will NOT be saved this session. Fix: npm install better-sqlite3`;
+    const tuiWarning = `Session persistence unavailable: ${errMsg}. Chat history will NOT be saved this session. Fix: npm install better-sqlite3 (or npm install sql.js)`;
     _startupWarnings.push(tuiWarning);
     process.stderr.write(`\x1b[33m  Warning: ${tuiWarning}\x1b[0m\n`);
   }
+
+  // Fix 4: On first ever session, run an extended CLI check and surface missing DevOps
+  // tools before they cause cryptic errors mid-task.
+  try {
+    const allSessions = sessionManager ? sessionManager.list() : [];
+    const isFirstEverSession = allSessions.length <= 1 && !options.resumeSessionId;
+    if (isFirstEverSession) {
+      const { execSync } = await import('node:child_process');
+      const devopsCLIs = [
+        { name: 'terraform', cmd: 'terraform version' },
+        { name: 'kubectl', cmd: 'kubectl version --client' },
+        { name: 'helm', cmd: 'helm version' },
+        { name: 'docker', cmd: 'docker --version' },
+      ];
+      const missing: string[] = [];
+      for (const cli of devopsCLIs) {
+        try {
+          execSync(cli.cmd, { timeout: 2000, stdio: ['pipe', 'pipe', 'pipe'] });
+        } catch {
+          missing.push(cli.name);
+        }
+      }
+      if (missing.length > 0) {
+        _startupWarnings.push(
+          `[doctor] Missing DevOps CLIs: ${missing.join(', ')}. Run \`nimbus doctor\` for install instructions.`
+        );
+      }
+    }
+  } catch { /* non-critical — doctor failure must never block startup */ }
 
   // Gap 7 & 10: discover live infra context at startup (best-effort, non-blocking)
   try {
@@ -1367,6 +1396,15 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
         } catch {
           api!.setLLMHealth('error');
         }
+      })();
+      // Fix 5: Subscribe to background update check — show badge in StatusBar
+      (async () => {
+        try {
+          const { onUpdate } = await import('../../update-state');
+          onUpdate(version => {
+            updateSession({ updateAvailable: version });
+          });
+        } catch { /* non-critical */ }
       })();
     },
   };

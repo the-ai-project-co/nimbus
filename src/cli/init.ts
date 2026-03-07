@@ -720,6 +720,40 @@ export function detectProject(dir: string): ProjectDetection {
 }
 
 // ---------------------------------------------------------------------------
+// L4: NIMBUS.md validation
+// ---------------------------------------------------------------------------
+
+/**
+ * L4: Validate NIMBUS.md content for common issues.
+ * Returns an array of warning strings (empty if valid).
+ */
+export function validateNimbusMd(content: string): string[] {
+  const warnings: string[] = [];
+
+  // Check size
+  if (content.length > 50 * 1024) {
+    warnings.push(`NIMBUS.md is large (${Math.round(content.length / 1024)}KB). Consider splitting into multiple files.`);
+  }
+
+  // Check for unclosed code fences
+  const fenceMatches = (content.match(/^```/gm) ?? []).length;
+  if (fenceMatches % 2 !== 0) {
+    warnings.push('NIMBUS.md has an unclosed code fence (``` count is odd).');
+  }
+
+  // Check section headers are valid markdown
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('#') && !/^#{1,6} \S/.test(line)) {
+      warnings.push(`Line ${i + 1}: Invalid heading format: "${line.slice(0, 50)}"`);
+    }
+  }
+
+  return warnings;
+}
+
+// ---------------------------------------------------------------------------
 // Generation
 // ---------------------------------------------------------------------------
 
@@ -1194,6 +1228,12 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
   fs.writeFileSync(nimbusmdPath, nimbusmdContent, 'utf-8');
   filesCreated.push(nimbusmdPath);
   log('  Created NIMBUS.md');
+
+  // L4: Validate generated NIMBUS.md and print warnings
+  const validationWarnings = validateNimbusMd(nimbusmdContent);
+  for (const w of validationWarnings) {
+    console.warn(`[nimbus init] Warning: ${w}`);
+  }
 
   // ---- Step 8: Append .nimbus/ to .gitignore if not already present ----
   const gitignorePath = path.join(dir, '.gitignore');

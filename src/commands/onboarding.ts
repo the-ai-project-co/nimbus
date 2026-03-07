@@ -391,6 +391,11 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
     ui.print(ui.dim('  OPSGENIE_API_KEY=<key>        # Opsgenie alert management (Gap 5)'));
     ui.print(ui.dim('  BRAVE_API_KEY=<key>           # Enhanced web search'));
     ui.newLine();
+
+    // C1/C2: Transition message before TUI launches
+    ui.print('\x1b[32m  Setup complete! Launching Nimbus DevOps Agent...\x1b[0m');
+    ui.print(ui.dim('  (Type ? for help, Tab to switch modes, Ctrl+C to exit)'));
+    ui.newLine();
   } catch (err: unknown) {
     // Catch-all for prompt failures (stdin closed, terminal not supported, etc.)
     const msg = err instanceof Error ? err.message : String(err);

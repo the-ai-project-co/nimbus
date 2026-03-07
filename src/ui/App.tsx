@@ -195,6 +195,12 @@ export interface AppProps {
   onFetchCompletions?: (prefix: string) => Promise<string[]>;
   /** C1: Terminal column width for dynamic separator/layout sizing. */
   columns?: number;
+  /**
+   * C1: Called when the user presses Ctrl+C while a tool is actively running.
+   * Cancels just the current tool without aborting the whole session.
+   * When not provided, Ctrl+C during processing aborts the full session as before.
+   */
+  onCancelCurrentTool?: () => void;
 }
 
 /* ---------------------------------------------------------------------------
@@ -280,6 +286,7 @@ export function App({
   hasApiKey = true,
   onFetchCompletions,
   columns = 80,
+  onCancelCurrentTool,
 }: AppProps) {
   const { exit } = useApp();
 
@@ -1191,38 +1198,49 @@ export function App({
       }
 
       // /watch [pattern] — watch files and run agent on change (M5)
+      // L3: Default pattern is DevOps files; devopsOnly: true when no custom arg given
       if (trimmed === '/watch' || trimmed.startsWith('/watch ')) {
-        const pattern = trimmed.length > '/watch'.length ? trimmed.slice('/watch '.length).trim() : '';
+        const arg = trimmed.length > '/watch'.length ? trimmed.slice('/watch '.length).trim() : '';
+        const devopsDefaultGlob = '**/*.{tf,yaml,yml,Dockerfile,helmfile.yaml}';
+        const pattern = arg || devopsDefaultGlob;
+        const devopsOnly: boolean = !arg; // devopsOnly: true when using default pattern
         const sysMsg = (content: string) => setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system' as const, content, timestamp: new Date() }]);
-        if (!pattern) {
-          // Stop watch if active
+        if (!arg) {
+          // Stop watch if active, otherwise start with DevOps default
           if (watchPattern) {
             watchAbortRef.current?.abort();
             watchAbortRef.current = null;
             setWatchPattern(null);
             sysMsg('Watch stopped.');
-          } else {
-            sysMsg('Usage: /watch <glob> (e.g. /watch **/*.tf)');
+            return;
           }
-          return;
+          // Fall through to start watching with default DevOps pattern
         }
         // Start watching
         watchAbortRef.current?.abort();
         const ac = new AbortController();
         watchAbortRef.current = ac;
         setWatchPattern(pattern);
-        sysMsg(`Watching: ${pattern} — changes will trigger agent analysis.`);
+        sysMsg(`Watching: ${pattern}${devopsOnly ? ' (DevOps files)' : ''} — changes will trigger agent analysis.`);
         setShowTerminalPane(true);
         void (async () => {
           try {
             const { FileWatcher } = require('../watcher') as typeof import('../watcher');
-            type WatcherInstance = { start(): void; stop(): void; on(e: string, cb: (f: string) => void): void };
-            const watcher = new (FileWatcher as new(cwd: string) => WatcherInstance)(process.cwd());
+            type WatcherInstance = { start(): void; stop(): void; on(e: string, cb: (f: string) => void): void; getSummary(since?: number, devopsOnly?: boolean): string };
+            const watcher = new (FileWatcher as unknown as new(cwd: string) => WatcherInstance)(process.cwd());
             watcher.start();
             watcher.on('change', (filePath: string) => {
               if (ac.signal.aborted) return;
-              const ext = pattern.replace('**/', '').replace(/\*/g, '');
-              if (ext && !filePath.includes(ext)) return;
+              // L3: When devopsOnly, filter to DevOps file extensions
+              if (devopsOnly) {
+                const devopsExts = ['.tf', '.yaml', '.yml', 'Dockerfile', 'helmfile.yaml'];
+                const isDevops = devopsExts.some(ext => filePath.endsWith(ext) || filePath.includes(ext));
+                if (!isDevops) return;
+              } else {
+                const ext = pattern.replace('**/', '').replace(/\*/g, '');
+                if (ext && !filePath.includes(ext)) return;
+              }
+              const _summary = watcher.getSummary(undefined, true);
               const prompt = `File changed: ${filePath}. Analyze the change and report any issues or drift.`;
               sysMsg(`[watch] Change detected: ${filePath}`);
               if (!isProcessing) handleSubmit(prompt);
@@ -1743,9 +1761,16 @@ export function App({
         return;
       }
 
-      // Ctrl+C: interrupt or exit
+      // Ctrl+C: cancel current tool, interrupt, or exit
       if (input === 'c' && key.ctrl) {
-        if (isProcessing) {
+        if (isProcessing && onCancelCurrentTool) {
+          // C1: A tool is running and we have a per-tool cancel hook — cancel just the tool.
+          // The agent loop continues after the tool returns a synthetic cancelled result.
+          onCancelCurrentTool();
+          setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system' as const, content: '[!!] Cancelling current tool... (Ctrl+C again to abort the session)', timestamp: new Date() }]);
+          setAbortPending(true);
+          setTimeout(() => setAbortPending(false), 3000);
+        } else if (isProcessing) {
           handleAbort();
           setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system' as const, content: '[!!] Cancelling current operation... (Ctrl+C again to force exit)', timestamp: new Date() }]);
           setAbortPending(true);

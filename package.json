@@ -1,6 +1,6 @@
 {
   "name": "@build-astron-co/nimbus",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "AI-Powered DevOps Engineering Agent",
   "main": "dist/src/nimbus.js",
   "bin": {
@@ -33,7 +33,6 @@
     "build:binary:all": "./scripts/build-binary.sh all",
     "nimbus": "node --loader ./node_modules/tsx/dist/esm/index.mjs src/nimbus.ts",
     "build:npm": "tsc --project tsconfig.build.json",
-    "prepare": "npm run build:npm",
     "prepack": "tsc --project tsconfig.build.json",
     "precommit": "npm run lint && npm run format:check && npm run type-check",
     "postinstall": "node -e \"process.stdout.write('\\n  Nimbus installed! Next steps:\\n  1. Run: nimbus login              (configure your LLM provider)\\n  2. Run: nimbus doctor             (check your DevOps toolchain)\\n  3. Run: nimbus completions install (enable tab completion)\\n  4. Run: nimbus                    (start the DevOps agent)\\n\\n')\""
