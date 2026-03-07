@@ -316,9 +316,11 @@ async function upgradeViaHomebrew(spinner: Spinner): Promise<void> {
   try {
     await runShellCommand(`brew upgrade ${HOMEBREW_TAP} 2>&1`);
   } catch {
-    // If the tap formula isn't found, try the short name
-    spinner.update('Trying brew upgrade nimbus...');
-    await runShellCommand('brew upgrade nimbus 2>&1');
+    // If the tap formula isn't found, tap it first then retry.
+    // Never fall back to bare `brew upgrade nimbus` — Homebrew core has an
+    // unrelated deprecated cask with the same name.
+    spinner.update('Adding tap and retrying...');
+    await runShellCommand(`brew tap the-ai-project-co/tap && brew upgrade ${HOMEBREW_TAP} 2>&1`);
   }
 }
 

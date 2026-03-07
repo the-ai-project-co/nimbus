@@ -20,9 +20,9 @@ Nimbus is an intelligent command-line agent purpose-built for DevOps and cloud e
 # npm
 npm install -g @build-astron-co/nimbus
 
-# Homebrew
+# Homebrew (use the fully-qualified tap name to avoid name conflicts)
 brew tap the-ai-project-co/tap
-brew install nimbus
+brew install the-ai-project-co/tap/nimbus
 
 # Shell script (auto-detects best method)
 curl -fsSL https://raw.githubusercontent.com/the-ai-project-co/nimbus/main/scripts/install.sh | bash
