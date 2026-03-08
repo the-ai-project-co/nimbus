@@ -271,6 +271,14 @@ export function StatusBar({
             <Text color="yellow">Search: "{searchQuery}" — {searchResultCount} results</Text>
           </>
         )}
+        {/* Fix 5: Update available badge */}
+        {session.updateAvailable && (
+          <>
+            <Text dimColor> | </Text>
+            <Text color="yellow" bold>[update: v{session.updateAvailable}]</Text>
+            <Text dimColor> run: nimbus upgrade</Text>
+          </>
+        )}
       </Box>
     </Box>
   );

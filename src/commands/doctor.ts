@@ -501,6 +501,8 @@ async function checkToolServices(options: DoctorOptions): Promise<CheckResult> {
     for (const tool of missing) {
       const toolName = tool.name;
       if (isMac && BREW_INSTALL[toolName]) {
+        // M9: macOS — install via Homebrew
+        ui.print(`Fix: brew install ${BREW_INSTALL[toolName] ?? toolName}`);
         ui.print(`Installing ${toolName} via Homebrew...`);
         try {
           const brewArgs = ['install', ...BREW_INSTALL[toolName].split(' ')];
@@ -511,7 +513,22 @@ async function checkToolServices(options: DoctorOptions): Promise<CheckResult> {
           ui.print(`  Manual install: ${INSTALL_URLS[toolName] ?? 'check official docs'}`);
         }
       } else if (isLinux) {
-        ui.print(`  ${toolName}: ${INSTALL_URLS[toolName] ?? 'check official docs'}`);
+        // M9: Detect Linux distro for specific package manager
+        let linuxPkgCmd = '';
+        try {
+          const { readFileSync } = await import('node:fs');
+          const osRelease = readFileSync('/etc/os-release', 'utf-8');
+          if (osRelease.includes('Ubuntu') || osRelease.includes('Debian')) {
+            linuxPkgCmd = `apt-get install ${toolName}`;
+          } else if (osRelease.includes('Fedora') || osRelease.includes('RHEL') || osRelease.includes('CentOS')) {
+            linuxPkgCmd = `dnf install ${toolName}`;
+          }
+        } catch { /* ignore */ }
+        if (linuxPkgCmd) {
+          ui.print(`  ${toolName}: ${linuxPkgCmd}`);
+        } else {
+          ui.print(`  ${toolName}: ${INSTALL_URLS[toolName] ?? 'check official docs'}`);
+        }
       } else {
         ui.print(`  ${toolName}: ${INSTALL_URLS[toolName] ?? 'check official docs'}`);
       }

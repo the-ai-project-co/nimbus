@@ -170,7 +170,7 @@ function buildRunbookPrompt(def: RunbookDef): string {
     const ifCondition = step.if as string | undefined;
     const requireApproval = step.require_approval as boolean | undefined;
 
-    let stepText = `Step ${i + 1}: ${step.text}`;
+    let stepText = `[STEP_START:${i + 1}]\nStep ${i + 1}: ${step.text}`;
     if (ifCondition) {
       stepText += `\n  [CONDITIONAL: Only proceed if: ${ifCondition}]`;
       stepText += `\nAfter completing this step, check: ${ifCondition}. If the condition evaluates to false, stop and report the status without continuing to the next step.`;
@@ -179,6 +179,7 @@ function buildRunbookPrompt(def: RunbookDef): string {
       stepText += `\n  [REQUIRES APPROVAL: State this step's plan and wait for explicit user approval before executing]`;
       stepText = `IMPORTANT: Before executing this step, explicitly state what you are about to do and wait for the user to say "approve" or "yes" before proceeding.\n` + stepText;
     }
+    stepText += `\n[STEP_COMPLETE:${i + 1}]`;
     parts.push(stepText);
   });
 

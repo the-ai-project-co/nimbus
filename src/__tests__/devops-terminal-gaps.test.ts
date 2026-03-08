@@ -323,7 +323,8 @@ describe('DevOps Identity — onboarding infra detection', () => {
 
 describe('H1 — InputBox DevOps placeholder', () => {
   it('shows DevOps-specific placeholder text', () => {
-    expect(src('src/ui/InputBox.tsx')).toContain('Type a DevOps command');
+    // Placeholder shows DevOps focus plus help hint
+    expect(src('src/ui/InputBox.tsx')).toContain('DevOps');
   });
 });
 

@@ -134,6 +134,18 @@ export interface ToolExecuteContext {
     gcpProject?: string;
     azureSubscription?: string;
   };
+  /**
+   * C3: Callback to update the session-scoped infrastructure context.
+   * Called by tools after workspace/context switches to persist the new state.
+   */
+  updateInfraContext?: (patch: Partial<{
+    terraformWorkspace?: string;
+    kubectlContext?: string;
+    awsProfile?: string;
+    awsRegion?: string;
+    gcpProject?: string;
+    azureSubscription?: string;
+  }>) => void;
 }
 
 // ---------------------------------------------------------------------------

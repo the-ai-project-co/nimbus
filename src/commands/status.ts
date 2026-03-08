@@ -19,6 +19,8 @@ export interface StatusOptions {
   json?: boolean;
   /** L3: Show full snapshot including LLM config and active profile. */
   verbose?: boolean;
+  /** L7: Re-run status every 30 seconds until Ctrl+C. */
+  watch?: boolean;
 }
 
 interface StatusInfo {
@@ -247,6 +249,25 @@ export async function statusCommand(options: StatusOptions = {}): Promise<void> 
     padding: 0,
   });
   ui.newLine();
+
+  // L7: Watch mode — refresh every 30s
+  if (options.watch) {
+    const intervalSecs = 30;
+    process.stdout.write(`\n[Refreshing every ${intervalSecs}s — press Ctrl+C to stop]\n`);
+    const watchTimer = setInterval(async () => {
+      // Clear terminal (ANSI escape)
+      process.stdout.write('\x1Bc');
+      await statusCommand({ ...options, watch: false });
+      process.stdout.write(`\n[Refreshing every ${intervalSecs}s — press Ctrl+C to stop]\n`);
+    }, intervalSecs * 1000);
+    // Keep process alive until Ctrl+C
+    await new Promise<void>((resolve) => {
+      process.on('SIGINT', () => {
+        clearInterval(watchTimer);
+        resolve();
+      });
+    });
+  }
 }
 
 export default statusCommand;

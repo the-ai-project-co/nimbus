@@ -189,6 +189,19 @@ export const terraformTool: ToolDefinition = {
       // C2: If no workspace specified but session has a workspace context, note it in output
       const sessionWorkspace = ctx?.infraContext?.terraformWorkspace;
 
+      // C3: Auto-apply session terraform workspace if set and user didn't specify one
+      const WORKSPACE_STATEFUL_ACTIONS = ['plan', 'apply', 'validate', 'show', 'output'];
+      if (sessionWorkspace && !input.workspace && WORKSPACE_STATEFUL_ACTIONS.includes(input.action)) {
+        try {
+          await execAsync(
+            `terraform -chdir=${input.workdir} workspace select ${sessionWorkspace}`,
+            { timeout: 30_000, maxBuffer: 1024 * 1024 }
+          );
+        } catch {
+          // Workspace may not exist yet — ignore and continue
+        }
+      }
+
       // For apply: run validate → plan first to catch errors early
       if (input.action === 'apply') {
         // Step 1: validate
@@ -348,6 +361,11 @@ export const terraformTool: ToolDefinition = {
         }
       }
 
+      // C3: Update session infraContext with the new workspace
+      if ((input.action === 'workspace-select' || input.action === 'workspace-new') && input.workspace) {
+        ctx?.updateInfraContext?.({ terraformWorkspace: input.workspace });
+      }
+
       return ok(combinedOut || '(no output)');
     } catch (error: unknown) {
       return err(`Terraform command failed: ${errorMessage(error)}`);
@@ -364,7 +382,7 @@ const kubectlSchema = z.object({
     .enum([
       'get', 'apply', 'delete', 'logs', 'scale', 'rollout', 'exec', 'describe',
       'patch', 'port-forward', 'cp', 'top', 'label', 'annotate',
-      'cordon', 'drain', 'taint', 'wait', 'diff',
+      'cordon', 'drain', 'taint', 'wait', 'diff', 'events', 'watch',
     ])
     .describe('The kubectl sub-command to run'),
   resource: z.string().optional().describe('Resource type and/or name (e.g., "pods my-pod")'),
@@ -375,6 +393,8 @@ const kubectlSchema = z.object({
   local_path: z.string().optional().describe('Local path for cp action'),
   container_path: z.string().optional().describe('Container path for cp action'),
   env: z.record(z.string(), z.string()).optional().describe('Extra environment variables (e.g., KUBECONFIG, AWS_PROFILE)'),
+  watch_resource: z.string().optional().describe('Resource type to watch (e.g., "pods", "deployments")'),
+  watch_timeout: z.string().optional().describe('Timeout for watch action (default: 5m)'),
 });
 
 export const kubectlTool: ToolDefinition = {
@@ -443,6 +463,23 @@ export const kubectlTool: ToolDefinition = {
           // Exit code 1 with stdout = normal diff output (changes detected)
           if (execError.code === 1 && execError.stdout) return ok(execError.stdout.trim());
           return err(errorMessage(diffErr));
+        }
+      } else if (input.action === 'events') {
+        const nsFlag = input.namespace ? `-n ${input.namespace}` : '--all-namespaces';
+        parts.push(...['get', 'events', nsFlag, '--sort-by=.lastTimestamp'].filter(s => s !== ''));
+      } else if (input.action === 'watch') {
+        const resource = input.watch_resource ?? input.resource ?? 'pods';
+        const nsFlag = input.namespace ? `-n ${input.namespace}` : '';
+        const timeout = input.watch_timeout ?? '5m';
+        const cmd = `kubectl get ${resource} ${nsFlag} --watch --timeout=${timeout} ${contextFlag}`.trim();
+        try {
+          const { stdout, stderr } = await execAsync(cmd, {
+            timeout: 310_000,
+            maxBuffer: 10 * 1024 * 1024,
+          });
+          return ok([stdout, stderr].filter(Boolean).join('\n') || '(watch completed)');
+        } catch (e: unknown) {
+          return ok(`Watch ended: ${errorMessage(e)}`);
         }
       } else {
         if (input.resource) {
@@ -1730,7 +1767,7 @@ export const taskTool: ToolDefinition = {
 
 const dockerSchema = z.object({
   action: z.enum(['build','push','pull','run','ps','stop','rm','images',
-                   'compose-up','compose-down','logs','exec','inspect','prune'])
+                   'compose-up','compose-down','logs','exec','inspect','prune','scan'])
     .describe('Docker action to perform'),
   image: z.string().optional().describe('Image name (with optional tag)'),
   container: z.string().optional().describe('Container name or ID'),
@@ -1814,6 +1851,48 @@ export const dockerTool: ToolDefinition = {
         case 'prune':
           command = `docker system prune -f ${input.args ?? ''}`.trim();
           break;
+        case 'scan': {
+          const target = input.image ?? input.tag ?? '';
+          if (!target) return err('scan action requires image or tag param');
+          // Try trivy first, fall back to docker scout
+          let cmd = `trivy image ${target} --format json`;
+          let isTrivyJson = true;
+          try {
+            const { stdout: trivyCheck } = await execAsync('trivy --version', { timeout: 5000, maxBuffer: 1024 });
+            void trivyCheck;
+          } catch {
+            cmd = `docker scout cves ${target} --format json`;
+            isTrivyJson = false;
+          }
+          try {
+            const { stdout, stderr } = await execAsync(cmd, {
+              timeout: 300_000,
+              maxBuffer: 50 * 1024 * 1024,
+            });
+            const output = stdout || stderr;
+            try {
+              const data = JSON.parse(output);
+              // Parse trivy JSON
+              const results = isTrivyJson
+                ? (data.Results ?? []).flatMap((r: { Vulnerabilities?: Array<{ Severity: string }> }) => r.Vulnerabilities ?? [])
+                : (data.vulnerabilities ?? []);
+              const counts: Record<string, number> = {};
+              for (const v of results) {
+                const sev = (v.Severity ?? v.severity ?? 'UNKNOWN').toUpperCase();
+                counts[sev] = (counts[sev] ?? 0) + 1;
+              }
+              const summary = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']
+                .filter(s => counts[s])
+                .map(s => `${s}: ${counts[s]}`)
+                .join(', ') || 'No vulnerabilities found';
+              return ok(`Image scan: ${target}\n${summary}\n\nTotal: ${results.length} vulnerabilities`);
+            } catch {
+              return ok(output.slice(0, 10000));
+            }
+          } catch (e: unknown) {
+            return ok(`Scan result (exit non-zero — may indicate vulnerabilities):\n${errorMessage(e).slice(0, 5000)}`);
+          }
+        }
         default:
           return err(`Unknown docker action: ${input.action}`);
       }
@@ -1866,8 +1945,12 @@ export const dockerTool: ToolDefinition = {
 // ---------------------------------------------------------------------------
 
 const secretsSchema = z.object({
-  action: z.enum(['get','list','put','delete','rotate','versions'])
-    .describe('Action to perform on the secret'),
+  action: z.enum([
+    'get', 'list', 'put', 'delete', 'rotate', 'versions',
+    'vault-read', 'vault-write', 'vault-rotate', 'vault-lease-renew', 'vault-list',
+    'aws-get-secret', 'aws-put-secret', 'aws-rotate-secret', 'aws-list-secrets',
+    'gcp-get-secret', 'gcp-create-version',
+  ]).describe('Action to perform on the secret'),
   provider: z.enum(['vault','aws','gcp','azure'])
     .describe('Secrets provider to use'),
   path: z.string().describe('Secret path, ARN, or name'),
@@ -1875,6 +1958,11 @@ const secretsSchema = z.object({
   version: z.number().optional().describe('Secret version number'),
   region: z.string().optional().describe('Cloud region'),
   namespace: z.string().optional().describe('Vault namespace'),
+  vault_addr: z.string().optional().describe('Vault server address (overrides VAULT_ADDR env var)'),
+  secret_path: z.string().optional().describe('Vault KV secret path for vault-* actions'),
+  secret_name: z.string().optional().describe('AWS/GCP secret name for provider-specific actions'),
+  aws_region: z.string().optional().describe('AWS region for aws-* actions'),
+  secret_value: z.string().optional().describe('Secret value for vault-write and aws-put-secret actions'),
 });
 
 export const secretsTool: ToolDefinition = {
@@ -1890,6 +1978,74 @@ export const secretsTool: ToolDefinition = {
       const input = secretsSchema.parse(raw);
 
       let command: string;
+
+      // Handle provider-specific extended actions (vault-*, aws-*, gcp-*)
+      const addrFlag = input.vault_addr ? `VAULT_ADDR=${input.vault_addr} ` : '';
+      const secretPath = input.secret_path ?? input.path;
+      const secretName = input.secret_name ?? input.path;
+      const awsRegion = input.aws_region ?? input.region ?? '';
+      const awsRegionFlag = awsRegion ? `--region ${awsRegion}` : '';
+      const secretVal = input.secret_value ?? input.value ?? '';
+
+      if (input.action === 'vault-read') {
+        const { stdout, stderr } = await execAsync(`${addrFlag}vault kv get -format=json ${secretPath}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        const raw2 = [stdout, stderr].filter(Boolean).join('\n');
+        try {
+          const parsed = JSON.parse(raw2);
+          if (parsed.data?.data) for (const k of Object.keys(parsed.data.data)) parsed.data.data[k] = '[REDACTED]';
+          return ok(JSON.stringify(parsed, null, 2));
+        } catch { return ok(raw2.replace(/"value"\s*:\s*"[^"]*"/g, '"value": "[REDACTED]"')); }
+      }
+      if (input.action === 'vault-write') {
+        if (!secretVal) return err('vault-write requires secret_value or value');
+        const { stdout, stderr } = await execAsync(`${addrFlag}vault kv put ${secretPath} value=${secretVal}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || 'Secret written.');
+      }
+      if (input.action === 'vault-rotate') {
+        const { stdout, stderr } = await execAsync(`${addrFlag}vault write -force ${secretPath}/rotate`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || 'Secret rotated.');
+      }
+      if (input.action === 'vault-lease-renew') {
+        const { stdout, stderr } = await execAsync(`${addrFlag}vault lease renew ${secretPath}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || 'Lease renewed.');
+      }
+      if (input.action === 'vault-list') {
+        const { stdout, stderr } = await execAsync(`${addrFlag}vault kv list ${secretPath}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || '(empty)');
+      }
+      if (input.action === 'aws-get-secret') {
+        const { stdout, stderr } = await execAsync(`aws secretsmanager get-secret-value --secret-id ${secretName} ${awsRegionFlag} --output json`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        const raw2 = [stdout, stderr].filter(Boolean).join('\n');
+        try {
+          const parsed = JSON.parse(raw2);
+          if (parsed.SecretString) parsed.SecretString = '[REDACTED — value retrieved successfully]';
+          return ok(JSON.stringify(parsed, null, 2));
+        } catch { return ok(raw2.replace(/"SecretString"\s*:\s*"[^"]*"/g, '"SecretString": "[REDACTED]"')); }
+      }
+      if (input.action === 'aws-put-secret') {
+        if (!secretVal) return err('aws-put-secret requires secret_value or value');
+        const { stdout, stderr } = await execAsync(`aws secretsmanager put-secret-value --secret-id ${secretName} --secret-string '${secretVal.replace(/'/g, "'\\''")}' ${awsRegionFlag}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || 'Secret updated.');
+      }
+      if (input.action === 'aws-rotate-secret') {
+        const { stdout, stderr } = await execAsync(`aws secretsmanager rotate-secret --secret-id ${secretName} ${awsRegionFlag}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || 'Rotation initiated.');
+      }
+      if (input.action === 'aws-list-secrets') {
+        const { stdout, stderr } = await execAsync(`aws secretsmanager list-secrets ${awsRegionFlag} --output json`, { timeout: 30_000, maxBuffer: 5 * 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || '[]');
+      }
+      if (input.action === 'gcp-get-secret') {
+        const { stdout, stderr } = await execAsync(`gcloud secrets versions access latest --secret=${secretName}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        // Mask the raw secret output
+        const raw2 = [stdout, stderr].filter(Boolean).join('\n');
+        return ok(raw2 ? '[REDACTED — secret value retrieved successfully]' : '(empty)');
+      }
+      if (input.action === 'gcp-create-version') {
+        if (!secretVal) return err('gcp-create-version requires secret_value or value');
+        const { stdout, stderr } = await execAsync(`echo '${secretVal.replace(/'/g, "'\\''")}' | gcloud secrets versions add ${secretName} --data-file=-`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+        return ok([stdout, stderr].filter(Boolean).join('\n') || 'New secret version created.');
+      }
 
       switch (input.provider) {
         case 'vault': {
@@ -2362,8 +2518,8 @@ export const monitorTool: ToolDefinition = {
 // ---------------------------------------------------------------------------
 
 const gitopsSchema = z.object({
-  action: z.enum(['list','get','sync','reconcile','diff','history','rollback','health','logs','argocd-status','flux-status'])
-    .describe('GitOps action to perform. argocd-status/flux-status: concise cluster-wide status summary'),
+  action: z.enum(['list','get','sync','reconcile','diff','history','rollback','health','logs','argocd-status','flux-status','watch'])
+    .describe('GitOps action to perform. argocd-status/flux-status: concise cluster-wide status summary. watch: live-stream application/resource status updates'),
   provider: z.enum(['argocd','flux'])
     .describe('GitOps provider'),
   app: z.string().optional().describe('Application or HelmRelease name'),
@@ -2425,6 +2581,9 @@ export const gitopsTool: ToolDefinition = {
           case 'flux-status':
             command = `argocd app list ${flags}`;
             break;
+          case 'watch':
+            command = `kubectl get applications -n argocd --watch`;
+            break;
           default:
             return err(`Action ${input.action} not supported for ArgoCD`);
         }
@@ -2460,6 +2619,9 @@ export const gitopsTool: ToolDefinition = {
             break;
           case 'argocd-status':
             command = `flux get all ${nsFlag} -o json`;
+            break;
+          case 'watch':
+            command = `flux get all ${nsFlag} --watch`;
             break;
           default:
             return err(`Action ${input.action} not supported for Flux`);
@@ -3466,10 +3628,727 @@ export const generateInfraTool: ToolDefinition = {
 };
 
 // ---------------------------------------------------------------------------
+// 29. ansible
+// ---------------------------------------------------------------------------
+
+const ansibleSchema = z.object({
+  action: z.enum([
+    'playbook', 'syntax-check', 'dry-run', 'inventory-list',
+    'vault-encrypt', 'vault-decrypt', 'vault-view',
+    'galaxy-install', 'galaxy-search', 'facts',
+  ]).describe('Ansible action to perform'),
+  playbook: z.string().optional().describe('Path to the playbook .yml file'),
+  inventory: z.string().optional().describe('Inventory file or host pattern'),
+  vault_password_file: z.string().optional().describe('Path to vault password file'),
+  extra_vars: z.record(z.string(), z.unknown()).optional().describe('Extra variables as key-value pairs'),
+  tags: z.string().optional().describe('Comma-separated list of tags to run'),
+  limit: z.string().optional().describe('Limit playbook run to specific hosts'),
+  check: z.boolean().optional().describe('Run in check (dry-run) mode'),
+  verbose: z.enum(['v', 'vv', 'vvv']).optional().describe('Verbosity level'),
+  galaxy_role: z.string().optional().describe('Galaxy role name for galaxy-install/galaxy-search'),
+  vault_file: z.string().optional().describe('File to encrypt/decrypt for vault actions'),
+  workdir: z.string().optional().describe('Working directory for ansible commands'),
+});
+
+export const ansibleTool: ToolDefinition = {
+  name: 'ansible',
+  description: 'Run Ansible playbooks, manage Ansible Vault, interact with Ansible Galaxy, and gather host facts.',
+  inputSchema: ansibleSchema,
+  permissionTier: 'always_ask',
+  category: 'devops',
+  isDestructive: true,
+
+  async execute(raw: unknown, ctx?: import('./types').ToolExecuteContext): Promise<ToolResult> {
+    try {
+      const input = ansibleSchema.parse(raw);
+
+      const cwd = input.workdir ?? process.cwd();
+      const env: NodeJS.ProcessEnv = { ...process.env };
+
+      if (input.vault_password_file) {
+        env.ANSIBLE_VAULT_PASSWORD_FILE = input.vault_password_file;
+      }
+
+      const buildCommonFlags = (): string[] => {
+        const flags: string[] = [];
+        if (input.inventory) flags.push('-i', input.inventory);
+        if (input.vault_password_file) flags.push('--vault-password-file', input.vault_password_file);
+        if (input.extra_vars) flags.push('-e', JSON.stringify(input.extra_vars));
+        if (input.tags) flags.push('--tags', input.tags);
+        if (input.limit) flags.push('--limit', input.limit);
+        if (input.verbose) flags.push(`-${input.verbose}`);
+        return flags;
+      };
+
+      switch (input.action) {
+        case 'playbook':
+        case 'dry-run': {
+          if (!input.playbook) return err('playbook action requires playbook path');
+          const args = ['ansible-playbook', input.playbook, ...buildCommonFlags()];
+          if (input.action === 'dry-run' || input.check) args.push('--check');
+          const spawnResult = await spawnExec(args.join(' '), {
+            cwd,
+            env,
+            timeout: ctx?.timeout ?? DEFAULT_TIMEOUT,
+            signal: ctx?.signal,
+            onChunk: ctx?.onProgress,
+            label: 'ansible-playbook',
+          });
+          const combined = [spawnResult.stdout, spawnResult.stderr].filter(Boolean).join('\n');
+          if (spawnResult.exitCode !== 0) return err(`ansible-playbook failed:\n${combined}`);
+          return ok(combined || 'Playbook completed successfully.');
+        }
+
+        case 'syntax-check': {
+          if (!input.playbook) return err('syntax-check requires playbook path');
+          const args = ['ansible-playbook', '--syntax-check', input.playbook, ...buildCommonFlags()];
+          const { stdout, stderr } = await execAsync(args.join(' '), {
+            cwd, env, timeout: 60_000, maxBuffer: 5 * 1024 * 1024,
+          });
+          const out = [stdout, stderr].filter(Boolean).join('\n');
+          return ok(out || 'Syntax check passed.');
+        }
+
+        case 'inventory-list': {
+          const invFlag = input.inventory ? `-i ${input.inventory}` : '';
+          const { stdout, stderr } = await execAsync(
+            `ansible-inventory ${invFlag} --list`,
+            { cwd, env, timeout: 30_000, maxBuffer: 5 * 1024 * 1024 }
+          );
+          return ok([stdout, stderr].filter(Boolean).join('\n') || '(no inventory output)');
+        }
+
+        case 'vault-encrypt': {
+          if (!input.vault_file) return err('vault-encrypt requires vault_file');
+          const pwFlag = input.vault_password_file ? `--vault-password-file ${input.vault_password_file}` : '';
+          const { stdout, stderr } = await execAsync(
+            `ansible-vault encrypt ${pwFlag} ${input.vault_file}`,
+            { cwd, env, timeout: 30_000, maxBuffer: 1024 * 1024 }
+          );
+          return ok([stdout, stderr].filter(Boolean).join('\n') || `Encrypted ${input.vault_file}`);
+        }
+
+        case 'vault-decrypt': {
+          if (!input.vault_file) return err('vault-decrypt requires vault_file');
+          const pwFlag = input.vault_password_file ? `--vault-password-file ${input.vault_password_file}` : '';
+          const { stdout, stderr } = await execAsync(
+            `ansible-vault decrypt ${pwFlag} ${input.vault_file}`,
+            { cwd, env, timeout: 30_000, maxBuffer: 1024 * 1024 }
+          );
+          return ok([stdout, stderr].filter(Boolean).join('\n') || `Decrypted ${input.vault_file}`);
+        }
+
+        case 'vault-view': {
+          if (!input.vault_file) return err('vault-view requires vault_file');
+          const pwFlag = input.vault_password_file ? `--vault-password-file ${input.vault_password_file}` : '';
+          const { stdout } = await execAsync(
+            `ansible-vault view ${pwFlag} ${input.vault_file}`,
+            { cwd, env, timeout: 30_000, maxBuffer: 5 * 1024 * 1024 }
+          );
+          return ok(stdout || '(empty vault file)');
+        }
+
+        case 'galaxy-install': {
+          if (!input.galaxy_role) return err('galaxy-install requires galaxy_role');
+          const { stdout, stderr } = await execAsync(
+            `ansible-galaxy install ${input.galaxy_role}`,
+            { cwd, env, timeout: 120_000, maxBuffer: 5 * 1024 * 1024 }
+          );
+          return ok([stdout, stderr].filter(Boolean).join('\n'));
+        }
+
+        case 'galaxy-search': {
+          if (!input.galaxy_role) return err('galaxy-search requires galaxy_role (search query)');
+          const { stdout } = await execAsync(
+            `ansible-galaxy search ${input.galaxy_role}`,
+            { cwd, env, timeout: 30_000, maxBuffer: 5 * 1024 * 1024 }
+          );
+          return ok(stdout || 'No results found.');
+        }
+
+        case 'facts': {
+          const host = input.limit ?? 'all';
+          const invFlag = input.inventory ? `-i ${input.inventory}` : '';
+          const { stdout } = await execAsync(
+            `ansible ${host} ${invFlag} -m setup --tree /tmp/ansible-facts`,
+            { cwd, env, timeout: 60_000, maxBuffer: 10 * 1024 * 1024 }
+          );
+          return ok(stdout || '(facts gathered to /tmp/ansible-facts)');
+        }
+
+        default:
+          return err(`Unknown ansible action: ${(input as { action: string }).action}`);
+      }
+    } catch (error: unknown) {
+      return err(`Ansible operation failed: ${errorMessage(error)}`);
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 30. policy_check (IaC policy scanning)
+// ---------------------------------------------------------------------------
+
+const policyCheckSchema = z.object({
+  tool: z.enum(['checkov', 'tfsec', 'trivy-config', 'conftest', 'kyverno'])
+    .describe('Policy checking tool to use'),
+  target: z.string().describe('Path to scan (directory or file)'),
+  framework: z.string().optional().describe('Checkov framework filter (e.g., terraform, kubernetes, dockerfile)'),
+  policy_dir: z.string().optional().describe('Policy directory for conftest'),
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional()
+    .describe('Minimum severity threshold to report'),
+  fail_on_violation: z.boolean().optional().describe('Exit with error if violations found'),
+});
+
+export const policyCheckTool: ToolDefinition = {
+  name: 'policy_check',
+  description: 'Run IaC policy checks before applies using checkov, tfsec, trivy, conftest, or kyverno. Catches misconfigurations early.',
+  inputSchema: policyCheckSchema,
+  permissionTier: 'auto_allow',
+  category: 'devops',
+  isDestructive: false,
+
+  async execute(raw: unknown): Promise<ToolResult> {
+    try {
+      const input = policyCheckSchema.parse(raw);
+
+      let command: string;
+      let parseJson = false;
+
+      switch (input.tool) {
+        case 'checkov': {
+          const frameworkFlag = input.framework ? `--framework ${input.framework}` : '';
+          const severityFlag = input.severity ? `--check-threshold ${input.severity}` : '';
+          command = `checkov -d ${input.target} ${frameworkFlag} ${severityFlag} -o json`.trim();
+          parseJson = true;
+          break;
+        }
+        case 'tfsec': {
+          const severityFlag = input.severity ? `--minimum-severity ${input.severity.toLowerCase()}` : '';
+          command = `tfsec ${input.target} ${severityFlag} --format json`.trim();
+          parseJson = true;
+          break;
+        }
+        case 'trivy-config': {
+          const severityFlag = input.severity ? `--severity ${input.severity}` : '';
+          command = `trivy config ${input.target} ${severityFlag} --format json`.trim();
+          parseJson = true;
+          break;
+        }
+        case 'conftest': {
+          const policyFlag = input.policy_dir ? `--policy ${input.policy_dir}` : '';
+          command = `conftest test ${input.target} ${policyFlag}`.trim();
+          parseJson = false;
+          break;
+        }
+        case 'kyverno': {
+          command = `kyverno apply ${input.policy_dir ?? '.'} --resource ${input.target}`.trim();
+          parseJson = false;
+          break;
+        }
+        default:
+          return err(`Unknown policy tool: ${input.tool}`);
+      }
+
+      try {
+        const { stdout, stderr } = await execAsync(command, {
+          timeout: 120_000,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        const output = stdout || stderr || '';
+
+        if (parseJson) {
+          try {
+            const data = JSON.parse(output);
+            // Summarize violations by severity
+            const results = data.results ?? data.Issues ?? data.Results ?? [];
+            const counts: Record<string, number> = {};
+            if (Array.isArray(results)) {
+              for (const r of results) {
+                const sev = (r.severity ?? r.severity_level ?? r.Level ?? 'UNKNOWN').toUpperCase();
+                counts[sev] = (counts[sev] ?? 0) + 1;
+              }
+            }
+            const summary = Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(', ') || 'No violations';
+            const totalResults = Array.isArray(results) ? results.length : 0;
+            if (input.fail_on_violation && totalResults > 0) {
+              return err(`Policy violations found: ${summary}\n\nFull output:\n${output.slice(0, 5000)}`);
+            }
+            return ok(`Policy check (${input.tool}): ${summary}\n\nTarget: ${input.target}\n\nFull output:\n${output.slice(0, 5000)}`);
+          } catch {
+            return ok(output.slice(0, 10000));
+          }
+        }
+
+        const hasViolation = output.toLowerCase().includes('fail') || output.toLowerCase().includes('violation');
+        if (input.fail_on_violation && hasViolation) {
+          return err(`Policy violations found:\n${output.slice(0, 10000)}`);
+        }
+        return ok(output.slice(0, 10000) || 'Policy check passed.');
+      } catch (execErr: unknown) {
+        const msg = errorMessage(execErr);
+        // Some tools exit non-zero when violations found — capture stdout
+        if (msg.includes('stdout:') || msg.includes('stderr:')) {
+          return ok(`Policy violations found:\n${msg.slice(0, 10000)}`);
+        }
+        return err(`Policy check failed: ${msg}`);
+      }
+    } catch (error: unknown) {
+      return err(`policy_check error: ${errorMessage(error)}`);
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 31. rollout_control (Argo Rollouts / Flagger canary)
+// ---------------------------------------------------------------------------
+
+const rolloutControlSchema = z.object({
+  tool: z.enum(['argo-rollouts', 'flagger'])
+    .describe('Rollout tool to use'),
+  action: z.enum(['status', 'promote', 'abort', 'pause', 'resume', 'set-weight', 'analyze'])
+    .describe('Action to perform on the rollout'),
+  name: z.string().describe('Rollout or Canary resource name'),
+  namespace: z.string().optional().describe('Kubernetes namespace'),
+  weight: z.number().min(0).max(100).optional().describe('Traffic weight (0-100) for set-weight action'),
+});
+
+export const rolloutControlTool: ToolDefinition = {
+  name: 'rollout_control',
+  description: 'Control canary/progressive delivery rollouts via Argo Rollouts or Flagger. Promote, abort, pause, resume, and set traffic weights.',
+  inputSchema: rolloutControlSchema,
+  permissionTier: 'ask_once',
+  category: 'devops',
+  isDestructive: false,
+
+  async execute(raw: unknown): Promise<ToolResult> {
+    try {
+      const input = rolloutControlSchema.parse(raw);
+      const nsFlag = input.namespace ? `-n ${input.namespace}` : '';
+
+      let command: string;
+
+      if (input.tool === 'argo-rollouts') {
+        switch (input.action) {
+          case 'status':
+            command = `kubectl argo rollouts get rollout ${input.name} ${nsFlag}`;
+            break;
+          case 'promote':
+            command = `kubectl argo rollouts promote ${input.name} ${nsFlag}`;
+            break;
+          case 'abort':
+            command = `kubectl argo rollouts abort ${input.name} ${nsFlag}`;
+            break;
+          case 'pause':
+            command = `kubectl argo rollouts pause ${input.name} ${nsFlag}`;
+            break;
+          case 'resume':
+            command = `kubectl argo rollouts resume ${input.name} ${nsFlag}`;
+            break;
+          case 'set-weight':
+            if (input.weight === undefined) return err('set-weight requires weight parameter (0-100)');
+            command = `kubectl argo rollouts set weight ${input.name} ${input.weight} ${nsFlag}`;
+            break;
+          case 'analyze':
+            command = `kubectl argo rollouts get rollout ${input.name} ${nsFlag} -o json`;
+            break;
+          default:
+            return err(`Unknown action: ${input.action}`);
+        }
+      } else if (input.tool === 'flagger') {
+        switch (input.action) {
+          case 'status':
+            command = `kubectl get canary ${input.name} ${nsFlag} -o yaml`;
+            break;
+          case 'promote':
+            command = `kubectl annotate canary ${input.name} ${nsFlag} flagger.app/manual-promote=true`;
+            break;
+          case 'abort':
+            command = `kubectl annotate canary ${input.name} ${nsFlag} flagger.app/manual-abort=true`;
+            break;
+          case 'pause':
+            command = `kubectl patch canary ${input.name} ${nsFlag} --type=json -p='[{"op":"replace","path":"/spec/skipAnalysis","value":true}]'`;
+            break;
+          case 'resume':
+            command = `kubectl patch canary ${input.name} ${nsFlag} --type=json -p='[{"op":"replace","path":"/spec/skipAnalysis","value":false}]'`;
+            break;
+          case 'analyze':
+            command = `kubectl get canary ${input.name} ${nsFlag} -o json`;
+            break;
+          default:
+            return err(`Flagger does not support action: ${input.action}. Try: status, promote, abort, pause, resume, analyze`);
+        }
+      } else {
+        return err(`Unknown tool: ${input.tool}`);
+      }
+
+      const { stdout, stderr } = await execAsync(command, {
+        timeout: 60_000,
+        maxBuffer: 5 * 1024 * 1024,
+      });
+      return ok([stdout, stderr].filter(Boolean).join('\n') || '(no output)');
+    } catch (error: unknown) {
+      return err(`Rollout control failed: ${errorMessage(error)}`);
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 32. db_migrate
+// ---------------------------------------------------------------------------
+
+const dbMigrateSchema = z.object({
+  tool: z.enum(['flyway', 'liquibase', 'golang-migrate', 'sqitch'])
+    .describe('Database migration tool'),
+  action: z.enum(['info', 'migrate', 'rollback', 'validate', 'clean', 'baseline'])
+    .describe('Migration action'),
+  url: z.string().optional().describe('Database JDBC URL or connection string'),
+  migrations_dir: z.string().optional().describe('Directory containing migration files'),
+  version: z.string().optional().describe('Target version for rollback'),
+});
+
+export const dbMigrateTool: ToolDefinition = {
+  name: 'db_migrate',
+  description: 'Run database migrations using flyway, liquibase, golang-migrate, or sqitch. Info, migrate, rollback, validate, clean, baseline.',
+  inputSchema: dbMigrateSchema,
+  permissionTier: 'always_ask',
+  category: 'devops',
+  isDestructive: true,
+
+  async execute(raw: unknown): Promise<ToolResult> {
+    try {
+      const input = dbMigrateSchema.parse(raw);
+      let command: string;
+
+      const urlFlag = input.url ? `-url=${input.url}` : '';
+      const locFlag = input.migrations_dir ? `-locations=filesystem:${input.migrations_dir}` : '';
+
+      switch (input.tool) {
+        case 'flyway':
+          command = `flyway ${urlFlag} ${locFlag} ${input.action}`.trim();
+          break;
+        case 'liquibase': {
+          const urlLb = input.url ? `--url=${input.url}` : '';
+          const chlog = input.migrations_dir ? `--changeLogFile=${input.migrations_dir}/changelog.xml` : '';
+          command = `liquibase ${urlLb} ${chlog} ${input.action}`.trim();
+          break;
+        }
+        case 'golang-migrate': {
+          const urlGo = input.url ? `-database ${input.url}` : '';
+          const srcFlag = input.migrations_dir ? `-path ${input.migrations_dir}` : '';
+          const versionFlag = input.action === 'rollback' && input.version ? `down ${input.version}` : '';
+          const actionArg = input.action === 'migrate' ? 'up' : input.action === 'rollback' ? (versionFlag || 'down 1') : input.action;
+          command = `migrate ${urlGo} ${srcFlag} ${actionArg}`.trim();
+          break;
+        }
+        case 'sqitch': {
+          const actionArg = input.action === 'migrate' ? 'deploy' : input.action === 'rollback' ? 'revert' : input.action;
+          command = `sqitch ${actionArg}`.trim();
+          break;
+        }
+        default:
+          return err(`Unknown migration tool: ${input.tool}`);
+      }
+
+      const { stdout, stderr } = await execAsync(command, {
+        timeout: 300_000,
+        maxBuffer: 10 * 1024 * 1024,
+        ...(input.migrations_dir ? { cwd: input.migrations_dir } : {}),
+      });
+      return ok([stdout, stderr].filter(Boolean).join('\n') || `Migration ${input.action} completed.`);
+    } catch (error: unknown) {
+      return err(`Database migration failed: ${errorMessage(error)}`);
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 33. env_diff
+// ---------------------------------------------------------------------------
+
+const envDiffSchema = z.object({
+  type: z.enum(['terraform-workspaces', 'k8s-namespaces', 'helm-releases'])
+    .describe('Type of environment diff to perform'),
+  source: z.string().describe('Source workspace, namespace, or release name'),
+  target: z.string().describe('Target workspace, namespace, or release name'),
+  show_values: z.boolean().optional().describe('Include full values in diff (may be verbose)'),
+  workdir: z.string().optional().describe('Working directory for terraform operations'),
+});
+
+export const envDiffTool: ToolDefinition = {
+  name: 'env_diff',
+  description: 'Compare two environments: terraform workspaces, k8s namespaces, or helm releases. Shows what differs between staging and production.',
+  inputSchema: envDiffSchema,
+  permissionTier: 'auto_allow',
+  category: 'devops',
+  isDestructive: false,
+
+  async execute(raw: unknown): Promise<ToolResult> {
+    try {
+      const input = envDiffSchema.parse(raw);
+
+      if (input.type === 'terraform-workspaces') {
+        const cwd = input.workdir ?? process.cwd();
+        let srcPlan = '';
+        let tgtPlan = '';
+        try {
+          await execAsync(`terraform -chdir=${cwd} workspace select ${input.source}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+          const { stdout: s } = await execAsync(`terraform -chdir=${cwd} plan -no-color`, { timeout: 300_000, maxBuffer: 10 * 1024 * 1024 });
+          srcPlan = s;
+        } catch (e) { srcPlan = `Error: ${errorMessage(e)}`; }
+        try {
+          await execAsync(`terraform -chdir=${cwd} workspace select ${input.target}`, { timeout: 30_000, maxBuffer: 1024 * 1024 });
+          const { stdout: t } = await execAsync(`terraform -chdir=${cwd} plan -no-color`, { timeout: 300_000, maxBuffer: 10 * 1024 * 1024 });
+          tgtPlan = t;
+        } catch (e) { tgtPlan = `Error: ${errorMessage(e)}`; }
+        return ok(`=== ${input.source} workspace ===\n${srcPlan.slice(0, 3000)}\n\n=== ${input.target} workspace ===\n${tgtPlan.slice(0, 3000)}`);
+
+      } else if (input.type === 'k8s-namespaces') {
+        const getSrc = await execAsync(`kubectl get all -n ${input.source} -o yaml`, { timeout: 60_000, maxBuffer: 10 * 1024 * 1024 }).catch(e => ({ stdout: `Error: ${errorMessage(e)}`, stderr: '' }));
+        const getTgt = await execAsync(`kubectl get all -n ${input.target} -o yaml`, { timeout: 60_000, maxBuffer: 10 * 1024 * 1024 }).catch(e => ({ stdout: `Error: ${errorMessage(e)}`, stderr: '' }));
+        const src = getSrc.stdout.slice(0, 5000);
+        const tgt = getTgt.stdout.slice(0, 5000);
+        return ok(`=== namespace: ${input.source} ===\n${src}\n\n=== namespace: ${input.target} ===\n${tgt}`);
+
+      } else if (input.type === 'helm-releases') {
+        const getAllFlag = input.show_values ? '--all' : '';
+        const srcVals = await execAsync(`helm get values ${input.source} ${getAllFlag}`, { timeout: 30_000, maxBuffer: 5 * 1024 * 1024 }).catch(e => ({ stdout: `Error: ${errorMessage(e)}`, stderr: '' }));
+        const tgtVals = await execAsync(`helm get values ${input.target} ${getAllFlag}`, { timeout: 30_000, maxBuffer: 5 * 1024 * 1024 }).catch(e => ({ stdout: `Error: ${errorMessage(e)}`, stderr: '' }));
+        return ok(`=== release: ${input.source} ===\n${srcVals.stdout.slice(0, 5000)}\n\n=== release: ${input.target} ===\n${tgtVals.stdout.slice(0, 5000)}`);
+      }
+
+      return err(`Unknown diff type: ${input.type}`);
+    } catch (error: unknown) {
+      return err(`Environment diff failed: ${errorMessage(error)}`);
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 34. notify (Slack / PagerDuty / Teams / Webhook)
+// ---------------------------------------------------------------------------
+
+const notifySchema = z.object({
+  channel: z.enum(['slack', 'pagerduty', 'teams', 'webhook'])
+    .describe('Notification channel'),
+  action: z.enum(['send', 'resolve-incident', 'create-incident'])
+    .describe('Notification action'),
+  webhook_url: z.string().optional().describe('Webhook URL (Slack/Teams/custom)'),
+  message: z.string().optional().describe('Message text to send'),
+  severity: z.enum(['info', 'warning', 'critical']).optional().describe('Severity level'),
+  incident_id: z.string().optional().describe('PagerDuty incident ID for resolve action'),
+});
+
+export const notifyTool: ToolDefinition = {
+  name: 'notify',
+  description: 'Send notifications via Slack, PagerDuty, Microsoft Teams, or custom webhooks. Use after deploys or for incident alerts.',
+  inputSchema: notifySchema,
+  permissionTier: 'ask_once',
+  category: 'devops',
+  isDestructive: false,
+
+  async execute(raw: unknown): Promise<ToolResult> {
+    try {
+      const input = notifySchema.parse(raw);
+
+      if (input.channel === 'slack' || input.channel === 'teams') {
+        const webhookUrl = input.webhook_url ?? process.env.SLACK_WEBHOOK_URL ?? process.env.TEAMS_WEBHOOK_URL ?? '';
+        if (!webhookUrl) return err(`No webhook URL provided. Set ${input.channel === 'slack' ? 'SLACK_WEBHOOK_URL' : 'TEAMS_WEBHOOK_URL'} env var or pass webhook_url.`);
+
+        const emoji = input.severity === 'critical' ? ':red_circle:' : input.severity === 'warning' ? ':warning:' : ':white_check_mark:';
+        const payload = input.channel === 'teams'
+          ? JSON.stringify({ text: `${emoji} ${input.message ?? 'Notification from Nimbus'}` })
+          : JSON.stringify({ text: `${emoji} ${input.message ?? 'Notification from Nimbus'}` });
+
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+        });
+        if (!res.ok) return err(`Webhook failed: ${res.status} ${res.statusText}`);
+        return ok(`Notification sent to ${input.channel}.`);
+      }
+
+      if (input.channel === 'pagerduty') {
+        const apiKey = process.env.PAGERDUTY_API_KEY ?? '';
+        const serviceKey = process.env.PAGERDUTY_SERVICE_KEY ?? '';
+        if (!apiKey && !serviceKey) return err('Set PAGERDUTY_API_KEY or PAGERDUTY_SERVICE_KEY env var.');
+
+        if (input.action === 'create-incident') {
+          const res = await fetch('https://events.pagerduty.com/v2/enqueue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              routing_key: serviceKey,
+              event_action: 'trigger',
+              payload: {
+                summary: input.message ?? 'Nimbus alert',
+                severity: input.severity ?? 'info',
+                source: 'nimbus',
+              },
+            }),
+          });
+          if (!res.ok) return err(`PagerDuty enqueue failed: ${res.status}`);
+          const data = await res.json() as { dedup_key?: string };
+          return ok(`PagerDuty incident created. Dedup key: ${data.dedup_key ?? 'N/A'}`);
+        }
+
+        if (input.action === 'resolve-incident' && input.incident_id) {
+          const res = await fetch(`https://api.pagerduty.com/incidents/${input.incident_id}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Token token=${apiKey}`,
+              'Content-Type': 'application/json',
+              'From': 'nimbus@localhost',
+            },
+            body: JSON.stringify({ incident: { type: 'incident_reference', status: 'resolved' } }),
+          });
+          if (!res.ok) return err(`PagerDuty resolve failed: ${res.status}`);
+          return ok(`Incident ${input.incident_id} resolved.`);
+        }
+
+        return err('PagerDuty: specify action (create-incident or resolve-incident) and required params.');
+      }
+
+      if (input.channel === 'webhook') {
+        const url = input.webhook_url;
+        if (!url) return err('webhook channel requires webhook_url');
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: input.message, severity: input.severity, source: 'nimbus', timestamp: new Date().toISOString() }),
+        });
+        if (!res.ok) return err(`Webhook failed: ${res.status} ${res.statusText}`);
+        return ok(`Webhook notification sent to ${url}.`);
+      }
+
+      return err(`Unknown channel: ${input.channel}`);
+    } catch (error: unknown) {
+      return err(`Notification failed: ${errorMessage(error)}`);
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 35. terraform_registry
+// ---------------------------------------------------------------------------
+
+const terraformRegistrySchema = z.object({
+  action: z.enum(['search', 'show'])
+    .describe('Registry action: search for modules or show details of a specific module'),
+  query: z.string().optional().describe('Search query for modules'),
+  provider: z.string().optional().describe('Filter by cloud provider (aws, gcp, azure, etc.)'),
+  namespace: z.string().optional().describe('Module namespace (for show action)'),
+  module: z.string().optional().describe('Module name (for show action)'),
+});
+
+export const terraformRegistryTool: ToolDefinition = {
+  name: 'terraform_registry',
+  description: 'Browse the Terraform Module Registry. Search for modules or show details of a specific module including downloads and verified status.',
+  inputSchema: terraformRegistrySchema,
+  permissionTier: 'auto_allow',
+  category: 'devops',
+  isDestructive: false,
+
+  async execute(raw: unknown): Promise<ToolResult> {
+    try {
+      const input = terraformRegistrySchema.parse(raw);
+      const baseUrl = 'https://registry.terraform.io/v1';
+
+      if (input.action === 'search') {
+        if (!input.query) return err('search action requires query parameter');
+        const params = new URLSearchParams({ q: input.query, limit: '10' });
+        if (input.provider) params.set('provider', input.provider);
+
+        const res = await fetch(`${baseUrl}/modules?${params}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) return err(`Registry API error: ${res.status} ${res.statusText}`);
+
+        const data = (await res.json()) as {
+          modules: Array<{
+            namespace: string;
+            name: string;
+            provider: string;
+            downloads: number;
+            verified: boolean;
+            latest_version: string;
+            description?: string;
+          }>;
+          meta?: { total_count: number };
+        };
+
+        if (!data.modules?.length) return ok(`No modules found for query: "${input.query}"`);
+
+        const rows = data.modules.map((m) => {
+          const verified = m.verified ? '[verified]' : '';
+          const downloads =
+            m.downloads >= 1_000_000
+              ? `${(m.downloads / 1_000_000).toFixed(1)}M`
+              : m.downloads >= 1000
+                ? `${Math.round(m.downloads / 1000)}K`
+                : String(m.downloads);
+          return `${m.namespace}/${m.name}/${m.provider} v${m.latest_version} ${verified} (${downloads} downloads)${m.description ? '\n  ' + m.description.slice(0, 100) : ''}`;
+        });
+
+        return ok(
+          `Terraform Registry — "${input.query}" (${data.meta?.total_count ?? data.modules.length} total)\n\n${rows.join('\n\n')}`,
+        );
+      }
+
+      if (input.action === 'show') {
+        const ns = input.namespace;
+        const mod = input.module;
+        const prov = input.provider;
+        if (!ns || !mod || !prov) return err('show action requires namespace, module, and provider');
+
+        const res = await fetch(`${baseUrl}/modules/${ns}/${mod}/${prov}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) return err(`Registry API error: ${res.status} ${res.statusText}`);
+
+        const data = (await res.json()) as {
+          namespace: string;
+          name: string;
+          provider: string;
+          versions: Array<{ version: string }>;
+          downloads: number;
+          verified: boolean;
+          description?: string;
+          source?: string;
+        };
+
+        const versions = (data.versions ?? [])
+          .slice(0, 5)
+          .map((v) => v.version)
+          .join(', ');
+        return ok(
+          [
+            `Module: ${data.namespace}/${data.name}/${data.provider}`,
+            `Verified: ${data.verified ? 'Yes' : 'No'}`,
+            `Downloads: ${data.downloads?.toLocaleString() ?? 'N/A'}`,
+            `Recent versions: ${versions || 'N/A'}`,
+            data.description ? `Description: ${data.description}` : '',
+            data.source ? `Source: ${data.source}` : '',
+            `\nUsage:\n  module "${data.name}" {\n    source = "${data.namespace}/${data.name}/${data.provider}"\n    version = "${(data.versions?.[0]?.version) ?? 'latest'}"\n  }`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        );
+      }
+
+      return err(`Unknown action: ${input.action}`);
+    } catch (error: unknown) {
+      return err(`Terraform registry error: ${errorMessage(error)}`);
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Aggregate export
 // ---------------------------------------------------------------------------
 
-/** All 28 DevOps tools as an ordered array. */
+/** All 35 DevOps tools as an ordered array. */
 export const devopsTools: ToolDefinition[] = [
   terraformTool,
   kubectlTool,
@@ -3499,4 +4378,11 @@ export const devopsTools: ToolDefinition[] = [
   azTool,
   incidentTool,
   generateInfraTool,
+  ansibleTool,
+  policyCheckTool,
+  rolloutControlTool,
+  dbMigrateTool,
+  envDiffTool,
+  notifyTool,
+  terraformRegistryTool,
 ];

@@ -61,6 +61,8 @@ if (isBun) {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   _Impl = require('bun:sqlite').Database;
 } else {
+  // Try better-sqlite3 first (persistent, fast, native)
+  let betterSqlite3Loaded = false;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const BetterSqlite3 = require('better-sqlite3');
@@ -78,79 +80,145 @@ if (isBun) {
       };
     }
     _Impl = BetterSqlite3;
+    betterSqlite3Loaded = true;
   } catch {
-    // G1: Path 3 — sql.js fallback (pure WASM, no native build required)
+    // better-sqlite3 native build unavailable (ARM, Windows without build tools, etc.)
+    // Fall through to sql.js pure-WASM fallback with file persistence
+  }
+
+  if (!betterSqlite3Loaded) {
+    // sql.js fallback — pure WASM, works everywhere, with file persistence via node:fs
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const initSqlJs = require('sql.js');
-      process.stderr.write(
-        '[nimbus] WARNING: Running in in-memory SQLite mode (no persistence).\n' +
-        '[nimbus] Install better-sqlite3 for full functionality: npm install better-sqlite3\n'
-      );
-
-      let sqlJsDb: { run(sql: string, params?: unknown[]): void; prepare(sql: string): unknown; close(): void } | null = null;
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const fs = require('node:fs') as typeof import('node:fs');
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const getSqlJsDb = (): any => {
-        if (!sqlJsDb) throw new Error('sql.js database not yet initialised — call new Database() first');
-        return sqlJsDb;
+      type SqlJsDb = any;
+      let resolvedSQL: { Database: new (data?: Buffer) => SqlJsDb } | null = null;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const getSQL = (): Promise<{ Database: new (data?: Buffer) => SqlJsDb }> => {
+        if (resolvedSQL) return Promise.resolve(resolvedSQL);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (initSqlJs as any)().then((s: any) => { resolvedSQL = s; return s; });
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       class SqlJsDatabase {
-        constructor(_path: string) {
-          // Synchronously initialise — sql.js init is async but we use a trick:
-          // initSqlJs() returns a promise; we store a sentinel and resolve lazily.
-          // For simplicity, initialise synchronously with the default WASM bundle.
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const SQL = (initSqlJs as any)({ locateFile: () => '' });
-            if (SQL && SQL.then) {
-              // async — best-effort; DB will be ready after first await
-              SQL.then((s: { Database: new () => typeof sqlJsDb }) => { sqlJsDb = new s.Database(); });
-            } else {
-              sqlJsDb = new (SQL as { Database: new () => typeof sqlJsDb }).Database();
-            }
-          } catch {
-            // fallback: leave sqlJsDb null, operations will throw with clear message
-          }
+        private db: SqlJsDb | null = null;
+        private dbPath: string;
+        private initPromise: Promise<void>;
+
+        constructor(dbPath: string) {
+          this.dbPath = dbPath;
+          this.initPromise = getSQL().then(SQL => {
+            // Load existing DB from disk if it exists
+            let data: Buffer | undefined;
+            try {
+              if (fs.existsSync(dbPath)) {
+                data = fs.readFileSync(dbPath);
+              }
+            } catch { /* ignore */ }
+            this.db = data ? new SQL.Database(data) : new SQL.Database();
+          });
         }
-        exec(sql: string): void { getSqlJsDb().run(sql); }
+
+        /** Persist the current db to disk (called after every write). */
+        private persist(): void {
+          if (!this.db) return;
+          try {
+            const data = this.db.export();
+            const dir = require('node:path').dirname(this.dbPath);
+            fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(this.dbPath, data);
+          } catch { /* non-critical */ }
+        }
+
+        private getDb(): SqlJsDb {
+          if (!this.db) throw new Error('sql.js database not yet initialised');
+          return this.db;
+        }
+
+        exec(sql: string): void {
+          this.getDb().run(sql);
+          this.persist();
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         prepare(sql: string): any {
-          const db = getSqlJsDb();
-          const stmt = db.prepare(sql);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const self = this;
           return {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            run: (...params: unknown[]) => { stmt.run(params as any[]); return {}; },
+            run: (...params: unknown[]) => {
+              const stmt = self.getDb().prepare(sql);
+              stmt.run(params as any[]);
+              stmt.free();
+              self.persist();
+              return {};
+            },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            get: (...params: unknown[]) => { stmt.bind(params as any[]); return stmt.step() ? stmt.getAsObject() : undefined; },
+            get: (...params: unknown[]) => {
+              const stmt = self.getDb().prepare(sql);
+              stmt.bind(params as any[]);
+              const row = stmt.step() ? stmt.getAsObject() : undefined;
+              stmt.free();
+              return row;
+            },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            all: (...params: unknown[]) => { const rows: unknown[] = []; stmt.bind(params as any[]); while (stmt.step()) rows.push(stmt.getAsObject()); return rows; },
-            finalize: () => stmt.free(),
+            all: (...params: unknown[]) => {
+              const stmt = self.getDb().prepare(sql);
+              stmt.bind(params as any[]);
+              const rows: unknown[] = [];
+              while (stmt.step()) rows.push(stmt.getAsObject());
+              stmt.free();
+              return rows;
+            },
+            finalize: () => { /* no-op for sql.js */ },
           };
         }
-        close(): void { getSqlJsDb().close(); sqlJsDb = null; }
+
+        close(): void {
+          this.persist();
+          this.db?.close();
+          this.db = null;
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         transaction<T>(fn: (...args: any[]) => T): (...args: any[]) => T {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return (...args: any[]) => {
-            getSqlJsDb().run('BEGIN');
-            try { const r = fn(...args); getSqlJsDb().run('COMMIT'); return r; }
-            catch (e) { try { getSqlJsDb().run('ROLLBACK'); } catch { /* ignore */ } throw e; }
+            this.getDb().run('BEGIN');
+            try {
+              const r = fn(...args);
+              this.getDb().run('COMMIT');
+              this.persist();
+              return r;
+            } catch (e) {
+              try { this.getDb().run('ROLLBACK'); } catch { /* ignore */ }
+              throw e;
+            }
           };
         }
+
         run(sql: string, params?: unknown[]): unknown {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return params ? getSqlJsDb().run(sql, params as any[]) : getSqlJsDb().run(sql);
+          params ? this.getDb().run(sql, params as any[]) : this.getDb().run(sql);
+          this.persist();
+          return {};
         }
+
         query(sql: string) { return this.prepare(sql); }
       }
+
       _Impl = SqlJsDatabase;
     } catch {
       throw new Error(
-        'Nimbus requires either the Bun runtime (bun:sqlite) or the better-sqlite3 package.\n' +
-          'Install better-sqlite3: npm install better-sqlite3\n' +
+        'Nimbus requires either the Bun runtime (bun:sqlite), better-sqlite3, or sql.js.\n' +
+          'Install: npm install better-sqlite3\n' +
+          'Or:      npm install sql.js\n' +
           'Or install Bun: curl -fsSL https://bun.sh/install | bash'
       );
     }

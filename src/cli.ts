@@ -1533,8 +1533,9 @@ export async function runCommand(args: string[]): Promise<void> {
     const statusOptions: StatusOptions = {};
     for (let i = 1; i < args.length; i++) {
       if (args[i] === '--json') statusOptions.json = true;
+      if (args[i] === '--watch') statusOptions.watch = true;
     }
-    await statusCommand(statusOptions);
+    await statusCommand({ json: statusOptions.json, verbose: statusOptions.verbose, watch: statusOptions.watch });
     return;
   }
 

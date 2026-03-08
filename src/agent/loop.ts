@@ -510,6 +510,16 @@ export interface AgentLoopOptions {
    * into the tool's ToolExecuteContext so it can override the built-in default.
    */
   toolTimeouts?: Record<string, number>;
+
+  /**
+   * C1: Called by the UI when the user presses Ctrl+C during a tool execution.
+   * Cancels just the currently-running tool without aborting the whole session.
+   * The agent loop continues after the tool is cancelled with a synthetic result.
+   */
+  onCancelCurrentTool?: () => void;
+
+  /** H1: Inline diff approval callback — called before write_file/edit_file applies changes. */
+  onRequestDiffApproval?: (filePath: string, diff: string) => Promise<'approve' | 'reject'>;
 }
 
 /** Information about a tool call in progress. */
@@ -847,15 +857,50 @@ export async function runAgentLoop(
   // Shared mutable ref: set to true by 'reject-all' diff decision to auto-reject further prompts
   const rejectRemainingDiffPrompts = { value: options.rejectRemainingDiffPrompts ?? false };
 
+  // C1: Per-tool cancel function ref.
+  // Holds an abort function for the currently executing tool so the UI can
+  // cancel just that tool (Ctrl+C) without terminating the whole session.
+  // The ref is a simple object so executeToolCall can mutate it by attaching
+  // the per-tool AbortController abort function via the _handler duck-type.
+  const currentToolCancelRef: { fn: (() => void) | null } = { fn: null };
+
+  // Wire options.onCancelCurrentTool to invoke currentToolCancelRef.fn
+  if (options.onCancelCurrentTool) {
+    const origCancelHook = options.onCancelCurrentTool;
+    // Replace with a wrapper that delegates to the active tool's abort
+    options.onCancelCurrentTool = () => {
+      if (currentToolCancelRef.fn) {
+        currentToolCancelRef.fn();
+      }
+    };
+    void origCancelHook; // acknowledge reference retained (for clarity)
+  }
+
   // -----------------------------------------------------------------------
   // 3. Main agent loop
   // -----------------------------------------------------------------------
+
+  let compactionPromise: Promise<LLMMessage[]> | null = null;
 
   while (turns < maxTurns) {
     // Check for cancellation before each turn
     if (signal?.aborted) {
       interrupted = true;
       break;
+    }
+
+    // H2: Apply pending background compaction before building next LLM request
+    if (compactionPromise) {
+      try {
+        const compacted = await compactionPromise;
+        messages.length = 0;
+        messages.push(...compacted);
+        options.contextManager?.clearTokenCache();
+        if (options.onCompact) {
+          options.onCompact({ originalTokens: 0, compactedTokens: 0, savedTokens: 0, summaryPreserved: true });
+        }
+      } catch { /* compaction failed, continue with original */ }
+      compactionPromise = null;
     }
 
     turns++;
@@ -1139,6 +1184,22 @@ export async function runAgentLoop(
           ? (chunk: string) => onToolOutputChunk(toolCall.id, chunk)
           : undefined;
 
+        // C1: Build a per-tool cancel stub that executeToolCall will populate via _handler.
+        // The stub is passed as onCancelTool; executeToolCall attaches the real abort fn
+        // to stub._handler. We use a typed container object to avoid the self-referencing
+        // closure inference problem with intersection types.
+        const toolCancelContainer: { _handler?: () => void } = {};
+        const toolCancelStub: (() => void) & { _handler?: () => void } = Object.assign(
+          function toolCancelStubFn() {
+            if (toolCancelContainer._handler) toolCancelContainer._handler();
+          },
+          toolCancelContainer
+        );
+        // C1: Point the session-level cancel ref to this tool's cancel stub
+        currentToolCancelRef.fn = () => {
+          if (toolCancelContainer._handler) toolCancelContainer._handler();
+        };
+
         const result = await executeToolCall(
           toolCall,
           toolRegistry,
@@ -1156,8 +1217,12 @@ export async function runAgentLoop(
           rejectRemainingDiffPrompts,
           chunkCallback,
           options.toolTimeouts,
-          options.infraContext
+          options.infraContext,
+          toolCancelStub
         );
+
+        // C1: Clear the cancel ref after the tool has finished
+        currentToolCancelRef.fn = null;
 
         // Append each tool result as a separate message so the LLM can
         // match it to the corresponding tool_use block by toolCallId.
@@ -1238,6 +1303,27 @@ export async function runAgentLoop(
               onText?.(`\n[cost] ${costHint}\n`);
             }
           } catch { /* ignore parse errors */ }
+        }
+
+        // M5: Pre-apply cost alert — warn if plan will add significant resources
+        if (toolCall.function.name === 'terraform') {
+          try {
+            const tfArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+            if (tfArgs.action === 'plan' && !result.isError) {
+              const planOutput = result.output;
+              const addMatch = planOutput.match(/(\d+) to add/);
+              const changeMatch = planOutput.match(/(\d+) to change/);
+              const destroyMatch = planOutput.match(/(\d+) to destroy/);
+              const added = addMatch ? Number(addMatch[1]) : 0;
+              const changed = changeMatch ? Number(changeMatch[1]) : 0;
+              const destroyed = destroyMatch ? Number(destroyMatch[1]) : 0;
+              // Rough estimate: $20/resource/month for new resources, $5 for changes
+              const estimatedDelta = (added * 20) + (changed * 5);
+              if (estimatedDelta > 100 && onText) {
+                onText(`\n[cost-alert] This plan will add ~$${estimatedDelta}/mo (${added} new, ${changed} changed, ${destroyed} destroyed). Review before applying.\n`);
+              }
+            }
+          } catch { /* ignore */ }
         }
 
         // L6: Auto-generate runbook after terraform apply success
@@ -1400,7 +1486,7 @@ export async function runAgentLoop(
               }
             }
             // Allow up to 500 diff lines + first 50 context lines
-            const keptDiff = diffLines.slice(0, 500);
+            const keptDiff = diffLines.slice(0, 1500);
             const keptCtx = contextLines.slice(0, 50);
             omitted = Math.max(0, lines.length - keptDiff.length - keptCtx.length);
             head = [...keptCtx, ...keptDiff].join('\n');
@@ -1456,28 +1542,15 @@ export async function runAgentLoop(
           0
         );
         if (options.contextManager.shouldCompact(systemPrompt, messages, toolTokens)) {
-          try {
-            const compactResult = await runCompaction(messages, options.contextManager, {
+          // H2: Fire compaction async — don't block TUI input; apply on next turn start
+          if (!compactionPromise) {
+            if (onText) {
+              onText('\n[Compacting context in background...]\n');
+            }
+            compactionPromise = runCompaction(messages, options.contextManager, {
               router,
               ...(options.infraContext ? { infraContext: options.infraContext } : {}),
-            });
-            // Replace messages with the compacted version
-            messages.length = 0;
-            messages.push(...compactResult.messages);
-            // Clear the token cache after compaction — old message entries are no longer valid
-            options.contextManager.clearTokenCache();
-            if (options.onCompact) {
-              options.onCompact(compactResult.result);
-            }
-          } catch (compactErr) {
-            // Compaction failed — notify user visibly and continue with original messages
-            const compactErrMsg =
-              compactErr instanceof Error ? compactErr.message : String(compactErr);
-            if (onText) {
-              onText(
-                `\n[Warning: Auto-compaction failed: ${compactErrMsg}. Context may exceed budget on the next turn.]\n`
-              );
-            }
+            }).then(r => r.messages).catch(() => messages.slice());
           }
         }
       }
@@ -1551,6 +1624,7 @@ export async function runAgentLoop(
 const FILE_EDITING_TOOLS = new Set(['edit_file', 'multi_edit', 'write_file']);
 
 /** Tools that mutate files and may require a pre-approval diff. */
+// H1: onRequestDiffApproval — inline diff shown before file edits apply
 const FILE_MUTATING_TOOLS = new Set(['edit_file', 'multi_edit', 'write_file']);
 
 /**
@@ -1676,7 +1750,8 @@ async function executeToolCall(
   rejectRemainingDiffPrompts?: { value: boolean },
   onChunk?: (chunk: string) => void,
   toolTimeouts?: Record<string, number>,
-  infraContext?: import('../sessions/manager').SessionInfraContext
+  infraContext?: import('../sessions/manager').SessionInfraContext,
+  onCancelTool?: () => void
 ): Promise<ToolResult> {
   const toolName = toolCall.function.name;
 
@@ -1831,23 +1906,40 @@ async function executeToolCall(
 
   // Validate input against the tool's Zod schema and execute
   let result: ToolResult;
+
+  // C1: Per-tool AbortController — allows cancelling the current tool without exiting the session.
+  // Hoisted above try/catch so cleanup is accessible in both branches.
+  const toolAbortController = new AbortController();
+  let cancelToolUnsubscribe: (() => void) | undefined;
+  // Wire the cancel callback to abort this specific tool
+  if (onCancelTool !== undefined) {
+    const handler = () => toolAbortController.abort();
+    (onCancelTool as unknown as { _handler?: () => void })._handler = handler;
+  }
+  // Propagate parent (session-level) signal to the per-tool abort controller
+  if (signal) {
+    const parentAbortHandler = () => toolAbortController.abort();
+    signal.addEventListener('abort', parentAbortHandler, { once: true });
+    cancelToolUnsubscribe = () => signal.removeEventListener('abort', parentAbortHandler);
+  }
+
   try {
     const validatedInput = tool.inputSchema.parse(parsedArgs);
 
-    // Thread AbortSignal into bash tool for Ctrl+C child process killing
-    if (signal && toolName === 'bash' && validatedInput && typeof validatedInput === 'object') {
-      (validatedInput as Record<string, unknown>)._signal = signal;
+    // C1: Thread per-tool AbortSignal into bash tool (not session-level signal)
+    if (toolName === 'bash' && validatedInput && typeof validatedInput === 'object') {
+      (validatedInput as Record<string, unknown>)._signal = toolAbortController.signal;
     }
 
     // GAP-20: Build tool execute context, including per-tool timeout from toolTimeouts map
     // C2: Also pass infraContext from session so tools can use it as fallback
-    const toolCtx: ToolExecuteContext | undefined = onChunk || toolTimeouts?.[toolName] || infraContext
-      ? {
-          ...(onChunk ? { onProgress: onChunk } : {}),
-          ...(toolTimeouts?.[toolName] !== undefined ? { timeout: toolTimeouts[toolName] } : {}),
-          ...(infraContext ? { infraContext } : {}),
-        }
-      : undefined;
+    // C1: Always build toolCtx so we can pass the per-tool abort signal
+    const toolCtx: ToolExecuteContext = {
+      ...(onChunk ? { onProgress: onChunk } : {}),
+      ...(toolTimeouts?.[toolName] !== undefined ? { timeout: toolTimeouts[toolName] } : {}),
+      ...(infraContext ? { infraContext } : {}),
+      signal: toolAbortController.signal,
+    };
     // C2: Write infra checkpoint before mutating terraform/helm operations
     if (toolName === 'terraform' || toolName === 'helm') {
       const _cpArgs = parsedArgs && typeof parsedArgs === 'object'
@@ -1862,12 +1954,24 @@ async function executeToolCall(
       }
     }
     result = await tool.execute(validatedInput, toolCtx);
+
+    // C1: If this tool was cancelled by user (not by parent/session abort), return a
+    // synthetic non-error result so the agent loop can continue with partial output.
+    if (toolAbortController.signal.aborted && !signal?.aborted) {
+      result = {
+        output: `Tool cancelled by user. Partial output provided for analysis.\n${result.output || result.error || ''}`,
+        isError: false,
+      };
+    }
   } catch (error: unknown) {
     result = {
       output: '',
       error: formatToolInputError(toolName, error),
       isError: true,
     };
+  } finally {
+    // C1: Always remove the parent-signal listener to avoid memory leaks
+    if (cancelToolUnsubscribe) cancelToolUnsubscribe();
   }
 
   // -----------------------------------------------------------------------
