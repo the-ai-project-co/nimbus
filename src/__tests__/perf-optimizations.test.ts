@@ -682,10 +682,10 @@ describe('L2: profile management', () => {
     expect(process.env.AWS_PROFILE).toBe('test-aws');
     expect(process.env.AWS_DEFAULT_REGION).toBe('eu-west-1');
     // cleanup
-    if (originalKey !== undefined) process.env.ANTHROPIC_API_KEY = originalKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalProfile !== undefined) process.env.AWS_PROFILE = originalProfile;
-    else delete process.env.AWS_PROFILE;
+    if (originalKey !== undefined) {process.env.ANTHROPIC_API_KEY = originalKey;}
+    else {delete process.env.ANTHROPIC_API_KEY;}
+    if (originalProfile !== undefined) {process.env.AWS_PROFILE = originalProfile;}
+    else {delete process.env.AWS_PROFILE;}
   });
 
   it('listProfiles returns array (possibly empty)', () => {
@@ -697,16 +697,16 @@ describe('L2: profile management', () => {
     const original = process.env.GCLOUD_PROJECT;
     applyProfile({ name: 'test', gcpProject: 'my-gcp-proj' });
     expect(process.env.GCLOUD_PROJECT).toBe('my-gcp-proj');
-    if (original !== undefined) process.env.GCLOUD_PROJECT = original;
-    else delete process.env.GCLOUD_PROJECT;
+    if (original !== undefined) {process.env.GCLOUD_PROJECT = original;}
+    else {delete process.env.GCLOUD_PROJECT;}
   });
 
   it('applyProfile sets Azure subscription env var', () => {
     const original = process.env.AZURE_SUBSCRIPTION_ID;
     applyProfile({ name: 'test', azureSubscription: 'sub-123' });
     expect(process.env.AZURE_SUBSCRIPTION_ID).toBe('sub-123');
-    if (original !== undefined) process.env.AZURE_SUBSCRIPTION_ID = original;
-    else delete process.env.AZURE_SUBSCRIPTION_ID;
+    if (original !== undefined) {process.env.AZURE_SUBSCRIPTION_ID = original;}
+    else {delete process.env.AZURE_SUBSCRIPTION_ID;}
   });
 });
 

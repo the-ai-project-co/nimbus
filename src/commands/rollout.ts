@@ -57,7 +57,7 @@ export async function rolloutCommand(options: RolloutOptions): Promise<void> {
     const combined = [result.stdout, result.stderr].filter(Boolean).join('\n');
     if (result.exitCode !== 0) {
       console.error(`\nRollout failed (exit code ${result.exitCode}):`);
-      if (combined) console.error(combined);
+      if (combined) {console.error(combined);}
       process.exitCode = 1;
     } else {
       console.log('\nRollout complete.');
@@ -77,7 +77,7 @@ export async function rolloutCommand(options: RolloutOptions): Promise<void> {
  */
 export function parseTimeoutToMs(timeout: string): number {
   const match = timeout.match(/^(\d+)(s|m|h)$/);
-  if (!match) return 300_000; // default 5 min
+  if (!match) {return 300_000;} // default 5 min
   const value = parseInt(match[1]);
   switch (match[2]) {
     case 's': return value * 1000;

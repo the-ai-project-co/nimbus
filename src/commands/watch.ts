@@ -7,7 +7,8 @@
  */
 
 import { basename } from 'node:path';
-import { FSWatcher, watch as fsWatch } from 'node:fs';
+import type { FSWatcher} from 'node:fs';
+import { watch as fsWatch } from 'node:fs';
 
 export interface WatchOptions {
   /** Glob pattern to watch (e.g. "*.tf") */
@@ -112,13 +113,13 @@ export async function watchCommand(options: WatchOptions): Promise<void> {
   }
 
   function onChange(filename: string | null): void {
-    if (!filename) return;
+    if (!filename) {return;}
 
     // Check if the file matches the glob pattern
-    if (!matchGlob(filename, glob)) return;
+    if (!matchGlob(filename, glob)) {return;}
 
     // Debounce rapid successive changes
-    if (debounceTimer) clearTimeout(debounceTimer);
+    if (debounceTimer) {clearTimeout(debounceTimer);}
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
       triggerRun(filename).catch(err => {

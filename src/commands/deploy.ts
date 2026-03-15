@@ -143,8 +143,8 @@ export async function deployCommand(args: string[]): Promise<void> {
     const planResult = run('terraform', ['plan', '-out=nimbus-deploy.tfplan', '-no-color'], { cwd });
 
     // Always print plan output so the user can review it
-    if (planResult.stdout) process.stdout.write(planResult.stdout + '\n');
-    if (planResult.stderr) process.stderr.write(planResult.stderr + '\n');
+    if (planResult.stdout) {process.stdout.write(`${planResult.stdout  }\n`);}
+    if (planResult.stderr) {process.stderr.write(`${planResult.stderr  }\n`);}
 
     if (planResult.status !== 0) {
       fail('terraform plan failed. Fix the errors above before deploying.');
@@ -184,8 +184,8 @@ export async function deployCommand(args: string[]): Promise<void> {
 
     const applyResult = run('terraform', ['apply', '-auto-approve', '-no-color', 'nimbus-deploy.tfplan'], { cwd });
 
-    if (applyResult.stdout) process.stdout.write(applyResult.stdout + '\n');
-    if (applyResult.stderr) process.stderr.write(applyResult.stderr + '\n');
+    if (applyResult.stdout) {process.stdout.write(`${applyResult.stdout  }\n`);}
+    if (applyResult.stderr) {process.stderr.write(`${applyResult.stderr  }\n`);}
 
     // Clean up plan file regardless of success/failure
     try {
@@ -232,7 +232,7 @@ export async function deployCommand(args: string[]): Promise<void> {
           { cwd }
         );
 
-        if (rolloutResult.stdout) process.stdout.write(rolloutResult.stdout + '\n');
+        if (rolloutResult.stdout) {process.stdout.write(`${rolloutResult.stdout  }\n`);}
 
         if (rolloutResult.status !== 0) {
           warn(`Rollout timeout or error for ${deployment}: ${rolloutResult.stderr.trim()}`);

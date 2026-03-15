@@ -30,10 +30,10 @@ const HISTORY_FILE = join(homedir(), '.nimbus', 'input-history.json');
 /** Load persisted input history from disk (returns [] on any error). */
 function loadHistory(): string[] {
   try {
-    if (!existsSync(HISTORY_FILE)) return [];
+    if (!existsSync(HISTORY_FILE)) {return [];}
     const raw = readFileSync(HISTORY_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.slice(-MAX_HISTORY) as string[];
+    if (Array.isArray(parsed)) {return parsed.slice(-MAX_HISTORY) as string[];}
   } catch { /* ignore */ }
   return [];
 }
@@ -42,7 +42,7 @@ function loadHistory(): string[] {
 function saveHistory(entries: string[]): void {
   try {
     const dir = join(homedir(), '.nimbus');
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    if (!existsSync(dir)) {mkdirSync(dir, { recursive: true });}
     writeFileSync(HISTORY_FILE, JSON.stringify(entries.slice(-MAX_HISTORY)), 'utf-8');
   } catch { /* non-critical */ }
 }

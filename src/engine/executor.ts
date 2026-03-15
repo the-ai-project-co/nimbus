@@ -943,10 +943,10 @@ export class Executor {
         await new Promise<void>((resolve, reject) => {
           const { exec } = require('node:child_process') as typeof import('node:child_process');
           exec(rollbackCmd, { timeout: 600_000 }, (error, stdout, stderr) => {
-            if (stdout) this.log(executionId, 'info', stdout);
-            if (stderr) this.log(executionId, 'info', stderr);
-            if (error) reject(error);
-            else resolve();
+            if (stdout) {this.log(executionId, 'info', stdout);}
+            if (stderr) {this.log(executionId, 'info', stderr);}
+            if (error) {reject(error);}
+            else {resolve();}
           });
         });
       }

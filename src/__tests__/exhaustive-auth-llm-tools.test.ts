@@ -321,7 +321,7 @@ describe('AuthStore.getApiKey() — env var fallbacks', () => {
     delete process.env.OLLAMA_API_KEY;
     const key = store.getApiKey('ollama' as any);
     expect(key).toBeUndefined();
-    if (orig !== undefined) process.env.OLLAMA_API_KEY = orig;
+    if (orig !== undefined) {process.env.OLLAMA_API_KEY = orig;}
   });
 });
 

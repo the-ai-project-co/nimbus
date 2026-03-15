@@ -350,7 +350,7 @@ describe('L2 — task-adaptive system prompt pruning', () => {
 
   it('getPrunedHeuristics returns different content for plan vs deploy mode', async () => {
     const { getPrunedHeuristics } = await import('../agent/system-prompt');
-    if (typeof getPrunedHeuristics !== 'function') return; // graceful skip
+    if (typeof getPrunedHeuristics !== 'function') {return;} // graceful skip
     const planResult = getPrunedHeuristics('plan');
     const deployResult = getPrunedHeuristics('deploy');
     expect(typeof planResult).toBe('string');

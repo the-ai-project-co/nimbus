@@ -1051,12 +1051,12 @@ export class LLMRouter {
  */
 export function listAuthenticatedProviders(): string[] {
   const authenticated: string[] = [];
-  if (process.env.ANTHROPIC_API_KEY) authenticated.push('anthropic');
-  if (process.env.OPENAI_API_KEY) authenticated.push('openai');
-  if (process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) authenticated.push('google');
-  if (process.env.GROQ_API_KEY) authenticated.push('groq');
-  if (process.env.OPENROUTER_API_KEY) authenticated.push('openrouter');
-  if (process.env.AWS_ACCESS_KEY_ID || process.env.AWS_PROFILE) authenticated.push('bedrock');
+  if (process.env.ANTHROPIC_API_KEY) {authenticated.push('anthropic');}
+  if (process.env.OPENAI_API_KEY) {authenticated.push('openai');}
+  if (process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {authenticated.push('google');}
+  if (process.env.GROQ_API_KEY) {authenticated.push('groq');}
+  if (process.env.OPENROUTER_API_KEY) {authenticated.push('openrouter');}
+  if (process.env.AWS_ACCESS_KEY_ID || process.env.AWS_PROFILE) {authenticated.push('bedrock');}
   return authenticated;
 }
 
@@ -1101,7 +1101,7 @@ export function classifyTaskComplexity(message: string): TaskComplexity {
  * If `preferredModel` is provided it always wins (user override).
  */
 export function routeModel(complexity: TaskComplexity, preferredModel?: string): string {
-  if (preferredModel) return preferredModel;
+  if (preferredModel) {return preferredModel;}
   switch (complexity) {
     case 'simple':
       return 'anthropic/claude-haiku-4-5-20251001';

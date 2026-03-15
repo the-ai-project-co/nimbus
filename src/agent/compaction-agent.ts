@@ -120,12 +120,12 @@ export async function runCompaction(
   if (options.infraContext) {
     const ic = options.infraContext;
     const infraLines: string[] = [];
-    if (ic.terraformWorkspace) infraLines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);
-    if (ic.kubectlContext) infraLines.push(`- kubectl context: ${ic.kubectlContext}`);
-    if (ic.awsProfile) infraLines.push(`- AWS profile: ${ic.awsProfile}`);
-    if (ic.awsRegion) infraLines.push(`- AWS region: ${ic.awsRegion}`);
-    if (ic.gcpProject) infraLines.push(`- GCP project: ${ic.gcpProject}`);
-    if (ic.azureSubscription) infraLines.push(`- Azure subscription: ${ic.azureSubscription}`);
+    if (ic.terraformWorkspace) {infraLines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);}
+    if (ic.kubectlContext) {infraLines.push(`- kubectl context: ${ic.kubectlContext}`);}
+    if (ic.awsProfile) {infraLines.push(`- AWS profile: ${ic.awsProfile}`);}
+    if (ic.awsRegion) {infraLines.push(`- AWS region: ${ic.awsRegion}`);}
+    if (ic.gcpProject) {infraLines.push(`- GCP project: ${ic.gcpProject}`);}
+    if (ic.azureSubscription) {infraLines.push(`- Azure subscription: ${ic.azureSubscription}`);}
     if (infraLines.length > 0) {
       userPrompt += `\n\n## ALWAYS PRESERVE IN SUMMARY (do not omit):\n${infraLines.join('\n')}`;
     }
@@ -155,12 +155,12 @@ export async function runCompaction(
   if (options.infraContext) {
     const ic = options.infraContext;
     const infraLines: string[] = [];
-    if (ic.terraformWorkspace) infraLines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);
-    if (ic.kubectlContext) infraLines.push(`- kubectl context: ${ic.kubectlContext}`);
-    if (ic.awsProfile) infraLines.push(`- AWS profile: ${ic.awsProfile}`);
-    if (ic.awsRegion) infraLines.push(`- AWS region: ${ic.awsRegion}`);
-    if (ic.gcpProject) infraLines.push(`- GCP project: ${ic.gcpProject}`);
-    if (ic.azureSubscription) infraLines.push(`- Azure subscription: ${ic.azureSubscription}`);
+    if (ic.terraformWorkspace) {infraLines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);}
+    if (ic.kubectlContext) {infraLines.push(`- kubectl context: ${ic.kubectlContext}`);}
+    if (ic.awsProfile) {infraLines.push(`- AWS profile: ${ic.awsProfile}`);}
+    if (ic.awsRegion) {infraLines.push(`- AWS region: ${ic.awsRegion}`);}
+    if (ic.gcpProject) {infraLines.push(`- GCP project: ${ic.gcpProject}`);}
+    if (ic.azureSubscription) {infraLines.push(`- Azure subscription: ${ic.azureSubscription}`);}
     if (infraLines.length > 0) {
       finalSummary = `## Infrastructure Context\n${infraLines.join('\n')}\n\n${summary}`;
     }

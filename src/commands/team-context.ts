@@ -21,7 +21,7 @@ const NIMBUS_MD_PATHS = [
 
 function findLocalNimbusMd(): string | null {
   for (const p of NIMBUS_MD_PATHS) {
-    if (fs.existsSync(p)) return p;
+    if (fs.existsSync(p)) {return p;}
   }
   return null;
 }
@@ -82,9 +82,9 @@ function mergeSections(localContent: string, teamContent: string): string {
     return heading && !localHeadings.has(heading);
   });
 
-  if (newSections.length === 0) return localContent;
+  if (newSections.length === 0) {return localContent;}
 
-  const merged = localContent.trimEnd() + '\n\n' + newSections.join('\n').trimStart();
+  const merged = `${localContent.trimEnd()  }\n\n${  newSections.join('\n').trimStart()}`;
   return merged;
 }
 
@@ -205,14 +205,14 @@ export async function teamContextCommand(subcommand: string, args: string[]): Pr
  */
 export async function fetchRemoteNimbusMd(): Promise<string | null> {
   const url = process.env.NIMBUS_INSTRUCTIONS_URL;
-  if (!url) return null;
+  if (!url) {return null;}
 
   const localPath = findLocalNimbusMd();
-  if (localPath) return null; // local file takes priority
+  if (localPath) {return null;} // local file takes priority
 
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!response.ok) return null;
+    if (!response.ok) {return null;}
     return await response.text();
   } catch {
     return null;

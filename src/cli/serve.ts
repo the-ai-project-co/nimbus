@@ -233,8 +233,8 @@ export async function serveCommand(options: ServeOptions): Promise<void> {
     const nimbusDir = join(homedir(), '.nimbus');
     mkdirSync(nimbusDir, { recursive: true });
     const childArgs = [process.argv[1], 'serve', '--port', String(port)];
-    if (options.host) childArgs.push('--host', options.host);
-    if (options.auth) childArgs.push('--auth', options.auth);
+    if (options.host) {childArgs.push('--host', options.host);}
+    if (options.auth) {childArgs.push('--auth', options.auth);}
     const child = spawn(process.execPath, childArgs, {
       detached: true,
       stdio: 'ignore',

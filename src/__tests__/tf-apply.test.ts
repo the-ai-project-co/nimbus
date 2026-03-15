@@ -164,8 +164,8 @@ describe('smart terraform plan truncation (C3)', () => {
         line.includes('will be updated') || line.includes('will be replaced') ||
         line.includes('Plan:') || line.includes('No changes') ||
         line.includes('Error:') || line.includes('Warning:');
-      if (isDiffLine) diffLines.push(line);
-      else contextLines.push(line);
+      if (isDiffLine) {diffLines.push(line);}
+      else {contextLines.push(line);}
     }
 
     // All diff-significant lines should be captured

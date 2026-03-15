@@ -33,7 +33,7 @@ function parseRunbookYaml(content: string): RunbookDef {
 
   for (const raw of lines) {
     const line = raw.trimEnd();
-    if (line.startsWith('#') || !line.trim()) continue;
+    if (line.startsWith('#') || !line.trim()) {continue;}
 
     if (line.startsWith('name:')) {
       def.name = line.slice(5).trim().replace(/^['"]|['"]$/g, '');
@@ -62,8 +62,8 @@ function parseRunbookYaml(content: string): RunbookDef {
 
 function buildRunbookPrompt(def: RunbookDef): string {
   const parts = [`# Runbook: ${def.name}`];
-  if (def.description) parts.push(`\n${def.description}`);
-  if (def.context) parts.push(`\nContext/profile: ${def.context}`);
+  if (def.description) {parts.push(`\n${def.description}`);}
+  if (def.context) {parts.push(`\nContext/profile: ${def.context}`);}
   parts.push('\n## Steps to execute in order:');
   def.steps.forEach((step, i) => parts.push(`${i + 1}. ${step}`));
   parts.push('\nExecute each step in sequence. Check for errors after each step before proceeding. Report progress clearly.');

@@ -182,14 +182,14 @@ export function buildSystemPrompt(options: SystemPromptOptions): string {
   if (options.infraContext) {
     const ic = options.infraContext;
     const lines: string[] = ['## Current Infrastructure Context'];
-    if (ic.terraformWorkspace) lines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);
-    if (ic.kubectlContext) lines.push(`- kubectl context: ${ic.kubectlContext}`);
+    if (ic.terraformWorkspace) {lines.push(`- Terraform workspace: ${ic.terraformWorkspace}`);}
+    if (ic.kubectlContext) {lines.push(`- kubectl context: ${ic.kubectlContext}`);}
     if (ic.helmReleases && ic.helmReleases.length > 0) {
       lines.push(`- Active Helm releases: ${ic.helmReleases.slice(0, 5).join(', ')}`);
     }
-    if (ic.awsAccount) lines.push(`- AWS account: ${ic.awsAccount}`);
-    if (ic.awsRegion) lines.push(`- AWS region: ${ic.awsRegion}`);
-    if (ic.gcpProject) lines.push(`- GCP project: ${ic.gcpProject}`);
+    if (ic.awsAccount) {lines.push(`- AWS account: ${ic.awsAccount}`);}
+    if (ic.awsRegion) {lines.push(`- AWS region: ${ic.awsRegion}`);}
+    if (ic.gcpProject) {lines.push(`- GCP project: ${ic.gcpProject}`);}
     parts.push(lines.join('\n'));
 
     // H3: Inject known resource inventory for better tool call accuracy.
@@ -589,9 +589,9 @@ export function getPrunedHeuristics(mode: AgentMode): string {
       .filter(line => {
         const l = line.toLowerCase();
         // Remove deploy-specific execution requirements (plan mode cannot apply)
-        if (l.includes('in deploy mode:') || l.includes('deploy_preview before')) return false;
+        if (l.includes('in deploy mode:') || l.includes('deploy_preview before')) {return false;}
         // Remove tool selection items for deploy-only tools
-        if (l.includes('use drift_detect') || l.includes('use cost_estimate')) return false;
+        if (l.includes('use drift_detect') || l.includes('use cost_estimate')) {return false;}
         return true;
       })
       .join('\n');
@@ -603,7 +603,7 @@ export function getPrunedHeuristics(mode: AgentMode): string {
       .filter(line => {
         const l = line.toLowerCase();
         // Remove plan-mode-only readonly enforcement lines
-        if (l.includes('in plan mode:') || l.includes('never apply, apply')) return false;
+        if (l.includes('in plan mode:') || l.includes('never apply, apply')) {return false;}
         return true;
       })
       .join('\n');
@@ -790,9 +790,9 @@ export function extractForbiddenRules(nimbusContent: string): string[] {
     }
     if (inForbidden) {
       // Stop at any new ## section
-      if (/^##\s/.test(trimmed)) break;
+      if (/^##\s/.test(trimmed)) {break;}
       // Skip blank lines and HTML comments
-      if (!trimmed || trimmed.startsWith('<!--')) continue;
+      if (!trimmed || trimmed.startsWith('<!--')) {continue;}
       // Collect bullet items
       if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
         const rule = trimmed.replace(/^[-*]\s*/, '').trim();
@@ -918,7 +918,7 @@ function buildEnvironmentContext(cwd?: string): string {
   // Kubernetes context
   try {
     const ctx = execSync('kubectl config current-context', { timeout: 2000, encoding: 'utf-8' }).trim();
-    if (ctx) parts.push(`- Kubernetes context: ${ctx}`);
+    if (ctx) {parts.push(`- Kubernetes context: ${ctx}`);}
   } catch { /* ignore */ }
 
   // Terraform workspace (only if .terraform dir exists)
@@ -927,7 +927,7 @@ function buildEnvironmentContext(cwd?: string): string {
       const ws = execSync('terraform workspace show', {
         cwd: effectiveCwd, timeout: 5000, encoding: 'utf-8',
       }).trim();
-      if (ws) parts.push(`- Terraform workspace: ${ws}`);
+      if (ws) {parts.push(`- Terraform workspace: ${ws}`);}
     } catch { /* ignore */ }
   }
 
@@ -942,9 +942,9 @@ function buildEnvironmentContext(cwd?: string): string {
     } catch { /* ignore */ }
     try {
       const region = execSync('aws configure get region', { timeout: 2000, encoding: 'utf-8' }).trim();
-      if (region) parts.push(`- AWS region: ${region}`);
+      if (region) {parts.push(`- AWS region: ${region}`);}
     } catch {
-      if (process.env.AWS_DEFAULT_REGION) parts.push(`- AWS region: ${process.env.AWS_DEFAULT_REGION}`);
+      if (process.env.AWS_DEFAULT_REGION) {parts.push(`- AWS region: ${process.env.AWS_DEFAULT_REGION}`);}
     }
   }
 
@@ -953,7 +953,7 @@ function buildEnvironmentContext(cwd?: string): string {
     const proj = execSync('gcloud config get-value project 2>/dev/null', {
       timeout: 3000, encoding: 'utf-8',
     }).trim();
-    if (proj && proj !== '(unset)') parts.push(`- GCP project: ${proj}`);
+    if (proj && proj !== '(unset)') {parts.push(`- GCP project: ${proj}`);}
   } catch { /* ignore */ }
 
   return parts.join('\n');
@@ -973,11 +973,11 @@ function buildEnvironmentContext(cwd?: string): string {
 function buildPrimaryCloudSection(): string | null {
   try {
     const configPath = path.join(homedir(), '.nimbus', 'config.json');
-    if (!fs.existsSync(configPath)) return null;
+    if (!fs.existsSync(configPath)) {return null;}
     const raw = fs.readFileSync(configPath, 'utf-8');
     const config = JSON.parse(raw) as Record<string, unknown>;
     const clouds = config.primaryClouds;
-    if (!Array.isArray(clouds) || clouds.length === 0) return null;
+    if (!Array.isArray(clouds) || clouds.length === 0) {return null;}
     const cloudNames = (clouds as string[]).map(c => c.toUpperCase()).join(', ');
     return [
       '# Primary Cloud Providers',

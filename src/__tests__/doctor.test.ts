@@ -27,7 +27,7 @@ describe('doctorCommand exit codes (C1)', () => {
   test('process.exit(1) is called after JSON output when a check fails', async () => {
     // Simulate what doctorCommand does on failure
     const allPassed = false;
-    if (!allPassed) process.exit(1);
+    if (!allPassed) {process.exit(1);}
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
@@ -35,14 +35,14 @@ describe('doctorCommand exit codes (C1)', () => {
     exitSpy.mockClear();
     // Simulate text-mode failure path
     const allPassed = false;
-    if (!allPassed) process.exit(1);
+    if (!allPassed) {process.exit(1);}
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   test('process.exit is not called when all checks pass', async () => {
     exitSpy.mockClear();
     const allPassed = true;
-    if (!allPassed) process.exit(1);
+    if (!allPassed) {process.exit(1);}
     expect(exitSpy).not.toHaveBeenCalled();
   });
 });

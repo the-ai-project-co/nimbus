@@ -262,7 +262,7 @@ export class ContextManager {
     const tcIds = msg.toolCalls?.map(tc => tc.id).join(',') ?? '';
     const key = `${msg.role}:${contentLen}:${tcCount}:${tcIds}`;
     const cached = this._tokenCache.get(key);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {return cached;}
     const val = estimateMessageTokens(msg);
     this._tokenCache.set(key, val);
     return val;

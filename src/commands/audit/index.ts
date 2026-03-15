@@ -285,7 +285,7 @@ export async function auditScanCommand(options: AuditScanOptions): Promise<void>
         ? 'yellow'
         : 'white';
       ui.print(`[${ui.color(finding.severity, severityColor)}] ${finding.id}: ${finding.title}`);
-      if (finding.file) ui.dim(`  File: ${finding.file}${finding.line ? `:${finding.line}` : ''}`);
+      if (finding.file) {ui.dim(`  File: ${finding.file}${finding.line ? `:${finding.line}` : ''}`);}
       ui.dim(`  ${finding.recommendation}`);
       ui.newLine();
     }

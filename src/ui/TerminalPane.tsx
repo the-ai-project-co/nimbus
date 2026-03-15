@@ -36,7 +36,7 @@ export function TerminalPane({ toolCalls, maxLines = 20 }: TerminalPaneProps) {
       }
       continue;
     }
-    if (tc.status !== 'completed' && tc.status !== 'failed') continue;
+    if (tc.status !== 'completed' && tc.status !== 'failed') {continue;}
     const output = tc.result?.output ?? '';
     const isError = tc.result?.isError ?? false;
     const lines = output.split('\n').filter(l => l.length > 0);

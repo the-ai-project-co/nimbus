@@ -68,7 +68,7 @@ export function saveProfiles(profiles: ProfileStore): void {
 /** Get the name of the currently active profile (if any). */
 export function getCurrentProfileName(): string | null {
   // Check env var first
-  if (process.env.NIMBUS_PROFILE) return process.env.NIMBUS_PROFILE;
+  if (process.env.NIMBUS_PROFILE) {return process.env.NIMBUS_PROFILE;}
   try {
     if (fs.existsSync(CURRENT_PROFILE_PATH)) {
       return fs.readFileSync(CURRENT_PROFILE_PATH, 'utf-8').trim() || null;
@@ -106,12 +106,12 @@ async function listProfiles(): Promise<void> {
     const profile = profiles[name];
     const marker = name === current ? ui.color('* ', 'green') : '  ';
     ui.print(`${marker}${name}`);
-    if (profile.awsProfile) ui.print(`      AWS profile:        ${profile.awsProfile}`);
-    if (profile.tfWorkspace) ui.print(`      TF workspace:       ${profile.tfWorkspace}`);
-    if (profile.kubectlContext) ui.print(`      kubectl context:    ${profile.kubectlContext}`);
-    if (profile.gcpProject) ui.print(`      GCP project:        ${profile.gcpProject}`);
-    if (profile.azureSubscription) ui.print(`      Azure subscription: ${profile.azureSubscription}`);
-    if (profile.k8sNamespace) ui.print(`      K8s namespace:      ${profile.k8sNamespace}`);
+    if (profile.awsProfile) {ui.print(`      AWS profile:        ${profile.awsProfile}`);}
+    if (profile.tfWorkspace) {ui.print(`      TF workspace:       ${profile.tfWorkspace}`);}
+    if (profile.kubectlContext) {ui.print(`      kubectl context:    ${profile.kubectlContext}`);}
+    if (profile.gcpProject) {ui.print(`      GCP project:        ${profile.gcpProject}`);}
+    if (profile.azureSubscription) {ui.print(`      Azure subscription: ${profile.azureSubscription}`);}
+    if (profile.k8sNamespace) {ui.print(`      K8s namespace:      ${profile.k8sNamespace}`);}
   }
   if (current) {
     ui.newLine();
@@ -145,18 +145,18 @@ async function createProfile(name: string): Promise<void> {
   const k8sNamespace = await inputPrompt({ message: 'Default K8s namespace', defaultValue: '' });
 
   const profile: CredentialProfile = {};
-  if (awsProfile) profile.awsProfile = awsProfile;
-  if (tfWorkspace) profile.tfWorkspace = tfWorkspace;
-  if (kubectlContext) profile.kubectlContext = kubectlContext;
-  if (gcpProject) profile.gcpProject = gcpProject;
-  if (azureSubscription) profile.azureSubscription = azureSubscription;
-  if (k8sNamespace) profile.k8sNamespace = k8sNamespace;
+  if (awsProfile) {profile.awsProfile = awsProfile;}
+  if (tfWorkspace) {profile.tfWorkspace = tfWorkspace;}
+  if (kubectlContext) {profile.kubectlContext = kubectlContext;}
+  if (gcpProject) {profile.gcpProject = gcpProject;}
+  if (azureSubscription) {profile.azureSubscription = azureSubscription;}
+  if (k8sNamespace) {profile.k8sNamespace = k8sNamespace;}
 
   profiles[name] = profile;
   saveProfiles(profiles);
 
   ui.print(`${ui.color('✓', 'green')} Profile "${name}" created.`);
-  ui.dim('Activate it with: nimbus profile set ' + name);
+  ui.dim(`Activate it with: nimbus profile set ${  name}`);
 }
 
 async function setProfile(name: string): Promise<void> {

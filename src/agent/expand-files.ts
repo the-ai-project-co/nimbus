@@ -27,7 +27,7 @@ const SENSITIVE_FILE_RE = /(\.env|\.pem|\.key|\.p12|\.pfx|id_rsa|id_ed25519|cred
  */
 export function expandFileReferences(text: string, cwd: string = process.cwd()): string {
   const fileRefs = text.match(/@([\w./_-]+)/g);
-  if (!fileRefs) return text;
+  if (!fileRefs) {return text;}
 
   let expanded = text;
 

@@ -198,10 +198,10 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
     const isDevOps = /\.(tf|yaml|yml)$|Dockerfile|docker-compose/i.test(filePath);
     if (isDevOps) {
       const existing = devopsChangeDebounce.get(filePath);
-      if (existing) clearTimeout(existing);
+      if (existing) {clearTimeout(existing);}
       const timer = setTimeout(() => {
         devopsChangeDebounce.delete(filePath);
-        const relPath = filePath.replace(process.cwd() + '/', '');
+        const relPath = filePath.replace(`${process.cwd()  }/`, '');
         const hint = relPath.endsWith('.tf') ? '/plan' : relPath.includes('yaml') ? '/plan' : '/init';
         addMessage({
           id: crypto.randomUUID(),
@@ -454,7 +454,7 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
    * Covers terraform/kubectl/helm plus destructive bash cloud CLI commands.
    */
   function requiresDeployPreview(toolName: string, toolInput: Record<string, unknown>): boolean {
-    if (['terraform', 'kubectl', 'helm'].includes(toolName)) return true;
+    if (['terraform', 'kubectl', 'helm'].includes(toolName)) {return true;}
     if (toolName === 'docker') {
       const action = String(toolInput.action ?? '');
       return ['build', 'push', 'stop', 'compose-up', 'compose-down', 'rm', 'prune'].includes(action);
@@ -524,10 +524,10 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   function parseToolTimeouts(nimbusMd: string): Record<string, number> {
     const result: Record<string, number> = {};
     const match = nimbusMd.match(/##\s+Tool Timeouts\s*\n([\s\S]*?)(?=##|$)/);
-    if (!match) return result;
+    if (!match) {return result;}
     for (const line of match[1].split('\n')) {
       const m = line.match(/^\s*([a-z_]+)\s*:\s*(\d+)\s*$/);
-      if (m) result[m[1]] = parseInt(m[2], 10);
+      if (m) {result[m[1]] = parseInt(m[2], 10);}
     }
     return result;
   }
@@ -553,7 +553,7 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
     if (userMessageCount === 1 && sessionManager && sessionId) {
       try {
         const semanticName = text.slice(0, 40).replace(/[^a-z0-9]+/gi, '-').toLowerCase().replace(/^-+|-+$/g, '');
-        if (semanticName) sessionManager.rename(sessionId, semanticName);
+        if (semanticName) {sessionManager.rename(sessionId, semanticName);}
       } catch { /* non-critical */ }
     }
 
@@ -945,7 +945,7 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
     const full = spawnSync('git', ['diff'], { encoding: 'utf-8', cwd: process.cwd() });
     const statOut = stat.stdout?.trim() ?? '';
     const fullOut = full.stdout?.trim() ?? '';
-    if (!statOut && !fullOut) return 'No unstaged changes.';
+    if (!statOut && !fullOut) {return 'No unstaged changes.';}
     return [statOut, fullOut].filter(Boolean).join('\n\n');
   };
 
@@ -953,7 +953,7 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
    * Handle /cost command — show per-turn cost breakdown.
    */
   const onCost: OnCostCallback = (): string => {
-    if (turnCostLog.length === 0) return 'No turns yet.';
+    if (turnCostLog.length === 0) {return 'No turns yet.';}
     const rows = turnCostLog.map(
       t => `  Turn ${t.turn}   ${t.tokens.toLocaleString()} tokens   $${t.costUSD.toFixed(4)}`
     );
@@ -1205,18 +1205,18 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
 
         // GAP-17: context-aware suggestions based on detected infrastructure
         const suggestions: string[] = [];
-        if (currentInfraContext?.terraformWorkspace) suggestions.push(`"check for drift in workspace ${currentInfraContext.terraformWorkspace}"`);
-        if (currentInfraContext?.kubectlContext) suggestions.push(`"show all pods in ${currentInfraContext.kubectlContext}"`);
-        if (currentInfraContext?.awsAccount) suggestions.push(`"show AWS costs for this month"`);
-        if ((currentInfraContext?.helmReleases?.length ?? 0) > 0) suggestions.push(`"show helm release history for ${currentInfraContext!.helmReleases![0]}"`);
+        if (currentInfraContext?.terraformWorkspace) {suggestions.push(`"check for drift in workspace ${currentInfraContext.terraformWorkspace}"`);}
+        if (currentInfraContext?.kubectlContext) {suggestions.push(`"show all pods in ${currentInfraContext.kubectlContext}"`);}
+        if (currentInfraContext?.awsAccount) {suggestions.push(`"show AWS costs for this month"`);}
+        if ((currentInfraContext?.helmReleases?.length ?? 0) > 0) {suggestions.push(`"show helm release history for ${currentInfraContext!.helmReleases![0]}"`);}
 
         // H5: Build one-line infra hint for cold start
         const infraHintParts: string[] = [];
-        if (currentInfraContext?.terraformWorkspace) infraHintParts.push(`tf:${currentInfraContext.terraformWorkspace}`);
-        if (currentInfraContext?.kubectlContext) infraHintParts.push(`k8s:${currentInfraContext.kubectlContext}`);
-        if (currentInfraContext?.awsAccount) infraHintParts.push(`aws:${currentInfraContext.awsAccount}`);
-        if (currentInfraContext?.gcpProject) infraHintParts.push(`gcp:${currentInfraContext.gcpProject}`);
-        if ((currentInfraContext?.helmReleases?.length ?? 0) > 0) infraHintParts.push(`${currentInfraContext!.helmReleases!.length} helm release${currentInfraContext!.helmReleases!.length > 1 ? 's' : ''}`);
+        if (currentInfraContext?.terraformWorkspace) {infraHintParts.push(`tf:${currentInfraContext.terraformWorkspace}`);}
+        if (currentInfraContext?.kubectlContext) {infraHintParts.push(`k8s:${currentInfraContext.kubectlContext}`);}
+        if (currentInfraContext?.awsAccount) {infraHintParts.push(`aws:${currentInfraContext.awsAccount}`);}
+        if (currentInfraContext?.gcpProject) {infraHintParts.push(`gcp:${currentInfraContext.gcpProject}`);}
+        if ((currentInfraContext?.helmReleases?.length ?? 0) > 0) {infraHintParts.push(`${currentInfraContext!.helmReleases!.length} helm release${currentInfraContext!.helmReleases!.length > 1 ? 's' : ''}`);}
         const infraHintLine = infraHintParts.length > 0 ? `Infra detected: ${infraHintParts.join(' | ')}` : '';
 
         // G24: DevOps-specific quick-start examples

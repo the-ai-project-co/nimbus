@@ -318,7 +318,7 @@ function discoverAwsResources(resourceType: string, region: string): DiscoveredR
         break;
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // AWS CLI not available or not authenticated
   }
 
@@ -401,7 +401,7 @@ function discoverGcpResources(resourceType: string, project?: string): Discovere
         break;
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // gcloud CLI not available or not authenticated
   }
 
@@ -482,7 +482,7 @@ function discoverAzureResources(resourceType: string, subscription?: string): Di
         break;
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // az CLI not available or not authenticated
   }
 

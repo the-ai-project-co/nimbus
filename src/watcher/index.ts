@@ -48,7 +48,7 @@ export class FileWatcher extends EventEmitter {
 
   /** Return all stored change events in chronological order. */
   private getOrderedChanges(): FileChangeEvent[] {
-    if (this.changesSize === 0) return [];
+    if (this.changesSize === 0) {return [];}
     const start = this.changesSize < this.maxChanges
       ? 0
       : this.changesHead; // oldest slot when buffer is full
@@ -191,9 +191,9 @@ export class FileWatcher extends EventEmitter {
       // Categorize for DevOps context
       let category = '';
       const lower = rel.toLowerCase();
-      if (lower.endsWith('.tf') || lower.endsWith('.tfvars')) category = ' [terraform]';
-      else if (lower.endsWith('.yaml') || lower.endsWith('.yml')) category = ' [yaml/k8s]';
-      else if (lower.includes('dockerfile')) category = ' [docker]';
+      if (lower.endsWith('.tf') || lower.endsWith('.tfvars')) {category = ' [terraform]';}
+      else if (lower.endsWith('.yaml') || lower.endsWith('.yml')) {category = ' [yaml/k8s]';}
+      else if (lower.includes('dockerfile')) {category = ' [docker]';}
       return `  - ${rel}${category}`;
     });
 

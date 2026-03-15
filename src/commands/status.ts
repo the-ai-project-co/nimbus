@@ -88,7 +88,7 @@ export async function statusCommand(options: StatusOptions = {}): Promise<void> 
       info.awsAccount = identity.Account;
       // Try to get region separately
       const region = run('aws', ['configure', 'get', 'region']);
-      if (region) info.awsRegion = region;
+      if (region) {info.awsRegion = region;}
     } catch {
       // Could not parse AWS identity
     }

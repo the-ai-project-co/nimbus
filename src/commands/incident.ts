@@ -45,7 +45,7 @@ function parseIncidentInput(input: string): ParsedIncident {
  */
 async function fetchPagerDutyDetails(incidentId: string): Promise<string | null> {
   const token = process.env.PD_API_TOKEN;
-  if (!token) return null;
+  if (!token) {return null;}
   try {
     const curlCmd = `curl -sf -H "Authorization: Token token=${token}" -H "Accept: application/vnd.pagerduty+json;version=2" "https://api.pagerduty.com/incidents/${incidentId}"`;
     const output = execSync(curlCmd, { encoding: 'utf-8', timeout: 10_000 });
@@ -84,7 +84,7 @@ function getRecentHelmHistory(serviceName: string): string {
       encoding: 'utf-8', timeout: 10_000,
     });
     const history = JSON.parse(out) as Array<{ revision: number; updated: string; status: string; chart: string; description: string }>;
-    if (history.length === 0) return '';
+    if (history.length === 0) {return '';}
     const lines = history.map(h => `  Rev ${h.revision}: ${h.chart} [${h.status}] ${h.updated} — ${h.description}`);
     return `\nRecent Helm releases for ${serviceName}:\n${lines.join('\n')}`;
   } catch {
@@ -101,7 +101,7 @@ function getRecentPodLogs(serviceName: string): string {
       `kubectl logs -l app=${serviceName} --tail=50 --since=30m --all-containers 2>/dev/null | head -c 4096`,
       { encoding: 'utf-8', timeout: 15_000 }
     );
-    if (!out.trim()) return '';
+    if (!out.trim()) {return '';}
     return `\nRecent pod logs (last 30m, ${serviceName}):\n${out.trim()}`;
   } catch {
     return '';
@@ -151,9 +151,9 @@ export async function incidentCommand(
   if (serviceName) {
     contextParts.push(`\n## Detected Service: ${serviceName}`);
     const helmHistory = getRecentHelmHistory(serviceName);
-    if (helmHistory) contextParts.push(helmHistory);
+    if (helmHistory) {contextParts.push(helmHistory);}
     const podLogs = getRecentPodLogs(serviceName);
-    if (podLogs) contextParts.push(podLogs);
+    if (podLogs) {contextParts.push(podLogs);}
   }
 
   contextParts.push('\n## Your Task\nHelp resolve this incident. Start by diagnosing root cause from the context above, then suggest and (with permission) execute remediation steps.');

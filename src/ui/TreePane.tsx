@@ -27,7 +27,7 @@ interface TreeNode {
 }
 
 function buildTree(dir: string, depth: number, maxDepth: number): TreeNode[] {
-  if (depth > maxDepth) return [];
+  if (depth > maxDepth) {return [];}
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     return entries

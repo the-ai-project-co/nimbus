@@ -260,7 +260,7 @@ export async function executeRun(router: LLMRouter, options: RunOptions): Promis
       },
       required: ['success', 'output', 'cost', 'turns', 'toolCalls', 'errors'],
     };
-    process.stdout.write(JSON.stringify(schema, null, 2) + '\n');
+    process.stdout.write(`${JSON.stringify(schema, null, 2)  }\n`);
     return {
       success: true,
       output: '',
@@ -272,9 +272,9 @@ export async function executeRun(router: LLMRouter, options: RunOptions): Promis
   }
 
   // H3: Inject context/workspace/namespace into environment before agent loop
-  if (options.context) process.env.KUBECTL_CONTEXT = options.context;
-  if (options.workspace) process.env.TF_WORKSPACE = options.workspace;
-  if (options.namespace) process.env.K8S_NAMESPACE = options.namespace;
+  if (options.context) {process.env.KUBECTL_CONTEXT = options.context;}
+  if (options.workspace) {process.env.TF_WORKSPACE = options.workspace;}
+  if (options.namespace) {process.env.K8S_NAMESPACE = options.namespace;}
 
   // Get prompt from stdin if requested
   let prompt = options.prompt;
@@ -285,13 +285,13 @@ export async function executeRun(router: LLMRouter, options: RunOptions): Promis
     if (options.stdinJson && stdinContent) {
       try {
         const config = JSON.parse(stdinContent) as Record<string, unknown>;
-        if (typeof config.prompt === 'string') prompt = config.prompt;
+        if (typeof config.prompt === 'string') {prompt = config.prompt;}
         if (config.mode === 'plan' || config.mode === 'build' || config.mode === 'deploy') {
           options = { ...options, mode: config.mode };
         }
-        if (typeof config.model === 'string') options = { ...options, model: config.model };
-        if (typeof config.autoApprove === 'boolean') options = { ...options, autoApprove: config.autoApprove };
-        if (typeof config.maxTurns === 'number') options = { ...options, maxTurns: config.maxTurns };
+        if (typeof config.model === 'string') {options = { ...options, model: config.model };}
+        if (typeof config.autoApprove === 'boolean') {options = { ...options, autoApprove: config.autoApprove };}
+        if (typeof config.maxTurns === 'number') {options = { ...options, maxTurns: config.maxTurns };}
       } catch {
         // If JSON parse fails, treat stdin as raw prompt text
         prompt = stdinContent;
@@ -521,7 +521,7 @@ export async function executeRun(router: LLMRouter, options: RunOptions): Promis
     console.log(divider);
     console.log('');
     // Also print final text output
-    if (output) process.stdout.write(output + '\n');
+    if (output) {process.stdout.write(`${output  }\n`);}
   }
 
   const runResult: RunResult = {

@@ -73,7 +73,7 @@ async function templateGetCommand(
     const db = getDb();
     const template = db
       .prepare('SELECT * FROM templates WHERE id LIKE ?')
-      .get(id + '%') as Record<string, unknown> | undefined;
+      .get(`${id  }%`) as Record<string, unknown> | undefined;
 
     if (template) {
       ui.stopSpinnerSuccess('Template retrieved');

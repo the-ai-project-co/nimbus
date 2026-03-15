@@ -35,7 +35,7 @@ export interface ScheduleEntry {
 const SCHEDULE_FILE = join(homedir(), '.nimbus', 'schedules.json');
 
 function loadSchedules(): ScheduleEntry[] {
-  if (!existsSync(SCHEDULE_FILE)) return [];
+  if (!existsSync(SCHEDULE_FILE)) {return [];}
   try {
     return JSON.parse(readFileSync(SCHEDULE_FILE, 'utf-8')) as ScheduleEntry[];
   } catch {
@@ -54,7 +54,7 @@ function saveSchedules(schedules: ScheduleEntry[]): void {
 
 function isValidCron(cron: string): boolean {
   const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) return false;
+  if (parts.length !== 5) {return false;}
   const validPart = /^(\*|\d+(-\d+)?(\/\d+)?)(,(\*|\d+(-\d+)?(\/\d+)?))*$/;
   return parts.every(p => validPart.test(p));
 }
@@ -64,14 +64,14 @@ function isValidCron(cron: string): boolean {
  */
 function describeNextRun(cron: string): string {
   const [min, hour, dom, month, dow] = cron.split(/\s+/);
-  if (hour === '*' && min === '0') return 'every hour at :00';
+  if (hour === '*' && min === '0') {return 'every hour at :00';}
   if (dom === '*' && month === '*' && dow === '*') {
-    if (hour !== '*' && min !== '*') return `daily at ${hour}:${min.padStart(2, '0')}`;
+    if (hour !== '*' && min !== '*') {return `daily at ${hour}:${min.padStart(2, '0')}`;}
   }
   if (dow !== '*') {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayName = days[parseInt(dow, 10)];
-    if (dayName && hour !== '*') return `weekly on ${dayName} at ${hour}:${(min ?? '0').padStart(2, '0')}`;
+    if (dayName && hour !== '*') {return `weekly on ${dayName} at ${hour}:${(min ?? '0').padStart(2, '0')}`;}
   }
   return `cron: ${cron}`;
 }

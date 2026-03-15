@@ -14,7 +14,7 @@ interface HelpModalProps {
 
 export function HelpModal({ onClose }: HelpModalProps) {
   useInput((input, key) => {
-    if (key.escape || input === 'q' || input === '?') onClose();
+    if (key.escape || input === 'q' || input === '?') {onClose();}
   });
 
   return (

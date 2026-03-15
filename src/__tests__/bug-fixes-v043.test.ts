@@ -464,9 +464,9 @@ describe('Fix 5 — Terraform wizard auto-detection and --yes flag', () => {
   it('cloud provider detection works with AWS env vars', () => {
     const detect = (env: Record<string, string>) => {
       const detected: string[] = [];
-      if (env.AWS_ACCESS_KEY_ID || env.AWS_PROFILE) detected.push('aws');
-      if (env.GOOGLE_APPLICATION_CREDENTIALS || env.GCLOUD_PROJECT) detected.push('gcp');
-      if (env.AZURE_SUBSCRIPTION_ID || env.ARM_CLIENT_ID) detected.push('azure');
+      if (env.AWS_ACCESS_KEY_ID || env.AWS_PROFILE) {detected.push('aws');}
+      if (env.GOOGLE_APPLICATION_CREDENTIALS || env.GCLOUD_PROJECT) {detected.push('gcp');}
+      if (env.AZURE_SUBSCRIPTION_ID || env.ARM_CLIENT_ID) {detected.push('azure');}
       return detected;
     };
 

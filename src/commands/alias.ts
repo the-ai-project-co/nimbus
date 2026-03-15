@@ -35,10 +35,10 @@ function saveAliases(aliases: Record<string, string>): void {
  * Returns the original args unchanged if no alias matches.
  */
 export function resolveAlias(args: string[]): string[] {
-  if (!args.length) return args;
+  if (!args.length) {return args;}
   const aliases = loadAliases();
   const expanded = aliases[args[0]];
-  if (!expanded) return args;
+  if (!expanded) {return args;}
   // Split the alias value on spaces and prepend to remaining args
   return [...expanded.split(' '), ...args.slice(1)];
 }
@@ -79,7 +79,7 @@ export async function aliasCommand(subcommand: string, args: string[]): Promise<
   }
 
   // Create alias: subcommand is "<name>=<rest>" or subcommand is the name and args hold the expansion
-  const raw = subcommand + (args.length ? ' ' + args.join(' ') : '');
+  const raw = subcommand + (args.length ? ` ${  args.join(' ')}` : '');
   const eqIdx = raw.indexOf('=');
   if (eqIdx === -1) {
     ui.error('Usage: nimbus alias <name>=<command>  or  nimbus alias list  or  nimbus alias remove <name>');

@@ -320,7 +320,7 @@ export class SessionManager {
 
   /** Schedule a debounced flush (no-op if already scheduled). */
   private _scheduleFlush(): void {
-    if (this._flushTimer !== null) return;
+    if (this._flushTimer !== null) {return;}
     if (this.flushDebounceMs === 0) {
       // Immediate flush path (used in tests)
       this._flushNow();
@@ -334,7 +334,7 @@ export class SessionManager {
 
   /** Write all pending conversation entries to SQLite. */
   private _flushNow(): void {
-    if (this.pendingConversationFlush.size === 0) return;
+    if (this.pendingConversationFlush.size === 0) {return;}
     const pending = this.pendingConversationFlush;
     this.pendingConversationFlush = new Map();
     const txn = this.db.transaction(() => {
@@ -419,7 +419,7 @@ export class SessionManager {
   /** Retrieve infra context for a session. Returns null if not set. */
   getInfraContext(sessionId: string): SessionInfraContext | null {
     const row: any = this.db.prepare('SELECT metadata FROM sessions WHERE id = ?').get(sessionId);
-    if (!row?.metadata) return null;
+    if (!row?.metadata) {return null;}
     try {
       const meta = JSON.parse(row.metadata);
       return meta.infraContext ?? null;

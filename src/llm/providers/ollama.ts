@@ -143,7 +143,7 @@ export class OllamaProvider extends BaseProvider {
           if (data.done) {
             yield { done: true };
           }
-        } catch (e) {
+        } catch (_e) {
           // Ignore malformed JSON lines
           continue;
         }

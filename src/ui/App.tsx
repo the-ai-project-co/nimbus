@@ -359,15 +359,15 @@ export function App({
         addMessage: (msg: UIMessage) => {
           setMessages(prev => [...prev, msg]);
           // C1: Keep pinned to bottom when scroll is locked
-          if (scrollLockedRef.current) setScrollOffset(0);
+          if (scrollLockedRef.current) {setScrollOffset(0);}
         },
         updateMessage: (id: string, content: string) => {
-          if (content) setCurrentTurnHasOutput(true);
+          if (content) {setCurrentTurnHasOutput(true);}
           setMessages(prev => prev.map(m => (m.id === id ? { ...m, content } : m)));
         },
         updateSession: (patch: Partial<SessionInfo>) => setSession(prev => ({ ...prev, ...patch })),
         setToolCalls: (toolCalls: UIToolCall[]) => {
-          if (toolCalls.length > 0) setCurrentTurnHasOutput(true);
+          if (toolCalls.length > 0) {setCurrentTurnHasOutput(true);}
           setActiveToolCalls(toolCalls);
           // M3: Auto-show terminal pane when long-running DevOps tools start
           const LONG_RUNNING_TOOL_PATTERNS = [
@@ -1220,12 +1220,12 @@ export function App({
             const watcher = new (FileWatcher as new(cwd: string) => WatcherInstance)(process.cwd());
             watcher.start();
             watcher.on('change', (filePath: string) => {
-              if (ac.signal.aborted) return;
+              if (ac.signal.aborted) {return;}
               const ext = pattern.replace('**/', '').replace(/\*/g, '');
-              if (ext && !filePath.includes(ext)) return;
+              if (ext && !filePath.includes(ext)) {return;}
               const prompt = `File changed: ${filePath}. Analyze the change and report any issues or drift.`;
               sysMsg(`[watch] Change detected: ${filePath}`);
-              if (!isProcessing) handleSubmit(prompt);
+              if (!isProcessing) {handleSubmit(prompt);}
             });
             ac.signal.addEventListener('abort', () => watcher.stop());
           } catch { sysMsg('Watch: could not start file watcher.'); }
@@ -1304,7 +1304,7 @@ export function App({
           // Fallback to agent
           setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user' as const, content: '/k8s-ctx', timestamp: new Date() }]);
           setIsProcessing(true); setCurrentTurnHasOutput(false); setProcessingStartTime(Date.now());
-          if (onMessage) onMessage('List all available Kubernetes contexts and show the current one.');
+          if (onMessage) {onMessage('List all available Kubernetes contexts and show the current one.');}
         }
         return;
       }
@@ -1369,7 +1369,7 @@ export function App({
           // Fallback to agent
           setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user' as const, content: '/tf-ws', timestamp: new Date() }]);
           setIsProcessing(true); setCurrentTurnHasOutput(false); setProcessingStartTime(Date.now());
-          if (onMessage) onMessage('List all Terraform workspaces and show the current one.');
+          if (onMessage) {onMessage('List all Terraform workspaces and show the current one.');}
         }
         return;
       }
@@ -1790,7 +1790,7 @@ export function App({
       if (key.downArrow || input === 'j') {
         setScrollOffset(prev => {
           const next = Math.max(0, prev - 1);
-          if (next === 0) setScrollLocked(true);
+          if (next === 0) {setScrollLocked(true);}
           return next;
         });
         return;
@@ -1805,7 +1805,7 @@ export function App({
       if (key.pageDown || input === 'f' || input === ' ') {
         setScrollOffset(prev => {
           const next = Math.max(0, prev - 10);
-          if (next === 0) setScrollLocked(true);
+          if (next === 0) {setScrollLocked(true);}
           return next;
         });
         return;
@@ -1859,11 +1859,11 @@ export function App({
 
   useInput(
     (input, key) => {
-      if (!pendingDeployConfirm) return;
+      if (!pendingDeployConfirm) {return;}
       if (input === 'y' || input === 'Y') {
         setPendingDeployConfirm(false);
         setSession(prev => ({ ...prev, mode: 'deploy' }));
-        if (onModeChange) onModeChange('deploy');
+        if (onModeChange) {onModeChange('deploy');}
         try {
           const { saveModeForCwd } = require('../config/mode-store') as typeof import('../config/mode-store');
           saveModeForCwd(process.cwd(), 'deploy');
@@ -1952,7 +1952,7 @@ export function App({
             onSelectFile={fp => {
               // GAP-21: inject @filepath directly into InputBox via prefill state
               const cwd = process.cwd();
-              const rel = fp.startsWith(cwd + '/') ? fp.slice(cwd.length + 1) : fp;
+              const rel = fp.startsWith(`${cwd  }/`) ? fp.slice(cwd.length + 1) : fp;
               setInputPrefill(`@${rel} `);
             }}
           />

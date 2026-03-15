@@ -166,7 +166,7 @@ function runInfracostBreakdown(directory: string): CostEstimate | null {
       maxBuffer: 10 * 1024 * 1024,
     });
     return JSON.parse(result) as CostEstimate;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -536,7 +536,7 @@ export async function costEstimateCommand(options: CostEstimateOptions): Promise
       ui.print(
         `  ${ui.dim('curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh')} (Linux)`
       );
-    } catch (error) {
+    } catch (_error) {
       ui.stopSpinnerFail('Cost estimation failed');
       ui.error(
         `Built-in estimator error: ${error instanceof Error ? error.message : String(error)}`
@@ -693,7 +693,7 @@ export async function costDiffCommand(
 
     // Per-project breakdown
     for (const project of data.projects ?? []) {
-      if ((project.diffTotalMonthlyCost ?? 0) === 0) continue;
+      if ((project.diffTotalMonthlyCost ?? 0) === 0) {continue;}
       ui.print(`  ${ui.bold(project.name)}: ${formatChange(project.diffTotalMonthlyCost, data.currency)}/mo`);
       for (const resource of (project.resources ?? []).slice(0, 10)) {
         ui.print(`    ${resource.name.slice(0, 50).padEnd(50)} ${formatCurrency(resource.monthlyCost, data.currency)}/mo`);

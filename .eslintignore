@@ -18,6 +18,9 @@ coverage
 *.config.js
 *.config.mjs
 
+# Test files — use require() and any-typed patterns intentionally
+src/__tests__/**
+
 # Test fixtures
 **/__fixtures__/**
 **/fixtures/**

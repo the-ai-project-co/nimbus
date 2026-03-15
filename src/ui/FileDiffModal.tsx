@@ -116,14 +116,14 @@ export function FileDiffModal({ request }: FileDiffModalProps) {
   const maxOffset = Math.max(0, total - VISIBLE_LINES);
 
   useInput((input, key) => {
-    if (input === 'a') request.onDecide('apply');
-    if (input === 'r') request.onDecide('reject');
-    if (input === 'A') request.onDecide('apply-all');
-    if (input === 'R') request.onDecide('reject-all');
-    if (key.upArrow) setScrollOffset(o => Math.max(0, o - 1));
-    if (key.downArrow) setScrollOffset(o => Math.min(maxOffset, o + 1));
-    if (key.pageUp) setScrollOffset(o => Math.max(0, o - VISIBLE_LINES));
-    if (key.pageDown) setScrollOffset(o => Math.min(maxOffset, o + VISIBLE_LINES));
+    if (input === 'a') {request.onDecide('apply');}
+    if (input === 'r') {request.onDecide('reject');}
+    if (input === 'A') {request.onDecide('apply-all');}
+    if (input === 'R') {request.onDecide('reject-all');}
+    if (key.upArrow) {setScrollOffset(o => Math.max(0, o - 1));}
+    if (key.downArrow) {setScrollOffset(o => Math.min(maxOffset, o + 1));}
+    if (key.pageUp) {setScrollOffset(o => Math.max(0, o - VISIBLE_LINES));}
+    if (key.pageDown) {setScrollOffset(o => Math.min(maxOffset, o + VISIBLE_LINES));}
   });
 
   const endLine = Math.min(scrollOffset + VISIBLE_LINES, total);
@@ -146,9 +146,9 @@ export function FileDiffModal({ request }: FileDiffModalProps) {
       <Box flexDirection="column" marginY={1}>
         {displayLines.map((line, i) => {
           let color: string | undefined;
-          if (line.startsWith('+') && !line.startsWith('+++')) color = 'green';
-          else if (line.startsWith('-') && !line.startsWith('---')) color = 'red';
-          else if (line.startsWith('@@')) color = 'cyan';
+          if (line.startsWith('+') && !line.startsWith('+++')) {color = 'green';}
+          else if (line.startsWith('-') && !line.startsWith('---')) {color = 'red';}
+          else if (line.startsWith('@@')) {color = 'cyan';}
           return (
             <Text key={i} color={color} dimColor={!color}>
               {line}

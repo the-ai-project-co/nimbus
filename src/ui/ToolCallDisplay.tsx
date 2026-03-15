@@ -47,7 +47,7 @@ function StatusBadge({ status, startTime }: { status: UIToolCall['status']; star
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    if (status !== 'running' || !startTime) return;
+    if (status !== 'running' || !startTime) {return;}
     const initial = Math.floor((Date.now() - startTime) / 1000);
     setElapsed(initial);
     const id = setInterval(() => {
@@ -430,7 +430,7 @@ function DockerBuildBody({
         </Box>
       );
     }
-    if (result?.isError) return <Text color="red">{result.output}</Text>;
+    if (result?.isError) {return <Text color="red">{result.output}</Text>;}
     return null;
   }
 
@@ -593,7 +593,7 @@ function ToolCallBox({ toolCall, expanded }: { toolCall: UIToolCall; expanded: b
             const windowSize = isTerraformOrKubectl ? 60 : 40;
             const visibleLines = allLines.slice(-windowSize);
             // Pad to minimum 4 lines so the live area is always visible
-            while (visibleLines.length < 4) visibleLines.push('');
+            while (visibleLines.length < 4) {visibleLines.push('');}
             const hiddenCount = Math.max(0, allLines.length - windowSize);
             return (
               <>
@@ -603,9 +603,9 @@ function ToolCallBox({ toolCall, expanded }: { toolCall: UIToolCall; expanded: b
                 {visibleLines.map((line, i) => {
                   // M2: Color terraform/kubectl streaming output lines
                   let lineColor: string | undefined;
-                  if (line.match(/^\s*\+/) || line.includes('will be created') || line.includes(' created')) lineColor = 'green';
-                  else if (line.match(/^\s*-/) || line.includes('will be destroyed') || line.includes(' destroyed')) lineColor = 'red';
-                  else if (line.match(/^\s*~/) || line.includes('will be updated') || line.includes(' modified')) lineColor = 'yellow';
+                  if (line.match(/^\s*\+/) || line.includes('will be created') || line.includes(' created')) {lineColor = 'green';}
+                  else if (line.match(/^\s*-/) || line.includes('will be destroyed') || line.includes(' destroyed')) {lineColor = 'red';}
+                  else if (line.match(/^\s*~/) || line.includes('will be updated') || line.includes(' modified')) {lineColor = 'yellow';}
                   return <Text key={i} color={lineColor ?? 'gray'} dimColor={!lineColor}>{line}</Text>;
                 })}
               </>

@@ -191,7 +191,7 @@ export function checkPermission(
 ): PermissionDecision {
   // H2: When running in CI / --auto-approve / --non-interactive mode,
   // bypass all tier logic and immediately allow the tool call.
-  if (autoApprove) return 'allow';
+  if (autoApprove) {return 'allow';}
 
   // 1. Check user overrides first
   if (config?.toolOverrides?.[tool.name]) {
@@ -477,7 +477,7 @@ export function checkForbiddenPatterns(
   input: unknown,
   forbiddenRules: readonly string[]
 ): 'block' | null {
-  if (forbiddenRules.length === 0) return null;
+  if (forbiddenRules.length === 0) {return null;}
 
   const inputStr = JSON.stringify(input ?? {}).toLowerCase();
   const toolLower = toolName.toLowerCase();

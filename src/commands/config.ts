@@ -132,11 +132,11 @@ export async function configSetCommand(options: ConfigSetOptions): Promise<void>
     ];
     if (!knownModels.includes(value)) {
       ui.warning(`"${value}" is not a recognized Nimbus model ID.`);
-      ui.info('Known models: ' + knownModels.slice(0, 6).join(', '));
+      ui.info(`Known models: ${  knownModels.slice(0, 6).join(', ')}`);
       if (!options.nonInteractive) {
         const { confirm: confirmPrompt } = await import('../wizard/prompts');
         const proceed = await confirmPrompt({ message: 'Set this model anyway?', defaultValue: false });
-        if (!proceed) return;
+        if (!proceed) {return;}
       }
     }
   }

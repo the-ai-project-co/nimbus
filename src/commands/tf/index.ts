@@ -155,7 +155,7 @@ export async function tfApplyCommand(options: TfCommandOptions = {}): Promise<vo
 
       if (!planResult.success) {
         ui.stopSpinnerFail('Terraform plan failed');
-        if (planResult.error) ui.error(planResult.error);
+        if (planResult.error) {ui.error(planResult.error);}
         return;
       }
 
@@ -190,7 +190,7 @@ export async function tfApplyCommand(options: TfCommandOptions = {}): Promise<vo
         }
       } else {
         ui.stopSpinnerFail('Terraform apply failed');
-        if (applyResult.error) ui.error(applyResult.error);
+        if (applyResult.error) {ui.error(applyResult.error);}
       }
       return;
     }
@@ -211,7 +211,7 @@ export async function tfApplyCommand(options: TfCommandOptions = {}): Promise<vo
       }
     } else {
       ui.stopSpinnerFail('Terraform apply failed');
-      if (result.error) ui.error(result.error);
+      if (result.error) {ui.error(result.error);}
     }
   } catch (error: any) {
     ui.stopSpinnerFail('Error applying Terraform changes');

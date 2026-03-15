@@ -265,7 +265,7 @@ describe('GAP-11 — requestFileDiff callback with terraform plan', () => {
     const runBatch = async () => {
       for (const file of batch) {
         const decision = await fakeRequestFileDiff(file.filePath, file.toolName ?? 'terraform', file.diff ?? '');
-        if (decision === 'reject-all') break;
+        if (decision === 'reject-all') {break;}
       }
     };
 
@@ -298,7 +298,7 @@ describe('GAP-11 — requestFileDiff callback with terraform plan', () => {
 
     for (const file of batch) {
       const decision = await fakeRequestFileDiff(file.filePath, file.toolName ?? 'terraform', file.diff ?? '');
-      if (decision === 'reject-all') break;
+      if (decision === 'reject-all') {break;}
     }
 
     // Only 1 call should have been made before reject-all stopped iteration
@@ -452,10 +452,10 @@ describe('GAP-18 — terraform validate error injection', () => {
 function parseToolTimeouts(nimbusMd: string): Record<string, number> {
   const result: Record<string, number> = {};
   const match = nimbusMd.match(/##\s+Tool Timeouts\s*\n([\s\S]*?)(?=##|$)/);
-  if (!match) return result;
+  if (!match) {return result;}
   for (const line of match[1].split('\n')) {
     const m = line.match(/^\s*([a-z_]+)\s*:\s*(\d+)\s*$/);
-    if (m) result[m[1]] = parseInt(m[2], 10);
+    if (m) {result[m[1]] = parseInt(m[2], 10);}
   }
   return result;
 }

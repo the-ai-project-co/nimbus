@@ -159,7 +159,7 @@ async function showSubcommandHelp(command: string, _args: string[]): Promise<voi
   };
   const help = COMMAND_HELP[command];
   if (help) {
-    process.stdout.write(help + '\n');
+    process.stdout.write(`${help  }\n`);
   } else {
     await helpCommand({});
   }
@@ -1557,7 +1557,7 @@ export async function runCommand(args: string[]): Promise<void> {
   if (command === 'status') {
     const statusOptions: StatusOptions = {};
     for (let i = 1; i < args.length; i++) {
-      if (args[i] === '--json') statusOptions.json = true;
+      if (args[i] === '--json') {statusOptions.json = true;}
     }
     await statusCommand(statusOptions);
     return;
@@ -1567,7 +1567,7 @@ export async function runCommand(args: string[]): Promise<void> {
   if (command === 'context') {
     const contextOptions: StatusOptions = { verbose: true };
     for (let i = 1; i < args.length; i++) {
-      if (args[i] === '--json') contextOptions.json = true;
+      if (args[i] === '--json') {contextOptions.json = true;}
     }
     await statusCommand(contextOptions);
     return;
@@ -1583,8 +1583,8 @@ export async function runCommand(args: string[]): Promise<void> {
     const rolloutOptions: RolloutOptions = { deployment };
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
-      if ((arg === '--namespace' || arg === '-n') && args[i + 1]) rolloutOptions.namespace = args[++i];
-      else if (arg === '--timeout' && args[i + 1]) rolloutOptions.timeout = args[++i];
+      if ((arg === '--namespace' || arg === '-n') && args[i + 1]) {rolloutOptions.namespace = args[++i];}
+      else if (arg === '--timeout' && args[i + 1]) {rolloutOptions.timeout = args[++i];}
     }
     await rolloutCommand(rolloutOptions);
     return;
@@ -1595,12 +1595,12 @@ export async function runCommand(args: string[]): Promise<void> {
     const rollbackOptions: RollbackOptions = {};
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
-      if (arg === '--helm' && args[i + 1]) rollbackOptions.helm = args[++i];
-      else if (arg === '--k8s' && args[i + 1]) rollbackOptions.k8s = args[++i];
-      else if (arg === '--namespace' && args[i + 1]) rollbackOptions.namespace = args[++i];
-      else if (arg === '--tf') rollbackOptions.tf = true;
-      else if (arg === '--terraform') rollbackOptions.terraform = true;
-      else if (arg === '--tf-dir' && args[i + 1]) rollbackOptions.tfDir = args[++i];
+      if (arg === '--helm' && args[i + 1]) {rollbackOptions.helm = args[++i];}
+      else if (arg === '--k8s' && args[i + 1]) {rollbackOptions.k8s = args[++i];}
+      else if (arg === '--namespace' && args[i + 1]) {rollbackOptions.namespace = args[++i];}
+      else if (arg === '--tf') {rollbackOptions.tf = true;}
+      else if (arg === '--terraform') {rollbackOptions.terraform = true;}
+      else if (arg === '--tf-dir' && args[i + 1]) {rollbackOptions.tfDir = args[++i];}
     }
     await rollbackCommand(rollbackOptions);
     return;

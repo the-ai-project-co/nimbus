@@ -220,13 +220,13 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
     }
 
     // Detect live infra stack from current directory (Terraform, K8s, Helm, etc.)
-    let detectedInfraStack: string[] = [];
+    const detectedInfraStack: string[] = [];
     try {
       const { existsSync, readdirSync } = await import('node:fs');
       const cwd = process.cwd();
       const files = readdirSync(cwd);
-      if (files.some(f => f.endsWith('.tf') || f === 'terraform')) detectedInfraStack.push('terraform');
-      if (files.some(f => f === 'Chart.yaml' || f === 'helmfile.yaml')) detectedInfraStack.push('helm');
+      if (files.some(f => f.endsWith('.tf') || f === 'terraform')) {detectedInfraStack.push('terraform');}
+      if (files.some(f => f === 'Chart.yaml' || f === 'helmfile.yaml')) {detectedInfraStack.push('helm');}
       if (files.some(f => f.endsWith('.yaml') || f.endsWith('.yml'))) {
         // Check if any yaml looks like K8s
         const yamls = files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml')).slice(0, 5);
@@ -334,7 +334,7 @@ export async function onboardingCommand(options: OnboardingOptions = {}): Promis
           const { runInit } = await import('../cli/init');
           await runInit({ cwd: process.cwd(), quiet: false });
           ui.stopSpinnerSuccess('NIMBUS.md generated — your infra context is ready');
-        } catch (initErr) {
+        } catch (_initErr) {
           ui.stopSpinnerFail('Could not generate NIMBUS.md (run `nimbus init` manually)');
         }
       }

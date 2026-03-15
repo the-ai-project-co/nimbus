@@ -210,7 +210,7 @@ export async function mcpCommand(subcommand: string, args: string[]): Promise<vo
         // stdio: spawn briefly and send a tools/list JSON-RPC message
         ui.startSpinner({ message: `Testing MCP server "${name}" (stdio)...` });
         try {
-          const testPayload = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) + '\n';
+          const testPayload = `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} })  }\n`;
           const result = execFileSync(
             server.command,
             server.args ?? [],
@@ -269,7 +269,7 @@ export async function pluginCommand(subcommand: string, args: string[]): Promise
       ui.header('Installed Plugins');
       for (const p of registry.plugins) {
         ui.print(`  ${ui.color(p.name, 'cyan')}  —  ${p.description ?? p.command}`);
-        if (p.args) ui.print(`    args: ${p.args.join(' ')}`);
+        if (p.args) {ui.print(`    args: ${p.args.join(' ')}`);}
       }
       break;
     }

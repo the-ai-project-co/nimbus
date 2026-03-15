@@ -369,12 +369,12 @@ async function generateStep(ctx: AwsTerraformContext): Promise<StepResult> {
     // Derive components from discovered resources
     const resourceTypes = (ctx.resources ?? []).map(r => r.type);
     const components: string[] = [];
-    if (resourceTypes.some(t => t.includes('VPC') || t.includes('Subnet'))) components.push('vpc');
-    if (resourceTypes.some(t => t.includes('EC2') || t.includes('Instance'))) components.push('ec2');
-    if (resourceTypes.some(t => t.includes('S3'))) components.push('s3');
-    if (resourceTypes.some(t => t.includes('RDS'))) components.push('rds');
-    if (resourceTypes.some(t => t.includes('EKS'))) components.push('eks');
-    if (components.length === 0) components.push('vpc', 's3');
+    if (resourceTypes.some(t => t.includes('VPC') || t.includes('Subnet'))) {components.push('vpc');}
+    if (resourceTypes.some(t => t.includes('EC2') || t.includes('Instance'))) {components.push('ec2');}
+    if (resourceTypes.some(t => t.includes('S3'))) {components.push('s3');}
+    if (resourceTypes.some(t => t.includes('RDS'))) {components.push('rds');}
+    if (resourceTypes.some(t => t.includes('EKS'))) {components.push('eks');}
+    if (components.length === 0) {components.push('vpc', 's3');}
 
     const generatedProject = await generateTerraformProject({
       projectName: 'infrastructure',
@@ -400,9 +400,9 @@ async function generateStep(ctx: AwsTerraformContext): Promise<StepResult> {
     ui.stopSpinnerSuccess(`Generated ${Object.keys(fileMap).length} file(s)`);
 
     // Add starter kit files if requested
-    if (ctx.includeReadme) fileMap['README.md'] = generateReadme(summary);
-    if (ctx.includeGitignore) fileMap['.gitignore'] = generateGitignore();
-    if (ctx.includeMakefile) fileMap['Makefile'] = generateMakefile();
+    if (ctx.includeReadme) {fileMap['README.md'] = generateReadme(summary);}
+    if (ctx.includeGitignore) {fileMap['.gitignore'] = generateGitignore();}
+    if (ctx.includeMakefile) {fileMap['Makefile'] = generateMakefile();}
 
     return {
       success: true,
@@ -693,12 +693,12 @@ async function runNonInteractive(options: AwsTerraformOptions): Promise<void> {
   try {
     const resourceTypes = (resources ?? []).map(r => r.type);
     const components: string[] = [];
-    if (resourceTypes.some(t => t.includes('VPC') || t.includes('Subnet'))) components.push('vpc');
-    if (resourceTypes.some(t => t.includes('EC2') || t.includes('Instance'))) components.push('ec2');
-    if (resourceTypes.some(t => t.includes('S3'))) components.push('s3');
-    if (resourceTypes.some(t => t.includes('RDS'))) components.push('rds');
-    if (resourceTypes.some(t => t.includes('EKS'))) components.push('eks');
-    if (components.length === 0) components.push('vpc', 's3');
+    if (resourceTypes.some(t => t.includes('VPC') || t.includes('Subnet'))) {components.push('vpc');}
+    if (resourceTypes.some(t => t.includes('EC2') || t.includes('Instance'))) {components.push('ec2');}
+    if (resourceTypes.some(t => t.includes('S3'))) {components.push('s3');}
+    if (resourceTypes.some(t => t.includes('RDS'))) {components.push('rds');}
+    if (resourceTypes.some(t => t.includes('EKS'))) {components.push('eks');}
+    if (components.length === 0) {components.push('vpc', 's3');}
 
     const generatedProject = await generateTerraformProject({
       projectName: 'infrastructure',
@@ -731,9 +731,9 @@ async function runNonInteractive(options: AwsTerraformOptions): Promise<void> {
       fs.mkdirSync(outputPath, { recursive: true });
     }
 
-    if (options.includeStarterKit || options.includeReadme) files['README.md'] = generateReadme(summary);
-    if (options.includeStarterKit || options.includeGitignore) files['.gitignore'] = generateGitignore();
-    if (options.includeStarterKit || options.includeMakefile) files['Makefile'] = generateMakefile();
+    if (options.includeStarterKit || options.includeReadme) {files['README.md'] = generateReadme(summary);}
+    if (options.includeStarterKit || options.includeGitignore) {files['.gitignore'] = generateGitignore();}
+    if (options.includeStarterKit || options.includeMakefile) {files['Makefile'] = generateMakefile();}
 
     for (const [fileName, content] of Object.entries(files)) {
       const filePath = path.join(outputPath, fileName);

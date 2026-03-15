@@ -64,7 +64,7 @@ const RUNBOOK_DIRS = [
 function findRunbooks(): Array<{ path: string; dir: string; file: string }> {
   const results: Array<{ path: string; dir: string; file: string }> = [];
   for (const dir of RUNBOOK_DIRS) {
-    if (!existsSync(dir)) continue;
+    if (!existsSync(dir)) {continue;}
     try {
       const files = readdirSync(dir).filter(f => /\.(yaml|yml)$/.test(f));
       for (const file of files) {
@@ -104,7 +104,7 @@ function parseRunbookYaml(content: string): RunbookDef {
 
   for (const raw of lines) {
     const line = raw.trimEnd();
-    if (line.startsWith('#') || !line.trim()) continue;
+    if (line.startsWith('#') || !line.trim()) {continue;}
 
     if (line.startsWith('name:') && !inSteps) {
       def.name = line.slice(5).trim().replace(/^['"]|['"]$/g, '');
@@ -133,7 +133,7 @@ function parseRunbookYaml(content: string): RunbookDef {
       } else if (currentStep && /^\s+(name|run|action):/.test(line)) {
         // Structured field continuation inside a step block
         const val = line.replace(/^\s+(name|run|action):\s*/, '').replace(/^['"]|['"]$/g, '');
-        if (!currentStep.text) currentStep.text = val;
+        if (!currentStep.text) {currentStep.text = val;}
       } else if (currentStep && /^\s+if:/.test(line)) {
         const val = line.replace(/^\s+if:\s*/, '').replace(/^['"]|['"]$/g, '');
         currentStep.if = val;
@@ -161,8 +161,8 @@ function buildRunbookPrompt(def: RunbookDef): string {
   const parts = [
     `# Runbook: ${def.name}`,
   ];
-  if (def.description) parts.push(`\n${def.description}`);
-  if (def.context) parts.push(`\nContext/profile: ${def.context}`);
+  if (def.description) {parts.push(`\n${def.description}`);}
+  if (def.context) {parts.push(`\nContext/profile: ${def.context}`);}
   parts.push('\n## Steps to execute in order:');
 
   def.steps.forEach((step, i) => {
@@ -177,7 +177,7 @@ function buildRunbookPrompt(def: RunbookDef): string {
     }
     if (requireApproval) {
       stepText += `\n  [REQUIRES APPROVAL: State this step's plan and wait for explicit user approval before executing]`;
-      stepText = `IMPORTANT: Before executing this step, explicitly state what you are about to do and wait for the user to say "approve" or "yes" before proceeding.\n` + stepText;
+      stepText = `IMPORTANT: Before executing this step, explicitly state what you are about to do and wait for the user to say "approve" or "yes" before proceeding.\n${  stepText}`;
     }
     parts.push(stepText);
   });
@@ -234,7 +234,7 @@ async function runbookRun(name: string, options: RunbookOptions): Promise<void> 
   const prompt = buildRunbookPrompt(def);
 
   console.log(`Executing runbook: ${def.name}`);
-  if (def.description) console.log(`Description: ${def.description}`);
+  if (def.description) {console.log(`Description: ${def.description}`);}
   console.log(`Steps: ${def.steps.length}`);
   console.log('');
 
@@ -279,7 +279,7 @@ async function runbookCreate(name: string): Promise<void> {
   let stepNum = 1;
   while (true) {
     const step = await question(`Step ${stepNum}: `);
-    if (!step.trim()) break;
+    if (!step.trim()) {break;}
     steps.push(step.trim());
     stepNum++;
   }
@@ -290,13 +290,13 @@ async function runbookCreate(name: string): Promise<void> {
     process.exit(1);
   }
 
-  const yaml = [
+  const yaml = `${[
     `name: ${name}`,
     `description: ${description}`,
     context ? `context: ${context}` : '# context: prod',
     'steps:',
     ...steps.map(s => `  - ${s}`),
-  ].join('\n') + '\n';
+  ].join('\n')  }\n`;
 
   writeFileSync(targetPath, yaml, 'utf-8');
   console.log(`\nRunbook saved to: ${targetPath}`);

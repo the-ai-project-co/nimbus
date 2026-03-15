@@ -461,7 +461,7 @@ describe('docker build streaming (M2)', () => {
     // Inline the filter logic to unit test it
     const filterDockerBuildLine = (line: string): boolean => {
       const trimmed = line.trim();
-      if (!trimmed) return false;
+      if (!trimmed) {return false;}
       return /^Step\s+\d+\/\d+/i.test(trimmed) ||
         /---> Using cache/i.test(trimmed) ||
         /Successfully built/i.test(trimmed) ||

@@ -682,7 +682,7 @@ async function runPostGenerationValidation(outputDir: string): Promise<void> {
       timeout: 15000,
     });
     ui.stopSpinnerSuccess('Code formatting valid');
-  } catch (error: any) {
+  } catch (_error: unknown) {
     ui.stopSpinnerFail('Formatting issues found');
     // Try to auto-fix
     try {
@@ -708,7 +708,7 @@ async function runPostGenerationValidation(outputDir: string): Promise<void> {
     if (stdout.includes('Success')) {
       ui.print(ui.dim(`  ${stdout.trim()}`));
     }
-  } catch (error: any) {
+  } catch (_error: unknown) {
     ui.stopSpinnerFail('Terraform validation failed');
     const output = error.stdout || error.stderr || error.message;
     ui.print(ui.dim(`  ${output}`));
@@ -726,7 +726,7 @@ async function runPostGenerationValidation(outputDir: string): Promise<void> {
     if (stdout) {
       ui.print(ui.dim(`  ${stdout.trim()}`));
     }
-  } catch (error: any) {
+  } catch (_error: unknown) {
     if (error.code === 'ENOENT') {
       ui.info('tflint not found - skipping lint check');
       ui.print(ui.dim('  Install tflint for additional validation'));
@@ -757,7 +757,7 @@ async function runPostGenerationValidation(outputDir: string): Promise<void> {
     } else if (stdout.trim()) {
       ui.print(ui.dim(`  ${stdout.trim()}`));
     }
-  } catch (error: any) {
+  } catch (_error: unknown) {
     if (error.code === 'ENOENT') {
       ui.info('Security scanning available with checkov. Install: pip install checkov');
     } else {

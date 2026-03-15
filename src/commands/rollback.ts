@@ -244,7 +244,7 @@ async function rollbackTerraformState(
       ui.print(`  ${line}`);
     }
     const total = stateList.split('\n').length;
-    if (total > 20) ui.dim(`  ... and ${total - 20} more`);
+    if (total > 20) {ui.dim(`  ... and ${total - 20} more`);}
     ui.newLine();
   }
 
@@ -253,7 +253,7 @@ async function rollbackTerraformState(
     title: `Terraform State Rollback — workspace: ${currentWorkspace}`,
     content: [
       '',
-      'To roll back Terraform state in workspace "' + currentWorkspace + '":',
+      `To roll back Terraform state in workspace "${  currentWorkspace  }":`,
       '',
       '1. Pull current state:',
       '     terraform state pull > state-backup.tfstate',

@@ -90,7 +90,7 @@ export function dynamicComplete(prevWord: string, _currWord: string): void {
   }
 
   if (suggestions.length > 0) {
-    process.stdout.write(suggestions.join('\n') + '\n');
+    process.stdout.write(`${suggestions.join('\n')  }\n`);
   }
 }
 

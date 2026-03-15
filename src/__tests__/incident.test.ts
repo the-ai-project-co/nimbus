@@ -46,7 +46,7 @@ describe('incident.ts source structure (G14)', () => {
 
   it('fetchPagerDutyDetails returns null immediately when no token is set', () => {
     // Verify the guard is present in source
-    expect(INCIDENT_SRC).toContain('if (!token) return null');
+    expect(INCIDENT_SRC).toMatch(/if\s*\(!token\)\s*(\{?\s*return null\s*\}?|return null)/);
   });
 });
 

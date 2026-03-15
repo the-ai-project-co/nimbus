@@ -23,9 +23,9 @@ export interface PipelineOptions {
  * Auto-detect the CI/CD provider by scanning the cwd for config files.
  */
 export function detectProvider(cwd: string = process.cwd()): 'github' | 'gitlab' | 'circleci' | null {
-  if (fs.existsSync(path.join(cwd, '.github', 'workflows'))) return 'github';
-  if (fs.existsSync(path.join(cwd, '.gitlab-ci.yml'))) return 'gitlab';
-  if (fs.existsSync(path.join(cwd, '.circleci', 'config.yml'))) return 'circleci';
+  if (fs.existsSync(path.join(cwd, '.github', 'workflows'))) {return 'github';}
+  if (fs.existsSync(path.join(cwd, '.gitlab-ci.yml'))) {return 'gitlab';}
+  if (fs.existsSync(path.join(cwd, '.circleci', 'config.yml'))) {return 'circleci';}
   return null;
 }
 

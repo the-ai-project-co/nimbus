@@ -143,8 +143,8 @@ export class FileSystemOperations {
       }
       const truncated = buffer.slice(0, bytesRead).toString(encoding);
       return (
-        truncated +
-        `\n\n[File truncated: ${(stat.size / 1024).toFixed(1)} KB total, showing first ${(bytesRead / 1024).toFixed(0)} KB. ` +
+        `${truncated 
+        }\n\n[File truncated: ${(stat.size / 1024).toFixed(1)} KB total, showing first ${(bytesRead / 1024).toFixed(0)} KB. ` +
         `Use line range parameters to read specific sections.]`
       );
     }

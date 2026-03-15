@@ -145,7 +145,7 @@ export function formatSessionAsRunbook(
   ];
 
   for (const msg of messages) {
-    if (msg.role === 'system') continue;
+    if (msg.role === 'system') {continue;}
 
     const heading = msg.role === 'user' ? '## User' : '## Agent';
     lines.push(heading);

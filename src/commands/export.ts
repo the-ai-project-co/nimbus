@@ -45,7 +45,7 @@ export async function exportCommand(options: ExportOptions = {}): Promise<void> 
     const sessions = sm.list();
 
     // Find the target session
-    let targetSession = sessions.find(s =>
+    const targetSession = sessions.find(s =>
       options.sessionId && (s.id === options.sessionId || s.id.startsWith(options.sessionId))
     ) ?? sessions[0];
 
@@ -69,8 +69,8 @@ export async function exportCommand(options: ExportOptions = {}): Promise<void> 
         role: m.role,
         content: Array.isArray(m.content)
           ? m.content.map((b: unknown) => {
-              if (typeof b === 'string') return b;
-              if (b && typeof b === 'object' && 'text' in b) return (b as { text: string }).text;
+              if (typeof b === 'string') {return b;}
+              if (b && typeof b === 'object' && 'text' in b) {return (b as { text: string }).text;}
               return '';
             }).join('')
           : String(m.content ?? ''),

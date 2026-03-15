@@ -369,7 +369,7 @@ export async function driftScanCommand(opts: { workdir?: string; format?: 'table
   const tfDirs: string[] = [];
 
   function walk(dir: string, depth: number): void {
-    if (depth > 3) return;
+    if (depth > 3) {return;}
     try {
       if (fsSync.existsSync(pathMod.join(dir, '.terraform')) || fsSync.readdirSync(dir).some(f => f.endsWith('.tf'))) {
         tfDirs.push(dir);

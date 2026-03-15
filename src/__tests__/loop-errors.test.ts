@@ -135,7 +135,7 @@ describe('NIMBUS.md custom error hints (L3)', () => {
   // Inline a minimal reproduction of the custom hints parsing logic
   function parseCustomHints(nimbusInstructions: string, errorOutput: string): string | null {
     const hintsMatch = nimbusInstructions.match(/##\s*Custom Error Hints\s*\n([\s\S]*?)(?=\n##|\n$|$)/i);
-    if (!hintsMatch) return null;
+    if (!hintsMatch) {return null;}
     const hintsSection = hintsMatch[1];
     const hintLines = hintsSection.split('\n').filter((l: string) => l.trim().startsWith('-'));
     for (const line of hintLines) {

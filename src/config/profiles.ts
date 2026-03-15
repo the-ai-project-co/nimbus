@@ -31,7 +31,7 @@ function getProfilesDir(): string {
 
 export function loadProfile(name: string): ConfigProfile | null {
   const profilePath = join(getProfilesDir(), `${name}.json`);
-  if (!existsSync(profilePath)) return null;
+  if (!existsSync(profilePath)) {return null;}
   try {
     const raw = readFileSync(profilePath, 'utf-8');
     return { name, ...JSON.parse(raw) } as ConfigProfile;
@@ -49,7 +49,7 @@ export function saveProfile(profile: ConfigProfile): void {
 
 export function listProfiles(): string[] {
   const profilesDir = getProfilesDir();
-  if (!existsSync(profilesDir)) return [];
+  if (!existsSync(profilesDir)) {return [];}
   try {
     return readdirSync(profilesDir)
       .filter(f => f.endsWith('.json'))

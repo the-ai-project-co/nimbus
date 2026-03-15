@@ -59,7 +59,7 @@ export async function initApp(): Promise<AppContext> {
         '',
         '\x1b[2mRun `nimbus doctor` for detailed diagnosis.\x1b[0m',
       ];
-      process.stderr.write(lines.join('\n') + '\n');
+      process.stderr.write(`${lines.join('\n')  }\n`);
       process.exit(1);
     }
     startupWarnings = issues.warnings;

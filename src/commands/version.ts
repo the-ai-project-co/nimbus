@@ -97,7 +97,7 @@ async function fetchDevOpsVersions(): Promise<Record<string, string>> {
           'installed';
       } catch {
         const match = output.match(/[\d]+\.[\d]+\.[\d]+/);
-        if (match) version = `v${match[0]}`;
+        if (match) {version = `v${match[0]}`;}
       }
       versions[tool.name] = version;
     } catch {
@@ -138,8 +138,8 @@ export async function versionCommand(options: VersionOptions = {}): Promise<void
       arch: versionInfo.arch,
       cli: versionInfo.cli,
     };
-    if (versionInfo.bun) jsonOutput.bun = versionInfo.bun;
-    if (versionInfo.components) jsonOutput.components = versionInfo.components;
+    if (versionInfo.bun) {jsonOutput.bun = versionInfo.bun;}
+    if (versionInfo.components) {jsonOutput.components = versionInfo.components;}
     console.log(JSON.stringify(jsonOutput, null, 2));
     process.exit(0);
   }

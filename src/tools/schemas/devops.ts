@@ -113,15 +113,15 @@ export function formatHelmListOutput(raw: string): string {
       app_version: string;
       updated: string;
     }>;
-    if (!Array.isArray(releases) || releases.length === 0) return 'No Helm releases found.';
+    if (!Array.isArray(releases) || releases.length === 0) {return 'No Helm releases found.';}
     const lines = releases.map(r => {
       let emoji: string;
       const s = r.status?.toLowerCase() ?? '';
-      if (s === 'deployed') emoji = '[OK]';
-      else if (s === 'pending-install' || s === 'pending-upgrade') emoji = '[!!]';
-      else if (s === 'failed') emoji = '[XX]';
-      else if (s === 'superseded') emoji = '[~~]';
-      else emoji = '  ';
+      if (s === 'deployed') {emoji = '[OK]';}
+      else if (s === 'pending-install' || s === 'pending-upgrade') {emoji = '[!!]';}
+      else if (s === 'failed') {emoji = '[XX]';}
+      else if (s === 'superseded') {emoji = '[~~]';}
+      else {emoji = '  ';}
       return `${emoji} ${r.name} (${r.namespace}) — ${r.chart} rev.${r.revision} [${r.status}]`;
     });
     return lines.join('\n');
@@ -224,34 +224,34 @@ export const terraformTool: ToolDefinition = {
       let command: string;
 
       if (input.action === 'state-list') {
-        command = `terraform -chdir=${input.workdir} state list${input.args ? ' ' + input.args : ''}`;
+        command = `terraform -chdir=${input.workdir} state list${input.args ? ` ${  input.args}` : ''}`;
       } else if (input.action === 'state-show') {
-        if (!input.state_address) return err('state-show requires state_address');
+        if (!input.state_address) {return err('state-show requires state_address');}
         command = `terraform -chdir=${input.workdir} state show "${input.state_address}"`;
       } else if (input.action === 'state-rm') {
-        if (!input.state_address) return err('state-rm requires state_address');
+        if (!input.state_address) {return err('state-rm requires state_address');}
         command = `terraform -chdir=${input.workdir} state rm "${input.state_address}"`;
       } else if (input.action === 'state-mv') {
-        if (!input.state_address) return err('state-mv requires state_address (format: "source dest")');
+        if (!input.state_address) {return err('state-mv requires state_address (format: "source dest")');}
         command = `terraform -chdir=${input.workdir} state mv ${input.state_address}`;
       } else if (input.action === 'state') {
-        command = `terraform -chdir=${input.workdir} state${input.args ? ' ' + input.args : ' list'}`;
+        command = `terraform -chdir=${input.workdir} state${input.args ? ` ${  input.args}` : ' list'}`;
       } else if (input.action === 'output') {
-        command = `terraform -chdir=${input.workdir} output -json${input.output_name ? ' ' + input.output_name : ''}`;
+        command = `terraform -chdir=${input.workdir} output -json${input.output_name ? ` ${  input.output_name}` : ''}`;
       } else if (input.action === 'workspace-list') {
         command = `terraform -chdir=${input.workdir} workspace list`;
       } else if (input.action === 'workspace-select') {
-        if (!input.workspace) return err('workspace-select requires workspace name');
+        if (!input.workspace) {return err('workspace-select requires workspace name');}
         command = `terraform -chdir=${input.workdir} workspace select "${input.workspace}"`;
       } else if (input.action === 'workspace-new') {
-        if (!input.workspace) return err('workspace-new requires workspace name');
+        if (!input.workspace) {return err('workspace-new requires workspace name');}
         command = `terraform -chdir=${input.workdir} workspace new "${input.workspace}"`;
       } else if (input.action === 'providers') {
         command = `terraform -chdir=${input.workdir} providers`;
       } else if (input.action === 'graph') {
-        command = `terraform -chdir=${input.workdir} graph${input.args ? ' ' + input.args : ''}`;
+        command = `terraform -chdir=${input.workdir} graph${input.args ? ` ${  input.args}` : ''}`;
       } else if (input.action === 'force-unlock') {
-        if (!input.lock_id) return err('force-unlock requires lock_id');
+        if (!input.lock_id) {return err('force-unlock requires lock_id');}
         command = `terraform -chdir=${input.workdir} force-unlock -force "${input.lock_id}"`;
       } else {
         const parts: string[] = ['terraform', `-chdir=${input.workdir}`, input.action];
@@ -285,7 +285,7 @@ export const terraformTool: ToolDefinition = {
             // Replace the apply command with one that uses the plan file
             // Remove the -auto-approve flag since plan files don't need it
             const applyIdx = parts.indexOf('-auto-approve');
-            if (applyIdx !== -1) parts.splice(applyIdx, 1);
+            if (applyIdx !== -1) {parts.splice(applyIdx, 1);}
             parts.push(planFile);
           }
         }
@@ -399,37 +399,37 @@ export const kubectlTool: ToolDefinition = {
       // Special handling for new actions
       if (input.action === 'patch') {
         const patchType = input.patch_type ?? 'strategic';
-        if (!input.patch) return err('patch action requires patch field with JSON patch string');
-        if (input.resource) parts.push(input.resource);
-        if (input.namespace) parts.push('-n', input.namespace);
+        if (!input.patch) {return err('patch action requires patch field with JSON patch string');}
+        if (input.resource) {parts.push(input.resource);}
+        if (input.namespace) {parts.push('-n', input.namespace);}
         parts.push(`--type=${patchType}`);
         parts.push('-p', `'${input.patch}'`);
       } else if (input.action === 'port-forward') {
-        if (input.resource) parts.push(input.resource);
-        if (input.namespace) parts.push('-n', input.namespace);
-        if (input.args) parts.push(input.args);
+        if (input.resource) {parts.push(input.resource);}
+        if (input.namespace) {parts.push('-n', input.namespace);}
+        if (input.args) {parts.push(input.args);}
       } else if (input.action === 'cp') {
         if (input.local_path && input.container_path) {
           parts.push(input.local_path, input.container_path);
         } else {
-          if (input.args) parts.push(input.args);
+          if (input.args) {parts.push(input.args);}
         }
       } else if (input.action === 'top') {
-        if (input.resource) parts.push(input.resource);
-        if (input.namespace) parts.push('-n', input.namespace);
-        if (input.args) parts.push(input.args);
+        if (input.resource) {parts.push(input.resource);}
+        if (input.namespace) {parts.push('-n', input.namespace);}
+        if (input.args) {parts.push(input.args);}
       } else if (input.action === 'cordon' || input.action === 'taint') {
-        if (input.resource) parts.push(input.resource);
-        if (input.args) parts.push(input.args);
+        if (input.resource) {parts.push(input.resource);}
+        if (input.args) {parts.push(input.args);}
       } else if (input.action === 'drain') {
-        if (input.resource) parts.push(input.resource);
+        if (input.resource) {parts.push(input.resource);}
         parts.push('--ignore-daemonsets', '--delete-emptydir-data');
-        if (input.args) parts.push(input.args);
+        if (input.args) {parts.push(input.args);}
       } else if (input.action === 'wait') {
-        if (input.resource) parts.push(input.resource);
-        if (input.namespace) parts.push('-n', input.namespace);
-        if (input.args) parts.push(input.args);
-        else parts.push('--for=condition=Ready', '--timeout=120s');
+        if (input.resource) {parts.push(input.resource);}
+        if (input.namespace) {parts.push('-n', input.namespace);}
+        if (input.args) {parts.push(input.args);}
+        else {parts.push('--for=condition=Ready', '--timeout=120s');}
       } else if (input.action === 'diff') {
         // G12: kubectl diff — exit code 1 means diffs exist (not an error)
         const manifest = input.args || '-';
@@ -441,7 +441,7 @@ export const kubectlTool: ToolDefinition = {
         } catch (diffErr: unknown) {
           const execError = diffErr as { stdout?: string; stderr?: string; code?: number };
           // Exit code 1 with stdout = normal diff output (changes detected)
-          if (execError.code === 1 && execError.stdout) return ok(execError.stdout.trim());
+          if (execError.code === 1 && execError.stdout) {return ok(execError.stdout.trim());}
           return err(errorMessage(diffErr));
         }
       } else {
@@ -467,7 +467,7 @@ export const kubectlTool: ToolDefinition = {
         const timeoutMs = ctx?.timeout ?? defaultKubectlTimeoutMs; // GAP-20: per-tool timeout from NIMBUS.md
         const result = await spawnExec(command, { onChunk: ctx.onProgress, timeout: timeoutMs });
         const combined = [result.stdout, result.stderr].filter(Boolean).join('\n');
-        if (result.exitCode !== 0) return err(`kubectl command failed:\n${combined}`);
+        if (result.exitCode !== 0) {return err(`kubectl command failed:\n${combined}`);}
         return ok(combined || '(no output)');
       }
       const cmdEnv = { ...process.env, ...(input.env ?? {}) } as NodeJS.ProcessEnv;
@@ -532,7 +532,7 @@ export const helmTool: ToolDefinition = {
       // M5: Helm secrets plugin actions (SOPS-encrypted values)
       if (input.action === 'secrets-encrypt' || input.action === 'secrets-decrypt' || input.action === 'secrets-view') {
         const file = input.values;
-        if (!file) return err('helm secrets requires a values file path (values field)');
+        if (!file) {return err('helm secrets requires a values file path (values field)');}
         const secretsAction = input.action.replace('secrets-', '');
         const command = `helm secrets ${secretsAction} ${file}`;
         const { stdout, stderr } = await execAsync(command, {
@@ -544,7 +544,7 @@ export const helmTool: ToolDefinition = {
 
       // New introspection/repo actions
       if (['get-values', 'get-manifest', 'get-all', 'get-hooks'].includes(input.action)) {
-        if (!input.release) return err(`${input.action} requires a release name`);
+        if (!input.release) {return err(`${input.action} requires a release name`);}
         const subCmd = input.action.replace('get-', 'get ');
         const nsFlag = input.namespace ? ` -n ${input.namespace}` : '';
         const { stdout: getOut, stderr: getErr } = await execAsync(
@@ -554,7 +554,7 @@ export const helmTool: ToolDefinition = {
         return ok([getOut, getErr].filter(Boolean).join('\n') || '(no output)');
       }
       if (input.action === 'status') {
-        if (!input.release) return err('status requires a release name');
+        if (!input.release) {return err('status requires a release name');}
         const nsFlag = input.namespace ? ` -n ${input.namespace}` : '';
         const { stdout: statusOut, stderr: statusErr } = await execAsync(
           `helm status ${input.release}${nsFlag}`,
@@ -563,7 +563,7 @@ export const helmTool: ToolDefinition = {
         return ok([statusOut, statusErr].filter(Boolean).join('\n') || '(no output)');
       }
       if (input.action === 'history') {
-        if (!input.release) return err('history requires a release name');
+        if (!input.release) {return err('history requires a release name');}
         const nsFlag = input.namespace ? ` -n ${input.namespace}` : '';
         try {
           const { stdout: histOut } = await execAsync(
@@ -582,7 +582,7 @@ export const helmTool: ToolDefinition = {
         }
       }
       if (input.action === 'test') {
-        if (!input.release) return err('test requires a release name');
+        if (!input.release) {return err('test requires a release name');}
         const nsFlag = input.namespace ? ` -n ${input.namespace}` : '';
         const { stdout: testOut, stderr: testErr } = await execAsync(
           `helm test ${input.release}${nsFlag}`,
@@ -591,7 +591,7 @@ export const helmTool: ToolDefinition = {
         return ok([testOut, testErr].filter(Boolean).join('\n') || '(no output)');
       }
       if (input.action === 'repo-add') {
-        if (!input.repo_name || !input.repo_url) return err('repo-add requires repo_name and repo_url');
+        if (!input.repo_name || !input.repo_url) {return err('repo-add requires repo_name and repo_url');}
         const { stdout: raOut, stderr: raErr } = await execAsync(
           `helm repo add ${input.repo_name} ${input.repo_url}`,
           { timeout: 30_000, maxBuffer: 1 * 1024 * 1024 }
@@ -614,7 +614,7 @@ export const helmTool: ToolDefinition = {
       }
       if (input.action === 'search-repo') {
         const query = input.chart ?? input.release ?? '';
-        if (!query) return err('search-repo requires chart or release field as search term');
+        if (!query) {return err('search-repo requires chart or release field as search term');}
         const { stdout: srOut, stderr: srErr } = await execAsync(
           `helm search repo ${query}`,
           { timeout: 30_000, maxBuffer: 2 * 1024 * 1024 }
@@ -623,7 +623,7 @@ export const helmTool: ToolDefinition = {
       }
       if (input.action === 'show-chart' || input.action === 'show-values') {
         const target = input.chart ?? input.release;
-        if (!target) return err(`${input.action} requires chart or release field`);
+        if (!target) {return err(`${input.action} requires chart or release field`);}
         const subCmd = input.action === 'show-chart' ? 'chart' : 'values';
         const { stdout: showOut, stderr: showErr } = await execAsync(
           `helm show ${subCmd} ${target}`,
@@ -826,18 +826,18 @@ export const cloudDiscoverTool: ToolDefinition = {
             const publicIp = item.PublicIpAddress ?? '';
             const privateIp = item.PrivateIpAddress ?? '';
             const sgs = (item.SecurityGroups as Array<Record<string, unknown>> | undefined) ?? [];
-            if (sgs.length > 0) securityFlags.push('check-sg-rules');
+            if (sgs.length > 0) {securityFlags.push('check-sg-rules');}
             const flagStr = securityFlags.length > 0 ? ` [${securityFlags.join(', ')}]` : '';
             return `  - EC2: ${name} (${item.InstanceType ?? ''}) ${state}${az ? ` [${az}]` : ''}${publicIp ? ` pub:${publicIp}` : ''}${privateIp ? ` priv:${privateIp}` : ''}${flagStr}`;
           }
           // RDS formatter
           if (item.DBInstanceIdentifier) {
             const id = item.DBInstanceIdentifier as string;
-            const engine = `${item.Engine ?? ''}${item.EngineVersion ? ' ' + item.EngineVersion : ''}`;
+            const engine = `${item.Engine ?? ''}${item.EngineVersion ? ` ${  item.EngineVersion}` : ''}`;
             const status = item.DBInstanceStatus ?? '';
             const multiAz = item.MultiAZ ? 'Multi-AZ' : 'Single-AZ';
             const endpoint = (item.Endpoint as Record<string, unknown>)?.Address ?? '';
-            if (!item.StorageEncrypted) securityFlags.push('unencrypted');
+            if (!item.StorageEncrypted) {securityFlags.push('unencrypted');}
             const flagStr = securityFlags.length > 0 ? ` [${securityFlags.join(', ')}]` : '';
             return `  - RDS: ${id} (${engine}) ${status} ${multiAz}${endpoint ? ` -> ${endpoint}` : ''}${flagStr}`;
           }
@@ -890,8 +890,8 @@ export const cloudDiscoverTool: ToolDefinition = {
         });
 
         return ok(
-          `Found ${items.length} resource(s):\n${summary.join('\n')}` +
-          (items.length > 50 ? `\n\n[+${items.length - 50} more — use specific region/filter to narrow]` : '')
+          `Found ${items.length} resource(s):\n${summary.join('\n')}${ 
+          items.length > 50 ? `\n\n[+${items.length - 50} more — use specific region/filter to narrow]` : ''}`
         );
       } catch {
         // Not JSON or failed to parse — return raw output truncated
@@ -1025,7 +1025,7 @@ export const costEstimateTool: ToolDefinition = {
 
       if (input.target === 'lambda') {
         const fn = input.function_name ?? input.workdir;
-        if (!fn) return err('function_name required for Lambda cost estimation');
+        if (!fn) {return err('function_name required for Lambda cost estimation');}
         try {
           const { stdout } = await execAsync(`aws lambda get-function-configuration --function-name ${fn} --output json`, { timeout: 15_000 });
           const cfg = JSON.parse(stdout);
@@ -1206,7 +1206,7 @@ export const driftDetectTool: ToolDefinition = {
               timeout: 120_000, maxBuffer: 10 * 1024 * 1024,
             });
             if (diffOut.trim()) {
-              results.push('## Tracked Resource Drift (kubectl diff):\n' + diffOut);
+              results.push(`## Tracked Resource Drift (kubectl diff):\n${  diffOut}`);
             }
           } catch { /* ignore */ }
 
@@ -1220,7 +1220,7 @@ export const driftDetectTool: ToolDefinition = {
             const clusterData = JSON.parse(clusterJson);
             for (const item of (clusterData.items ?? [])) {
               const kind: string = item.kind ?? 'Unknown';
-              if (!clusterResources[kind]) clusterResources[kind] = new Set();
+              if (!clusterResources[kind]) {clusterResources[kind] = new Set();}
               clusterResources[kind].add(`${item.metadata?.namespace ?? 'default'}/${item.metadata?.name}`);
             }
           } catch { /* ignore kubectl errors */ }
@@ -1235,7 +1235,7 @@ export const driftDetectTool: ToolDefinition = {
               try {
                 for (const entry of readdirSync(dir, { withFileTypes: true })) {
                   const full = joinPath(dir, entry.name);
-                  if (entry.isDirectory()) scanDir(full);
+                  if (entry.isDirectory()) {scanDir(full);}
                   else if (entry.name.endsWith('.yaml') || entry.name.endsWith('.yml')) {
                     const fileContent = readFileSync(full, 'utf-8');
                     const kindMatch = fileContent.match(/^kind:\s*(\S+)/m);
@@ -1271,9 +1271,9 @@ export const driftDetectTool: ToolDefinition = {
           }
 
           if (untracked.length > 0) {
-            results.push(`## Untracked Cluster Resources (${untracked.length} total):\n` +
-              untracked.slice(0, 100).map(r => `  - ${r}`).join('\n') +
-              (untracked.length > 100 ? `\n  ... and ${untracked.length - 100} more` : ''));
+            results.push(`## Untracked Cluster Resources (${untracked.length} total):\n${ 
+              untracked.slice(0, 100).map(r => `  - ${r}`).join('\n') 
+              }${untracked.length > 100 ? `\n  ... and ${untracked.length - 100} more` : ''}`);
           }
 
           if (results.length === 0) {
@@ -1299,7 +1299,7 @@ export const driftDetectTool: ToolDefinition = {
             try {
               const { stdout } = await execAsync('helm list -A --output json', { timeout: 30_000 });
               const releases: Array<{ name: string; namespace: string; status: string; chart: string; updated: string }> = JSON.parse(stdout || '[]');
-              if (releases.length === 0) return ok('No Helm releases found.');
+              if (releases.length === 0) {return ok('No Helm releases found.');}
               const lines = releases.map(r =>
                 `  ${r.name} (${r.namespace}): ${r.status} — ${r.chart}, updated ${r.updated}`
               );
@@ -1830,7 +1830,7 @@ export const dockerTool: ToolDefinition = {
           const lines = chunk.split('\n');
           for (const line of lines) {
             const trimmed = line.trim();
-            if (!trimmed) continue;
+            if (!trimmed) {continue;}
             // Keep: Step N/M, Using cache, Successfully built, error, FROM/RUN/COPY step info
             if (/^Step\s+\d+\/\d+/i.test(trimmed) ||
                 /---> Using cache/i.test(trimmed) ||
@@ -1838,13 +1838,13 @@ export const dockerTool: ToolDefinition = {
                 /Successfully tagged/i.test(trimmed) ||
                 /error/i.test(trimmed) ||
                 /warning/i.test(trimmed)) {
-              ctx.onProgress!(line + '\n');
+              ctx.onProgress!(`${line  }\n`);
             }
           }
         };
         const buildResult = await spawnExec(command, { onChunk: filteredProgress, timeout: ctx?.timeout ?? 300_000 });
         const combined = [buildResult.stdout, buildResult.stderr].filter(Boolean).join('\n');
-        if (buildResult.exitCode !== 0) return err(`Docker build failed:\n${combined}`);
+        if (buildResult.exitCode !== 0) {return err(`Docker build failed:\n${combined}`);}
         return ok(combined || 'Build complete.');
       }
 
@@ -1902,7 +1902,7 @@ export const secretsTool: ToolDefinition = {
               command = `${nsFlag}vault kv list -format=json ${input.path}`;
               break;
             case 'put':
-              if (!input.value) return err('value is required for put action');
+              if (!input.value) {return err('value is required for put action');}
               command = `${nsFlag}vault kv put ${input.path} value=${input.value}`;
               break;
             case 'delete':
@@ -1926,7 +1926,7 @@ export const secretsTool: ToolDefinition = {
               command = `aws secretsmanager list-secrets ${regionFlag} --output json`;
               break;
             case 'put':
-              if (!input.value) return err('value is required for put action');
+              if (!input.value) {return err('value is required for put action');}
               command = `aws secretsmanager put-secret-value --secret-id ${input.path} --secret-string '${input.value.replace(/'/g, "'\\''")}' ${regionFlag}`;
               break;
             case 'delete':
@@ -1950,7 +1950,7 @@ export const secretsTool: ToolDefinition = {
               command = `gcloud secrets list --format=json`;
               break;
             case 'put':
-              if (!input.value) return err('value is required for put action');
+              if (!input.value) {return err('value is required for put action');}
               command = `echo '${input.value.replace(/'/g, "'\\''")}' | gcloud secrets create ${input.path} --data-file=-`;
               break;
             case 'delete':
@@ -1974,7 +1974,7 @@ export const secretsTool: ToolDefinition = {
               command = `az keyvault secret list ${vaultFlag} --output json`;
               break;
             case 'put':
-              if (!input.value) return err('value is required for put action');
+              if (!input.value) {return err('value is required for put action');}
               command = `az keyvault secret set --name ${input.path} --value '${input.value.replace(/'/g, "'\\''")}' ${vaultFlag}`;
               break;
             case 'delete':
@@ -2174,7 +2174,7 @@ export const cicdTool: ToolDefinition = {
       const lines = combined.split('\n');
       const truncated = lines.length > 200;
       const output = truncated
-        ? lines.slice(0, 200).join('\n') + '\n\n... truncated (showing first 200 lines)'
+        ? `${lines.slice(0, 200).join('\n')  }\n\n... truncated (showing first 200 lines)`
         : combined;
 
       return ok(output || '(no output)');
@@ -2215,7 +2215,7 @@ export const monitorTool: ToolDefinition = {
 
       // Parse relative times
       function parseTime(t: string | undefined, defaultSecs: number): number {
-        if (!t) return Math.floor(Date.now() / 1000) - defaultSecs;
+        if (!t) {return Math.floor(Date.now() / 1000) - defaultSecs;}
         if (t.startsWith('-')) {
           const val = parseInt(t.slice(1));
           const unit = t.slice(-1);
@@ -2276,18 +2276,18 @@ export const monitorTool: ToolDefinition = {
         case 'datadog': {
           const apiKey = process.env.DD_API_KEY ?? '';
           const appKey = process.env.DD_APP_KEY ?? '';
-          if (!apiKey) return err('DD_API_KEY environment variable not set');
+          if (!apiKey) {return err('DD_API_KEY environment variable not set');}
           const q = encodeURIComponent(input.query ?? 'avg:system.cpu.user{*}');
           const cmd = `curl -sf -H "DD-API-KEY: ${apiKey}" -H "DD-APPLICATION-KEY: ${appKey}" "https://api.datadoghq.com/api/v1/query?from=${startTs}&to=${endTs}&query=${q}"`;
           const { stdout } = await execAsync(cmd, { timeout: 30_000 });
           const data = JSON.parse(stdout);
           const series = (data.series ?? []).slice(0, 100);
-          return ok(`Datadog query (${series.length} series):\n` + JSON.stringify(series.map((s: { metric: string; pointlist: [number, number][] }) => ({ metric: s.metric, points: s.pointlist.length })), null, 2));
+          return ok(`Datadog query (${series.length} series):\n${  JSON.stringify(series.map((s: { metric: string; pointlist: [number, number][] }) => ({ metric: s.metric, points: s.pointlist.length })), null, 2)}`);
         }
 
         case 'newrelic': {
           const apiKey = process.env.NEW_RELIC_API_KEY ?? '';
-          if (!apiKey) return err('NEW_RELIC_API_KEY environment variable not set');
+          if (!apiKey) {return err('NEW_RELIC_API_KEY environment variable not set');}
           const nrqlQuery = input.query ?? `SELECT average(cpuPercent) FROM SystemSample SINCE 1 hour ago`;
           const body = JSON.stringify({ query: `{ actor { nrql(accounts: 0, query: "${nrqlQuery.replace(/"/g, '\\"')}") { results } } }` });
           const cmd = `curl -sf -X POST -H "Content-Type: application/json" -H "API-Key: ${apiKey}" -d '${body.replace(/'/g, "'\\''")}' "https://api.newrelic.com/graphql"`;
@@ -2298,7 +2298,7 @@ export const monitorTool: ToolDefinition = {
         // Gap 5: PagerDuty alert management
         case 'pagerduty': {
           const pdKey = process.env.PD_API_KEY ?? '';
-          if (!pdKey) return err('PD_API_KEY environment variable not set');
+          if (!pdKey) {return err('PD_API_KEY environment variable not set');}
           const authHeader = `-H "Authorization: Token token=${pdKey}" -H "Accept: application/vnd.pagerduty+json;version=2"`;
           switch (input.action) {
             case 'incidents':
@@ -2306,12 +2306,12 @@ export const monitorTool: ToolDefinition = {
             case 'alerts':
               return ok((await execAsync(`curl -sf ${authHeader} "https://api.pagerduty.com/alerts?limit=25"`, { timeout: 15_000 })).stdout.slice(0, 5000));
             case 'ack': {
-              if (!input.incident_id) return err('incident_id required for ack action');
+              if (!input.incident_id) {return err('incident_id required for ack action');}
               const body = JSON.stringify({ incident: { type: 'incident_reference', status: 'acknowledged' } });
               return ok((await execAsync(`curl -sf -X PUT ${authHeader} -H "Content-Type: application/json" -d '${body}' "https://api.pagerduty.com/incidents/${input.incident_id}"`, { timeout: 15_000 })).stdout.slice(0, 2000));
             }
             case 'resolve': {
-              if (!input.incident_id) return err('incident_id required for resolve action');
+              if (!input.incident_id) {return err('incident_id required for resolve action');}
               const body = JSON.stringify({ incident: { type: 'incident_reference', status: 'resolved' } });
               return ok((await execAsync(`curl -sf -X PUT ${authHeader} -H "Content-Type: application/json" -d '${body}' "https://api.pagerduty.com/incidents/${input.incident_id}"`, { timeout: 15_000 })).stdout.slice(0, 2000));
             }
@@ -2325,19 +2325,19 @@ export const monitorTool: ToolDefinition = {
         // Gap 5: Opsgenie alert management
         case 'opsgenie': {
           const ogKey = process.env.OPSGENIE_API_KEY ?? '';
-          if (!ogKey) return err('OPSGENIE_API_KEY environment variable not set');
+          if (!ogKey) {return err('OPSGENIE_API_KEY environment variable not set');}
           const authHeader = `-H "Authorization: GenieKey ${ogKey}"`;
           switch (input.action) {
             case 'alerts':
             case 'incidents':
               return ok((await execAsync(`curl -sf ${authHeader} "https://api.opsgenie.com/v2/alerts?limit=25"`, { timeout: 15_000 })).stdout.slice(0, 5000));
             case 'ack': {
-              if (!input.incident_id) return err('incident_id required for ack action');
+              if (!input.incident_id) {return err('incident_id required for ack action');}
               const body = JSON.stringify({ note: 'Acknowledged via Nimbus' });
               return ok((await execAsync(`curl -sf -X POST ${authHeader} -H "Content-Type: application/json" -d '${JSON.stringify(body)}' "https://api.opsgenie.com/v2/alerts/${input.incident_id}/acknowledge"`, { timeout: 15_000 })).stdout.slice(0, 2000));
             }
             case 'resolve': {
-              if (!input.incident_id) return err('incident_id required for resolve action');
+              if (!input.incident_id) {return err('incident_id required for resolve action');}
               const body = JSON.stringify({ note: 'Resolved via Nimbus' });
               return ok((await execAsync(`curl -sf -X POST ${authHeader} -H "Content-Type: application/json" -d '${JSON.stringify(body)}' "https://api.opsgenie.com/v2/alerts/${input.incident_id}/close"`, { timeout: 15_000 })).stdout.slice(0, 2000));
             }
@@ -2480,7 +2480,7 @@ export const gitopsTool: ToolDefinition = {
           const health = app?.status?.health?.status ?? 'Unknown';
           const sync = app?.status?.sync?.status ?? 'Unknown';
           const conditions = (app?.status?.conditions ?? []).map((c: { type: string; message: string }) => `  ${c.type}: ${c.message}`).join('\n');
-          return ok(`App: ${app?.metadata?.name}\nHealth: ${health}\nSync: ${sync}\n${conditions ? 'Conditions:\n' + conditions : ''}`);
+          return ok(`App: ${app?.metadata?.name}\nHealth: ${health}\nSync: ${sync}\n${conditions ? `Conditions:\n${  conditions}` : ''}`);
         } catch {
           // Fall through to raw output
         }
@@ -2676,7 +2676,7 @@ export const logsTool: ToolDefinition = {
       const combined = [stdout, stderr].filter(Boolean).join('\n');
       const lines = combined.split('\n');
       const output = lines.length > maxLines
-        ? lines.slice(0, maxLines).join('\n') + `\n\n... truncated at ${maxLines} lines`
+        ? `${lines.slice(0, maxLines).join('\n')  }\n\n... truncated at ${maxLines} lines`
         : combined;
 
       return ok(output || '(no logs found)');
@@ -3113,11 +3113,11 @@ export const awsTool: ToolDefinition = {
     try {
       const input = awsSchema.parse(raw);
       const parts = ['aws', input.service, input.action];
-      if (input.profile) parts.push('--profile', input.profile);
-      else if (process.env.AWS_PROFILE) parts.push('--profile', process.env.AWS_PROFILE);
-      if (input.region) parts.push('--region', input.region);
+      if (input.profile) {parts.push('--profile', input.profile);}
+      else if (process.env.AWS_PROFILE) {parts.push('--profile', process.env.AWS_PROFILE);}
+      if (input.region) {parts.push('--region', input.region);}
       parts.push('--output', input.output ?? 'json');
-      if (input.args) parts.push(input.args);
+      if (input.args) {parts.push(input.args);}
       const command = parts.join(' ');
       const env = { ...process.env } as NodeJS.ProcessEnv;
       const { stdout, stderr } = await execAsync(command, {
@@ -3153,10 +3153,10 @@ export const gcloudTool: ToolDefinition = {
     try {
       const input = gcloudSchema.parse(raw);
       const parts = ['gcloud', input.service, input.action];
-      if (input.project) parts.push('--project', input.project);
-      if (input.region) parts.push('--region', input.region);
+      if (input.project) {parts.push('--project', input.project);}
+      if (input.region) {parts.push('--region', input.region);}
       parts.push('--format', input.output ?? 'json');
-      if (input.args) parts.push(input.args);
+      if (input.args) {parts.push(input.args);}
       const command = parts.join(' ');
       const { stdout, stderr } = await execAsync(command, {
         timeout: 60_000,
@@ -3190,10 +3190,10 @@ export const azTool: ToolDefinition = {
     try {
       const input = azSchema.parse(raw);
       const parts = ['az', input.service, input.action];
-      if (input.subscription) parts.push('--subscription', input.subscription);
-      if (input.resource_group) parts.push('--resource-group', input.resource_group);
+      if (input.subscription) {parts.push('--subscription', input.subscription);}
+      if (input.resource_group) {parts.push('--resource-group', input.resource_group);}
       parts.push('--output', input.output ?? 'json');
-      if (input.args) parts.push(input.args);
+      if (input.args) {parts.push(input.args);}
       const command = parts.join(' ');
       const { stdout, stderr } = await execAsync(command, {
         timeout: 60_000,
@@ -3244,17 +3244,17 @@ export const incidentTool: ToolDefinition = {
       try {
         if (action === 'list') {
           const params = new URLSearchParams();
-          if (status) params.set('statuses[]', status);
+          if (status) {params.set('statuses[]', status);}
           params.set('limit', '20');
           const res = await fetch(`${baseUrl}/incidents?${params}`, { headers });
-          if (!res.ok) return err(`PagerDuty API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`PagerDuty API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { incidents: Array<{ id: string; title: string; status: string; urgency: string; created_at: string }> };
-          if (!data.incidents.length) return ok('No incidents found.');
+          if (!data.incidents.length) {return ok('No incidents found.');}
           return ok(data.incidents.map(i => `[${i.status.toUpperCase()}] ${i.id}: ${i.title} (${i.urgency}) — ${i.created_at}`).join('\n'));
         }
         if (action === 'get' && id) {
           const res = await fetch(`${baseUrl}/incidents/${id}`, { headers });
-          if (!res.ok) return err(`PagerDuty API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`PagerDuty API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { incident: { id: string; title: string; status: string; urgency: string; body?: { details?: string }; created_at: string } };
           const inc = data.incident;
           return ok(`ID: ${inc.id}\nTitle: ${inc.title}\nStatus: ${inc.status}\nUrgency: ${inc.urgency}\nCreated: ${inc.created_at}\n${inc.body?.details ? `Details: ${inc.body.details}` : ''}`);
@@ -3264,7 +3264,7 @@ export const incidentTool: ToolDefinition = {
             method: 'PUT', headers,
             body: JSON.stringify({ incident: { type: 'incident_reference', status: 'acknowledged' } }),
           });
-          if (!res.ok) return err(`PagerDuty API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`PagerDuty API error: ${res.status} ${res.statusText}`);}
           return ok(`Incident ${id} acknowledged.`);
         }
         if (action === 'resolve' && id) {
@@ -3272,22 +3272,22 @@ export const incidentTool: ToolDefinition = {
             method: 'PUT', headers,
             body: JSON.stringify({ incident: { type: 'incident_reference', status: 'resolved' } }),
           });
-          if (!res.ok) return err(`PagerDuty API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`PagerDuty API error: ${res.status} ${res.statusText}`);}
           return ok(`Incident ${id} resolved.`);
         }
         if (action === 'create') {
-          if (!title || !service_id) return err('create action requires title and service_id');
+          if (!title || !service_id) {return err('create action requires title and service_id');}
           const res = await fetch(`${baseUrl}/incidents`, {
             method: 'POST', headers,
             body: JSON.stringify({ incident: { type: 'incident', title, urgency: urgency ?? 'high', service: { id: service_id, type: 'service_reference' }, body: body ? { type: 'incident_body', details: body } : undefined } }),
           });
-          if (!res.ok) return err(`PagerDuty API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`PagerDuty API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { incident: { id: string } };
           return ok(`Incident created: ${data.incident.id}`);
         }
         if (action === 'on-call') {
           const res = await fetch(`${baseUrl}/oncalls?limit=10`, { headers });
-          if (!res.ok) return err(`PagerDuty API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`PagerDuty API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { oncalls: Array<{ user: { summary: string }; schedule?: { summary?: string }; start: string; end: string }> };
           return ok(data.oncalls.map(o => `${o.user.summary}${o.schedule?.summary ? ` (${o.schedule.summary})` : ''} until ${o.end}`).join('\n') || 'No on-call data found.');
         }
@@ -3307,16 +3307,16 @@ export const incidentTool: ToolDefinition = {
       try {
         if (action === 'list') {
           const params = new URLSearchParams({ limit: '20', sort: 'createdAt', order: 'desc' });
-          if (status) params.set('query', `status=${status}`);
+          if (status) {params.set('query', `status=${status}`);}
           const res = await fetch(`${baseUrl}/alerts?${params}`, { headers });
-          if (!res.ok) return err(`Opsgenie API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`Opsgenie API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { data: Array<{ id: string; tinyId: string; message: string; status: string; priority: string; createdAt: string }> };
-          if (!data.data.length) return ok('No alerts found.');
+          if (!data.data.length) {return ok('No alerts found.');}
           return ok(data.data.map(a => `[${a.status.toUpperCase()}] ${a.tinyId}: ${a.message} (${a.priority}) — ${a.createdAt}`).join('\n'));
         }
         if (action === 'get' && id) {
           const res = await fetch(`${baseUrl}/alerts/${id}`, { headers });
-          if (!res.ok) return err(`Opsgenie API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`Opsgenie API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { data: { id: string; message: string; status: string; priority: string; description?: string; createdAt: string } };
           const a = data.data;
           return ok(`ID: ${a.id}\nMessage: ${a.message}\nStatus: ${a.status}\nPriority: ${a.priority}\nCreated: ${a.createdAt}\n${a.description ? `Description: ${a.description}` : ''}`);
@@ -3325,29 +3325,29 @@ export const incidentTool: ToolDefinition = {
           const res = await fetch(`${baseUrl}/alerts/${id}/acknowledge`, {
             method: 'POST', headers, body: JSON.stringify({ note: 'Acknowledged via Nimbus' }),
           });
-          if (!res.ok) return err(`Opsgenie API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`Opsgenie API error: ${res.status} ${res.statusText}`);}
           return ok(`Alert ${id} acknowledged.`);
         }
         if (action === 'resolve' && id) {
           const res = await fetch(`${baseUrl}/alerts/${id}/close`, {
             method: 'POST', headers, body: JSON.stringify({ note: 'Resolved via Nimbus' }),
           });
-          if (!res.ok) return err(`Opsgenie API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`Opsgenie API error: ${res.status} ${res.statusText}`);}
           return ok(`Alert ${id} resolved.`);
         }
         if (action === 'create') {
-          if (!title) return err('create action requires title');
+          if (!title) {return err('create action requires title');}
           const res = await fetch(`${baseUrl}/alerts`, {
             method: 'POST', headers,
             body: JSON.stringify({ message: title, description: body, priority: urgency === 'high' ? 'P1' : 'P3', teams: team_id ? [{ id: team_id }] : undefined }),
           });
-          if (!res.ok) return err(`Opsgenie API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`Opsgenie API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { requestId: string };
           return ok(`Alert created. Request ID: ${data.requestId}`);
         }
         if (action === 'on-call') {
           const res = await fetch(`${baseUrl}/schedules/on-calls`, { headers });
-          if (!res.ok) return err(`Opsgenie API error: ${res.status} ${res.statusText}`);
+          if (!res.ok) {return err(`Opsgenie API error: ${res.status} ${res.statusText}`);}
           const data = await res.json() as { data: Array<{ _parent?: { name?: string }; onCallParticipants: Array<{ name: string }> }> };
           return ok(data.data.map(s => `${s._parent?.name}: ${s.onCallParticipants.map((p) => p.name).join(', ')}`).join('\n') || 'No on-call data.');
         }
@@ -3403,7 +3403,7 @@ export const generateInfraTool: ToolDefinition = {
         const files: string[] = [];
         for (const file of project.files) {
           const parts = file.path.split('/').slice(0, -1).join('/');
-          if (parts) mkdirSync(join(outputDir, parts), { recursive: true });
+          if (parts) {mkdirSync(join(outputDir, parts), { recursive: true });}
           const filePath = join(outputDir, file.path);
           writeFileSync(filePath, file.content, 'utf-8');
           files.push(file.path);
@@ -3450,7 +3450,7 @@ export const generateInfraTool: ToolDefinition = {
         const files: string[] = [];
         for (const file of chartFiles) {
           const parts = file.path.split('/').slice(0, -1).join('/');
-          if (parts) mkdirSync(join(outputDir, parts), { recursive: true });
+          if (parts) {mkdirSync(join(outputDir, parts), { recursive: true });}
           const filePath = join(outputDir, file.path);
           writeFileSync(filePath, file.content, 'utf-8');
           files.push(file.path);

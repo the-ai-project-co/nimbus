@@ -596,7 +596,7 @@ export function loadProjectConfig(cwd: string): ProjectConfig | null {
 
   for (const file of candidates) {
     try {
-      if (!existsSync(file)) continue;
+      if (!existsSync(file)) {continue;}
       const raw = readFileSync(file, 'utf-8');
       const parsed = JSON.parse(raw) as ProjectConfig;
       return parsed;

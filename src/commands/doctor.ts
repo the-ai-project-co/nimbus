@@ -466,7 +466,7 @@ async function checkToolServices(options: DoctorOptions): Promise<CheckResult> {
         version = parsed.terraform_version || parsed.clientVersion?.gitVersion || 'installed';
       } catch {
         const match = output.match(/[\d]+\.[\d]+\.[\d]+/);
-        if (match) version = match[0];
+        if (match) {version = match[0];}
       }
       results.push({ name: tool.name, version, available: true });
     } catch {
@@ -981,7 +981,7 @@ async function checkKubeConfig(): Promise<CheckResult> {
   try {
     const { stdout: ctx } = await execAsync2('kubectl config current-context', { timeout: 5_000 });
     const context = ctx.trim();
-    if (!context) return { name: 'Kubernetes Reachability', passed: true, message: 'kubectl: no active context' };
+    if (!context) {return { name: 'Kubernetes Reachability', passed: true, message: 'kubectl: no active context' };}
 
     try {
       await execAsync2('kubectl cluster-info --request-timeout=3s', { timeout: 8_000 });
@@ -1338,7 +1338,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
         2
       )
     );
-    if (!allPassed) process.exit(1);
+    if (!allPassed) {process.exit(1);}
     return;
   }
 

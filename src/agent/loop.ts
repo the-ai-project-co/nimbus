@@ -38,8 +38,9 @@ import { runCompaction } from './compaction-agent';
 import type { LSPManager } from '../lsp/manager';
 import { SnapshotManager } from '../snapshots/manager';
 import { calculateCost } from '../llm/cost-calculator';
+import type {
+  HookEngine} from '../hooks/engine';
 import {
-  HookEngine,
   runPreToolHooks,
   runPostToolHooks,
   type HookContext,
@@ -81,7 +82,7 @@ function writeInfraCheckpoint(tool: string, action: string, input: Record<string
       cwd: process.cwd(),
       workdir: (input.workdir as string | undefined) ?? undefined,
     };
-    const fileName = timestamp.replace(/[:.]/g, '-') + '.json';
+    const fileName = `${timestamp.replace(/[:.]/g, '-')  }.json`;
     _cpWriteFileSync(
       join(checkpointsDir, fileName),
       JSON.stringify(checkpoint, null, 2),
@@ -321,9 +322,9 @@ function isRetryableStreamError(err: unknown): boolean {
     const status =
       (typeof e.status === 'number' ? e.status : undefined) ??
       (typeof e.statusCode === 'number' ? e.statusCode : undefined);
-    if (status === 429 || (status !== undefined && status >= 500 && status < 600)) return true;
+    if (status === 429 || (status !== undefined && status >= 500 && status < 600)) {return true;}
     const msg = typeof e.message === 'string' ? e.message : '';
-    if (/rate.?limit|429|too many requests|overloaded|503/i.test(msg)) return true;
+    if (/rate.?limit|429|too many requests|overloaded|503/i.test(msg)) {return true;}
   }
   return false;
 }
@@ -600,9 +601,9 @@ function extractCostHintFromToolOutput(toolName: string, input: Record<string, u
       const changed = Number(m[2]);
       const destroyed = Number(m[3]);
       const parts: string[] = [];
-      if (added > 0) parts.push(`+${added} resources created`);
-      if (changed > 0) parts.push(`${changed} updated`);
-      if (destroyed > 0) parts.push(`${destroyed} destroyed`);
+      if (added > 0) {parts.push(`+${added} resources created`);}
+      if (changed > 0) {parts.push(`${changed} updated`);}
+      if (destroyed > 0) {parts.push(`${destroyed} destroyed`);}
       return parts.length > 0
         ? `${parts.join(', ')} — run "nimbus cost" for monthly cost estimate`
         : null;
@@ -634,9 +635,9 @@ function trackAndPersistError(toolName: string, errorHint: string, cwd: string):
       const { existsSync, readFileSync, writeFileSync, appendFileSync } = require('node:fs') as typeof import('node:fs');
       const { join } = require('node:path') as typeof import('node:path');
       const nimbusPath = join(cwd, 'NIMBUS.md');
-      if (!existsSync(nimbusPath)) return;
+      if (!existsSync(nimbusPath)) {return;}
       const existing = readFileSync(nimbusPath, 'utf-8');
-      if (existing.includes(errorHint.slice(0, 40))) return; // already recorded
+      if (existing.includes(errorHint.slice(0, 40))) {return;} // already recorded
       const entry = `- ${toolName}: ${errorHint}\n`;
       if (existing.includes('## Observed Issues')) {
         writeFileSync(nimbusPath, existing.replace('## Observed Issues\n', `## Observed Issues\n${entry}`));
@@ -689,7 +690,7 @@ function cacheTerraformPlan(workdir: string, output: string): void {
 /** Retrieve a cached terraform plan for a workdir, or null if expired/missing. */
 function getCachedTerraformPlan(workdir: string): string | null {
   const entry = terraformPlanCache.get(workdir);
-  if (!entry) return null;
+  if (!entry) {return null;}
   if (Date.now() - entry.timestamp > PLAN_CACHE_TTL_MS) {
     terraformPlanCache.delete(workdir);
     return null;
@@ -972,7 +973,7 @@ export async function runAgentLoop(
           const isNetworkError = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|fetch failed|network/i.test(streamErrObj?.message ?? '');
           if (isNetworkError) {
             const netMsg = '\n[!!] Network unreachable — cannot reach the LLM API.\nCheck your internet connection and API key validity, then try again.\n';
-            if (onText) onText(netMsg);
+            if (onText) {onText(netMsg);}
             // Re-throw a specially-marked error so the outer turn catch block can handle it
             const netErr = new Error(netMsg);
             (netErr as Error & { _nimbusNetworkError?: boolean })._nimbusNetworkError = true;
@@ -1016,7 +1017,7 @@ export async function runAgentLoop(
       // G16: Cost budget enforcement — stop if cumulative cost exceeds the limit
       if (options.costBudgetUSD !== undefined && totalCost >= options.costBudgetUSD) {
         const budgetMsg = `\n\n[!!] Cost budget of $${options.costBudgetUSD.toFixed(2)} reached (used: $${totalCost.toFixed(3)}). Stopping to prevent overspend.\n`;
-        if (onText) onText(budgetMsg);
+        if (onText) {onText(budgetMsg);}
         messages.push({ role: 'assistant', content: budgetMsg });
         break;
       }
@@ -1145,7 +1146,7 @@ export async function runAgentLoop(
           if (destructiveWarning) {
             messages.push({
               role: 'tool',
-              toolCallId: toolCall.id + '-guard',
+              toolCallId: `${toolCall.id  }-guard`,
               name: toolCall.function.name,
               content: `[SAFETY] ${destructiveWarning}`,
             });
@@ -1223,11 +1224,11 @@ export async function runAgentLoop(
 
               const refreshMsg = [
                 '[!!] Credential expired. Run: nimbus auth-refresh',
-                '[Nimbus] Credential error detected on tool: ' + toolCall.function.name,
+                `[Nimbus] Credential error detected on tool: ${  toolCall.function.name}`,
                 'Run "nimbus auth-refresh" to refresh cloud credentials, then retry.',
               ].join('\n');
-              toolContent += '\n\n' + refreshMsg;
-              result.output += '\n\n' + refreshMsg;
+              toolContent += `\n\n${  refreshMsg}`;
+              result.output += `\n\n${  refreshMsg}`;
             }
           } else if (DEVOPS_TOOL_NAMES.has(toolCall.function.name)) {
             // Unknown DevOps error — provide structured self-diagnosis steps
@@ -1309,7 +1310,7 @@ export async function runAgentLoop(
               cwd: options.cwd ?? process.cwd(),
               timestamp: new Date().toISOString(),
             });
-            appendFileSync(join(auditDir, 'audit.jsonl'), event + '\n', 'utf-8');
+            appendFileSync(join(auditDir, 'audit.jsonl'), `${event  }\n`, 'utf-8');
           } catch { /* audit logging is non-critical */ }
         }
 
@@ -1353,7 +1354,7 @@ export async function runAgentLoop(
                 const batchFiles = buildFileDiffBatchFromPlan({ changes } as import('./deploy-preview').DeployPreview);
                 for (const file of batchFiles) {
                   const decision = await options.requestFileDiff(file.filePath, file.toolName ?? 'terraform', file.diff ?? '');
-                  if (decision === 'reject-all') break;
+                  if (decision === 'reject-all') {break;}
                 }
               }
             }
@@ -1439,12 +1440,12 @@ export async function runAgentLoop(
             const outFile = join(outDir, `${Date.now()}-${toolCall.function.name}.log`);
             _writeFileSync(outFile, toolContent, 'utf-8');
             toolContent = omitted > 0
-              ? `${head}${tail ? '\n\n... [' + omitted + ' lines omitted — full output saved to ' + outFile + '] ...\n\n' + tail : '\n\n... [full output saved to ' + outFile + ']'}`
-              : `${head}${tail ? '\n\n' + tail : ''}`;
+              ? `${head}${tail ? `\n\n... [${  omitted  } lines omitted — full output saved to ${  outFile  }] ...\n\n${  tail}` : `\n\n... [full output saved to ${  outFile  }]`}`
+              : `${head}${tail ? `\n\n${  tail}` : ''}`;
           } catch {
             toolContent = omitted > 0
-              ? `${head}${tail ? '\n\n... [' + omitted + ' lines omitted — output too large for context] ...\n\n' + tail : '\n\n... [' + omitted + ' lines omitted]'}`
-              : `${head}${tail ? '\n\n' + tail : ''}`;
+              ? `${head}${tail ? `\n\n... [${  omitted  } lines omitted — output too large for context] ...\n\n${  tail}` : `\n\n... [${  omitted  } lines omitted]`}`
+              : `${head}${tail ? `\n\n${  tail}` : ''}`;
           }
         }
 
@@ -1543,11 +1544,11 @@ export async function runAgentLoop(
       const kubectl = allToolCalls.filter(c => c.name === 'kubectl');
       const helm = allToolCalls.filter(c => c.name === 'helm');
       const summaryLines: string[] = ['---', '**Session Summary**'];
-      if (terraform.length) summaryLines.push(`• Terraform: ${terraform.map(c => String(c.input.action ?? '')).join(', ')}`);
-      if (kubectl.length) summaryLines.push(`• Kubectl: ${kubectl.map(c => String(c.input.action ?? '')).join(', ')}`);
-      if (helm.length) summaryLines.push(`• Helm: ${helm.map(c => String(c.input.action ?? '')).join(', ')}`);
+      if (terraform.length) {summaryLines.push(`• Terraform: ${terraform.map(c => String(c.input.action ?? '')).join(', ')}`);}
+      if (kubectl.length) {summaryLines.push(`• Kubectl: ${kubectl.map(c => String(c.input.action ?? '')).join(', ')}`);}
+      if (helm.length) {summaryLines.push(`• Helm: ${helm.map(c => String(c.input.action ?? '')).join(', ')}`);}
       if (summaryLines.length > 2) {
-        options.onText('\n\n' + summaryLines.join('\n'));
+        options.onText(`\n\n${  summaryLines.join('\n')}`);
       }
     }
   }
@@ -1619,7 +1620,7 @@ async function computeProposedDiff(
   try {
     const { readFile } = await import('node:fs/promises');
     const path = args.path as string;
-    if (!path) return null;
+    if (!path) {return null;}
     const currentContent = await readFile(path, 'utf-8').catch(() => '');
     let proposed = currentContent;
     if (toolName === 'edit_file') {
@@ -1634,7 +1635,7 @@ async function computeProposedDiff(
     } else if (toolName === 'write_file') {
       proposed = args.content as string;
     }
-    if (proposed === currentContent) return null; // no change
+    if (proposed === currentContent) {return null;} // no change
     return generateUnifiedDiff(path, currentContent, proposed);
   } catch {
     return null;
@@ -1794,7 +1795,7 @@ async function executeToolCall(
         error: undefined,
         isError: false,
       };
-      if (onEnd) onEnd(callInfo, rejResult);
+      if (onEnd) {onEnd(callInfo, rejResult);}
       return rejResult;
     }
 
@@ -1809,7 +1810,7 @@ async function executeToolCall(
           error: undefined,
           isError: false,
         };
-        if (onEnd) onEnd(callInfo, rejResult);
+        if (onEnd) {onEnd(callInfo, rejResult);}
         return rejResult;
       }
       if (decision === 'reject-all') {
@@ -1821,7 +1822,7 @@ async function executeToolCall(
           error: undefined,
           isError: false,
         };
-        if (onEnd) onEnd(callInfo, rejResult);
+        if (onEnd) {onEnd(callInfo, rejResult);}
         return rejResult;
       }
       if (decision === 'apply-all' && skipRemainingDiffPrompts) {

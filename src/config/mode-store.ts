@@ -41,7 +41,7 @@ function saveConfig(data: Record<string, AgentMode>): void {
  * Returns null if no mode has been saved for this directory.
  */
 export function loadModeForCwd(cwd: string): AgentMode | null {
-  if (MODE_CACHE.has(cwd)) return MODE_CACHE.get(cwd) ?? null;
+  if (MODE_CACHE.has(cwd)) {return MODE_CACHE.get(cwd) ?? null;}
   const config = loadConfig();
   const mode = config[cwd] as AgentMode | undefined;
   if (mode && ['plan', 'build', 'deploy'].includes(mode)) {

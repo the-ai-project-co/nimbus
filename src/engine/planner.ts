@@ -117,12 +117,12 @@ const VALID_CATEGORIES = new Set(['security', 'cost', 'availability', 'performan
 
 /** Detect the primary domain of a task description. */
 function detectDomain(task: AgentTask): 'terraform' | 'kubernetes' | 'helm' | 'generic' {
-  const desc = (task.type + ' ' + JSON.stringify(task.context)).toLowerCase();
-  if (desc.includes('helm') || desc.includes('chart') || desc.includes('release')) return 'helm';
-  if (desc.includes('kubectl') || desc.includes('kubernetes') || desc.includes('pod') || desc.includes('deployment') || desc.includes('k8s')) return 'kubernetes';
-  if (desc.includes('terraform') || desc.includes('.tf') || desc.includes('infrastructure') || desc.includes('provider')) return 'terraform';
+  const desc = (`${task.type  } ${  JSON.stringify(task.context)}`).toLowerCase();
+  if (desc.includes('helm') || desc.includes('chart') || desc.includes('release')) {return 'helm';}
+  if (desc.includes('kubectl') || desc.includes('kubernetes') || desc.includes('pod') || desc.includes('deployment') || desc.includes('k8s')) {return 'kubernetes';}
+  if (desc.includes('terraform') || desc.includes('.tf') || desc.includes('infrastructure') || desc.includes('provider')) {return 'terraform';}
   // Default to terraform for infrastructure tasks
-  if (task.type === 'deploy' || task.type === 'generate') return 'terraform';
+  if (task.type === 'deploy' || task.type === 'generate') {return 'terraform';}
   return 'generic';
 }
 

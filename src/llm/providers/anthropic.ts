@@ -118,7 +118,7 @@ export class AnthropicProvider extends BaseProvider {
 
   /** H4: Return true if the error is an Anthropic rate limit (429). */
   private isRateLimitError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') return false;
+    if (!error || typeof error !== 'object') {return false;}
     const e = error as { status?: number; error?: { type?: string } };
     return e.status === 429 || e.error?.type === 'rate_limit_error';
   }
@@ -140,7 +140,7 @@ export class AnthropicProvider extends BaseProvider {
       });
       return this.convertResponse(response);
     } catch (error) {
-      if (this.isRateLimitError(error)) throw this.formatRateLimitError(error);
+      if (this.isRateLimitError(error)) {throw this.formatRateLimitError(error);}
       throw error;
     }
   }
@@ -162,7 +162,7 @@ export class AnthropicProvider extends BaseProvider {
         temperature: request.temperature,
       });
     } catch (error) {
-      if (this.isRateLimitError(error)) throw this.formatRateLimitError(error);
+      if (this.isRateLimitError(error)) {throw this.formatRateLimitError(error);}
       throw error;
     }
 

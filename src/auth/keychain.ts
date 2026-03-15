@@ -20,7 +20,7 @@ let keytarModule: {
 } | null | undefined = undefined; // undefined = not yet checked
 
 async function loadKeytar() {
-  if (keytarModule !== undefined) return keytarModule;
+  if (keytarModule !== undefined) {return keytarModule;}
   try {
     // Dynamic import — keytar is an optional peer dependency
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -45,7 +45,7 @@ export async function isKeychainAvailable(): Promise<boolean> {
  */
 export async function keychainGet(account: string): Promise<string | null> {
   const kt = await loadKeytar();
-  if (!kt) return null;
+  if (!kt) {return null;}
   try {
     return await kt.getPassword(SERVICE, account);
   } catch {
@@ -59,7 +59,7 @@ export async function keychainGet(account: string): Promise<string | null> {
  */
 export async function keychainSet(account: string, secret: string): Promise<void> {
   const kt = await loadKeytar();
-  if (!kt) return;
+  if (!kt) {return;}
   try {
     await kt.setPassword(SERVICE, account, secret);
   } catch {
@@ -73,7 +73,7 @@ export async function keychainSet(account: string, secret: string): Promise<void
  */
 export async function keychainDelete(account: string): Promise<void> {
   const kt = await loadKeytar();
-  if (!kt) return;
+  if (!kt) {return;}
   try {
     await kt.deletePassword(SERVICE, account);
   } catch {

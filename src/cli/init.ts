@@ -436,7 +436,7 @@ export async function discoverInfraContext(dir: string): Promise<InfraContext> {
       let match;
       while ((match = profileRegex.exec(awsConfig)) !== null) {
         const profileName = match[1];
-        if (profileName === 'default') continue; // handled separately
+        if (profileName === 'default') {continue;} // handled separately
         // Extract region from the profile block
         const blockStart = match.index + match[0].length;
         const nextBlock = awsConfig.indexOf('\n[', blockStart);
@@ -444,7 +444,7 @@ export async function discoverInfraContext(dir: string): Promise<InfraContext> {
         const regionMatch = block.match(/^\s*region\s*=\s*(.+)$/m);
         profiles.push({ profile: profileName, region: regionMatch?.[1]?.trim() });
       }
-      if (profiles.length > 0) ctx.awsProfiles = profiles.slice(0, 10); // max 10 profiles
+      if (profiles.length > 0) {ctx.awsProfiles = profiles.slice(0, 10);} // max 10 profiles
     }
   } catch { /* ignore */ }
 
@@ -453,7 +453,7 @@ export async function discoverInfraContext(dir: string): Promise<InfraContext> {
     const proj = execFileSync('gcloud', ['config', 'get-value', 'project'], {
       encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
-    if (proj && proj !== '(unset)') ctx.gcpProject = proj;
+    if (proj && proj !== '(unset)') {ctx.gcpProject = proj;}
   } catch { /* ignore */ }
 
   // G16: Count K8s namespaces and deployments
@@ -499,15 +499,15 @@ export async function discoverInfraContext(dir: string): Promise<InfraContext> {
  */
 export function formatInfraContext(ctx: InfraContext): string {
   const parts: string[] = [];
-  if (ctx.terraformWorkspace) parts.push(`tf-workspace: ${ctx.terraformWorkspace}`);
-  if (ctx.kubectlContext) parts.push(`k8s-context: ${ctx.kubectlContext}`);
+  if (ctx.terraformWorkspace) {parts.push(`tf-workspace: ${ctx.terraformWorkspace}`);}
+  if (ctx.kubectlContext) {parts.push(`k8s-context: ${ctx.kubectlContext}`);}
   if (ctx.helmReleases && ctx.helmReleases.length > 0) {
     parts.push(`helm-releases: ${ctx.helmReleases.slice(0, 3).join(', ')}${ctx.helmReleases.length > 3 ? ` +${ctx.helmReleases.length - 3} more` : ''}`);
   }
-  if (ctx.awsAccount) parts.push(`aws-account: ${ctx.awsAccount}`);
-  if (ctx.awsRegion) parts.push(`aws-region: ${ctx.awsRegion}`);
-  if (ctx.gcpProject) parts.push(`gcp-project: ${ctx.gcpProject}`);
-  if (ctx.cicdPipeline) parts.push(`cicd: ${ctx.cicdPipeline}`);
+  if (ctx.awsAccount) {parts.push(`aws-account: ${ctx.awsAccount}`);}
+  if (ctx.awsRegion) {parts.push(`aws-region: ${ctx.awsRegion}`);}
+  if (ctx.gcpProject) {parts.push(`gcp-project: ${ctx.gcpProject}`);}
+  if (ctx.cicdPipeline) {parts.push(`cicd: ${ctx.cicdPipeline}`);}
   return parts.length > 0 ? parts.join(' | ') : 'no infra context detected';
 }
 
@@ -889,7 +889,7 @@ export function generateNimbusMd(detection: ProjectDetection, _dir: string, infr
     }
   }
   const runbookSection = foundRunbooks.length > 0
-    ? foundRunbooks.join('\n') + '\n\nRefer to these runbooks for incident response and operational procedures.'
+    ? `${foundRunbooks.join('\n')  }\n\nRefer to these runbooks for incident response and operational procedures.`
     : '<!-- Add runbook references, e.g.:\n- docs/runbooks/cert-rotation.md -->';
   lines.push('## Runbooks');
   lines.push('');
@@ -1060,19 +1060,19 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
     for (let idx = 0; idx < maxLen; idx++) {
       const o = oldLines[idx];
       const n = newLines[idx];
-      if (o === undefined) diffLines.push(`+ ${n}`);
-      else if (n === undefined) diffLines.push(`- ${o}`);
+      if (o === undefined) {diffLines.push(`+ ${n}`);}
+      else if (n === undefined) {diffLines.push(`- ${o}`);}
       else if (o !== n) { diffLines.push(`- ${o}`); diffLines.push(`+ ${n}`); }
     }
 
     if (diffLines.length > 0) {
       log('\nNIMBUS.md changes:');
       for (const dl of diffLines.slice(0, 50)) {
-        if (dl.startsWith('+')) log(`  \x1b[32m${dl}\x1b[0m`);
-        else if (dl.startsWith('-')) log(`  \x1b[31m${dl}\x1b[0m`);
-        else log(`  ${dl}`);
+        if (dl.startsWith('+')) {log(`  \x1b[32m${dl}\x1b[0m`);}
+        else if (dl.startsWith('-')) {log(`  \x1b[31m${dl}\x1b[0m`);}
+        else {log(`  ${dl}`);}
       }
-      if (diffLines.length > 50) log(`  ... and ${diffLines.length - 50} more changes`);
+      if (diffLines.length > 50) {log(`  ... and ${diffLines.length - 50} more changes`);}
       log('');
       log('Apply these changes? [y/N]');
 
@@ -1182,7 +1182,7 @@ export async function runInit(options?: InitOptions): Promise<InitResult> {
     for (const sub of subdirs.slice(0, 20)) {
       const subPath = path.join(dir, sub);
       const hasTf = fs.readdirSync(subPath).some(f => f.endsWith('.tf'));
-      if (hasTf) tfRoots.push(sub);
+      if (hasTf) {tfRoots.push(sub);}
     }
     if (tfRoots.length > 1) {
       monorepoSection = `\n## Terraform Modules (Monorepo)\n\nThis is a monorepo with multiple Terraform roots:\n${tfRoots.map(r => `- \`./${r}/\``).join('\n')}\n\nTo target a specific root, \`cd\` into the directory or specify the path.\n`;

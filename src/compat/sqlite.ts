@@ -92,7 +92,7 @@ if (isBun) {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const getSqlJsDb = (): any => {
-        if (!sqlJsDb) throw new Error('sql.js database not yet initialised — call new Database() first');
+        if (!sqlJsDb) {throw new Error('sql.js database not yet initialised — call new Database() first');}
         return sqlJsDb;
       };
 
@@ -126,7 +126,7 @@ if (isBun) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             get: (...params: unknown[]) => { stmt.bind(params as any[]); return stmt.step() ? stmt.getAsObject() : undefined; },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            all: (...params: unknown[]) => { const rows: unknown[] = []; stmt.bind(params as any[]); while (stmt.step()) rows.push(stmt.getAsObject()); return rows; },
+            all: (...params: unknown[]) => { const rows: unknown[] = []; stmt.bind(params as any[]); while (stmt.step()) {rows.push(stmt.getAsObject());} return rows; },
             finalize: () => stmt.free(),
           };
         }

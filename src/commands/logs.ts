@@ -26,12 +26,12 @@ export interface LogsOptions {
  */
 function buildArgs(pod: string, options: LogsOptions): string[] {
   const args = ['logs', pod];
-  if (options.namespace) args.push('-n', options.namespace);
-  if (options.follow) args.push('--follow');
-  if (options.previous) args.push('--previous');
-  if (options.tail !== undefined) args.push('--tail', String(options.tail));
-  if (options.container) args.push('-c', options.container);
-  if (options.context) args.push('--context', options.context);
+  if (options.namespace) {args.push('-n', options.namespace);}
+  if (options.follow) {args.push('--follow');}
+  if (options.previous) {args.push('--previous');}
+  if (options.tail !== undefined) {args.push('--tail', String(options.tail));}
+  if (options.container) {args.push('-c', options.container);}
+  if (options.context) {args.push('--context', options.context);}
   return args;
 }
 
@@ -111,8 +111,8 @@ export async function logsCommand(pod: string, options: LogsOptions = {}): Promi
     });
     await new Promise<void>((resolve, reject) => {
       child.on('close', code => {
-        if (code !== 0) reject(new Error(`kubectl logs exited with code ${code}`));
-        else resolve();
+        if (code !== 0) {reject(new Error(`kubectl logs exited with code ${code}`));}
+        else {resolve();}
       });
       child.on('error', reject);
     });

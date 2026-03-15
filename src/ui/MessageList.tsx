@@ -76,14 +76,14 @@ const _PARSE_CACHE_MAX = 200;
 
 function parseContent(raw: string): ContentSegment[] {
   const cached = _parseContentCache.get(raw);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {return cached;}
 
   const result = _parseContentRaw(raw);
 
   if (_parseContentCache.size >= _PARSE_CACHE_MAX) {
     // FIFO eviction: delete the oldest entry
     const firstKey = _parseContentCache.keys().next().value;
-    if (firstKey !== undefined) _parseContentCache.delete(firstKey);
+    if (firstKey !== undefined) {_parseContentCache.delete(firstKey);}
   }
   _parseContentCache.set(raw, result);
   return result;
@@ -367,7 +367,7 @@ function tokenizeYamlLine(line: string): Token[] {
   const keyMatch = line.match(/^(\s*)([\w\-./]+)(\s*:\s*)(.*)/);
   if (keyMatch) {
     const [, indent, key, colon, value] = keyMatch;
-    if (indent) tokens.push({ type: 'plain', text: indent });
+    if (indent) {tokens.push({ type: 'plain', text: indent });}
     tokens.push({ type: 'type', text: key });
     tokens.push({ type: 'plain', text: colon });
     if (value) {
@@ -386,7 +386,7 @@ function tokenizeYamlLine(line: string): Token[] {
     const dashIdx = line.indexOf('-');
     tokens.push({ type: 'plain', text: line.slice(0, dashIdx + 1) });
     const rest = line.slice(dashIdx + 1);
-    if (rest.trim()) tokens.push({ type: 'string', text: rest });
+    if (rest.trim()) {tokens.push({ type: 'string', text: rest });}
     return tokens;
   }
   return [{ type: 'plain', text: line }];
@@ -401,7 +401,7 @@ function tokenizeJsonLine(line: string): Token[] {
     if (line[i] === '"') {
       let j = i + 1;
       while (j < line.length && line[j] !== '"') {
-        if (line[j] === '\\') j++;
+        if (line[j] === '\\') {j++;}
         j++;
       }
       j = Math.min(j + 1, line.length);
@@ -419,7 +419,7 @@ function tokenizeJsonLine(line: string): Token[] {
     // Numbers
     if (/[0-9\-]/.test(line[i]) && (i === 0 || /[\s,\[{:]/.test(line[i - 1]))) {
       let j = i;
-      while (j < line.length && /[0-9.\-eE+]/.test(line[j])) j++;
+      while (j < line.length && /[0-9.\-eE+]/.test(line[j])) {j++;}
       tokens.push({ type: 'number', text: line.slice(i, j) });
       i = j;
       continue;
@@ -427,7 +427,7 @@ function tokenizeJsonLine(line: string): Token[] {
     // Keywords: true, false, null
     if (/[a-z]/.test(line[i])) {
       let j = i;
-      while (j < line.length && /[a-z]/.test(line[j])) j++;
+      while (j < line.length && /[a-z]/.test(line[j])) {j++;}
       const word = line.slice(i, j);
       if (word === 'true' || word === 'false' || word === 'null') {
         tokens.push({ type: 'type', text: word });
@@ -453,9 +453,9 @@ function tokenizeDockerfileLine(line: string): Token[] {
   if (instrMatch && DOCKERFILE_INSTRUCTIONS.has(instrMatch[1])) {
     const tokens: Token[] = [];
     const leadingSpaces = line.length - line.trimStart().length;
-    if (leadingSpaces > 0) tokens.push({ type: 'plain', text: line.slice(0, leadingSpaces) });
+    if (leadingSpaces > 0) {tokens.push({ type: 'plain', text: line.slice(0, leadingSpaces) });}
     tokens.push({ type: 'keyword', text: instrMatch[1] });
-    if (instrMatch[2]) tokens.push({ type: 'plain', text: instrMatch[2] });
+    if (instrMatch[2]) {tokens.push({ type: 'plain', text: instrMatch[2] });}
     return tokens;
   }
   return [{ type: 'plain', text: line }];
@@ -476,10 +476,10 @@ function tokenizeBashLine(line: string, keywords: Set<string>): Token[] {
       let j = i + 1;
       if (line[j] === '{') {
         j++;
-        while (j < line.length && line[j] !== '}') j++;
+        while (j < line.length && line[j] !== '}') {j++;}
         j = Math.min(j + 1, line.length);
       } else {
-        while (j < line.length && /[a-zA-Z0-9_]/.test(line[j])) j++;
+        while (j < line.length && /[a-zA-Z0-9_]/.test(line[j])) {j++;}
       }
       tokens.push({ type: 'number', text: line.slice(i, j) });
       i = j;
@@ -490,7 +490,7 @@ function tokenizeBashLine(line: string, keywords: Set<string>): Token[] {
       const quote = line[i];
       let j = i + 1;
       while (j < line.length && line[j] !== quote) {
-        if (line[j] === '\\') j++;
+        if (line[j] === '\\') {j++;}
         j++;
       }
       j = Math.min(j + 1, line.length);
@@ -501,7 +501,7 @@ function tokenizeBashLine(line: string, keywords: Set<string>): Token[] {
     // Flags (words starting with -)
     if (line[i] === '-' && i > 0 && /\s/.test(line[i - 1])) {
       let j = i;
-      while (j < line.length && !/\s/.test(line[j])) j++;
+      while (j < line.length && !/\s/.test(line[j])) {j++;}
       tokens.push({ type: 'comment', text: line.slice(i, j) });
       i = j;
       continue;
@@ -509,7 +509,7 @@ function tokenizeBashLine(line: string, keywords: Set<string>): Token[] {
     // Words / keywords
     if (/[a-zA-Z_]/.test(line[i])) {
       let j = i;
-      while (j < line.length && /[a-zA-Z0-9_]/.test(line[j])) j++;
+      while (j < line.length && /[a-zA-Z0-9_]/.test(line[j])) {j++;}
       const word = line.slice(i, j);
       if (keywords.has(word)) {
         tokens.push({ type: 'keyword', text: word });
@@ -532,10 +532,10 @@ function tokenizeLine(line: string, keywords: Set<string>, types: Set<string>, l
   // Language-specific fast paths
   if (language) {
     const lang = language.toLowerCase();
-    if (lang === 'yaml' || lang === 'yml') return tokenizeYamlLine(line);
-    if (lang === 'json') return tokenizeJsonLine(line);
-    if (lang === 'dockerfile' || lang === 'docker') return tokenizeDockerfileLine(line);
-    if (lang === 'bash' || lang === 'sh' || lang === 'shell' || lang === 'zsh') return tokenizeBashLine(line, keywords);
+    if (lang === 'yaml' || lang === 'yml') {return tokenizeYamlLine(line);}
+    if (lang === 'json') {return tokenizeJsonLine(line);}
+    if (lang === 'dockerfile' || lang === 'docker') {return tokenizeDockerfileLine(line);}
+    if (lang === 'bash' || lang === 'sh' || lang === 'shell' || lang === 'zsh') {return tokenizeBashLine(line, keywords);}
   }
   // Generic tokenizer below
   /* falls through */
@@ -791,7 +791,7 @@ function MessageBody({ content }: { content: string }) {
  * Returns a React node with matching portions highlighted.
  */
 function highlightText(text: string, query: string): React.ReactNode {
-  if (!query || !text.toLowerCase().includes(query.toLowerCase())) return text;
+  if (!query || !text.toLowerCase().includes(query.toLowerCase())) {return text;}
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
   return (
@@ -814,7 +814,7 @@ function highlightText(text: string, query: string): React.ReactNode {
  */
 function parseSubagentTag(content: string): string | null {
   const match = content.match(/^\[subagent:(\w+)\]/);
-  if (match) return match[1];
+  if (match) {return match[1];}
   return null;
 }
 
