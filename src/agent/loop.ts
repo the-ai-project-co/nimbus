@@ -48,6 +48,7 @@ import { maskSecrets } from '../audit/security-scanner';
 import { classifyTaskComplexity, routeModel } from '../llm/router';
 import { mkdirSync as _cpMkdirSync, writeFileSync as _cpWriteFileSync } from 'node:fs';
 import { homedir as _cpHomedir } from 'node:os';
+import { authStore } from '../auth/store';
 
 // ---------------------------------------------------------------------------
 // C2: Infra state checkpoint helper
@@ -899,6 +900,8 @@ export async function runAgentLoop(
       // A1: Retry on transient errors (rate-limit / 5xx) with exponential backoff
       const MAX_STREAM_RETRIES = 2;
       let streamAttempt = 0;
+      // Flag to prevent infinite 401-retry loops (attempt re-init only once per turn)
+      let _401RecoveryAttempted = false;
       while (true) {
         // A2: Silence timeout — abort if no chunk arrives (G21: configurable)
         const STREAM_SILENCE_MS = options.streamSilenceTimeoutMs ?? 60_000;
@@ -949,8 +952,23 @@ export async function runAgentLoop(
             responseUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
             continue;
           }
+          // 401 auto-recovery: reinitialize providers in case credentials were just updated
+          const streamErrObj = streamErr as (Error & { status?: number; statusCode?: number }) | null;
+          const is401 = streamErrObj?.status === 401 || streamErrObj?.statusCode === 401
+            || /401|Invalid API Key|Unauthorized|authentication_error/i.test(streamErrObj?.message ?? '');
+          if (is401 && !_401RecoveryAttempted) {
+            _401RecoveryAttempted = true;
+            try {
+              authStore.reload();
+              router.reinitializeProviders();
+            } catch { /* non-critical */ }
+            // Reset partial accumulation and retry once
+            responseContent = '';
+            responseToolCalls = undefined;
+            responseUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+            continue;
+          }
           // G24: Graceful network error message instead of raw Node.js error
-          const streamErrObj = streamErr as Error | null;
           const isNetworkError = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|fetch failed|network/i.test(streamErrObj?.message ?? '');
           if (isNetworkError) {
             const netMsg = '\n[!!] Network unreachable — cannot reach the LLM API.\nCheck your internet connection and API key validity, then try again.\n';

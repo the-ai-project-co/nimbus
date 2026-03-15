@@ -1,7 +1,7 @@
 /**
  * AuthStore - Credential Persistence Manager
  * Manages storage and retrieval of authentication credentials at ~/.nimbus/auth.json
- * API keys and access tokens are encrypted at rest using AES-256-GCM.
+ * Credentials are stored as plain JSON with 0600 file permissions (industry standard).
  */
 
 import * as fs from 'fs';
@@ -18,6 +18,9 @@ import type {
 
 const AUTH_FILE_VERSION = 1;
 
+/** Legacy encryption prefix — used only for one-time migration of old files. */
+const ENC_PREFIX = 'enc:';
+
 /**
  * Default empty auth file structure
  */
@@ -33,145 +36,88 @@ function createEmptyAuthFile(): AuthFile {
 }
 
 // ---------------------------------------------------------------------------
-// Encryption constants and helpers (AES-256-GCM)
+// Legacy decryption — used ONLY during one-time migration of enc:-prefixed values.
+// This function is intentionally kept minimal; it is removed from the hot path.
 // ---------------------------------------------------------------------------
 
-const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
-const KEY_LENGTH = 32;
-const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
-const SALT = 'nimbus-auth-v1';
-const ENC_PREFIX = 'enc:';
+const _LEGACY_ALGORITHM = 'aes-256-gcm';
+const _LEGACY_KEY_LENGTH = 32;
+const _LEGACY_IV_LENGTH = 16;
+const _LEGACY_AUTH_TAG_LENGTH = 16;
+const _LEGACY_SALT = 'nimbus-auth-v1';
 
-/**
- * Build a machine-specific fingerprint from hostname, homedir, and username.
- * This is not cryptographically perfect, but it prevents casual copy-paste of
- * the auth file between machines.
- */
-function getMachineFingerprint(): string {
-  const hostname = os.hostname();
-  const homedir = os.homedir();
-  const username = os.userInfo().username;
-  return `${hostname}${homedir}${username}`;
+function _legacyDeriveKey(): Buffer {
+  const fingerprint = `${os.hostname()}${os.homedir()}${os.userInfo().username}`;
+  return crypto.pbkdf2Sync(fingerprint, _LEGACY_SALT, 100000, _LEGACY_KEY_LENGTH, 'sha256');
 }
 
 /**
- * Derive a 256-bit encryption key from the machine fingerprint using PBKDF2.
+ * Attempt to decrypt a value that was encrypted with the old AES-256-GCM scheme.
+ * Returns null if decryption fails (wrong machine, corrupted, etc.).
  */
-function deriveKey(): Buffer {
-  return crypto.pbkdf2Sync(getMachineFingerprint(), SALT, 100000, KEY_LENGTH, 'sha256');
-}
-
-/**
- * Encrypt a plaintext string with AES-256-GCM.
- * Returns a base64-encoded blob containing iv + authTag + ciphertext.
- */
-function encryptValue(plaintext: string): string {
+function _legacyDecrypt(encrypted: string): string | null {
   try {
-    const key = deriveKey();
-    const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv, {
-      authTagLength: AUTH_TAG_LENGTH,
-    });
-
-    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-    const authTag = cipher.getAuthTag();
-
-    // Layout: iv (16) + authTag (16) + ciphertext (variable)
-    const combined = Buffer.concat([iv, authTag, encrypted]);
-    return ENC_PREFIX + combined.toString('base64');
-  } catch {
-    // On any encryption error, return the original value so the system
-    // can continue to operate.
-    return plaintext;
-  }
-}
-
-/**
- * Decrypt an encrypted value produced by encryptValue().
- * If decryption fails (e.g. wrong machine, corrupted data, or the value was
- * never encrypted), the original string is returned for backward compatibility.
- */
-function decryptValue(encrypted: string): string {
-  try {
-    // Strip the enc: prefix
     const payload = encrypted.slice(ENC_PREFIX.length);
     const combined = Buffer.from(payload, 'base64');
 
-    if (combined.length < IV_LENGTH + AUTH_TAG_LENGTH) {
-      // Too short to be a valid encrypted payload -- return as-is
-      return encrypted;
+    if (combined.length < _LEGACY_IV_LENGTH + _LEGACY_AUTH_TAG_LENGTH) {
+      return null;
     }
 
-    const iv = combined.subarray(0, IV_LENGTH);
-    const authTag = combined.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
-    const ciphertext = combined.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+    const iv = combined.subarray(0, _LEGACY_IV_LENGTH);
+    const authTag = combined.subarray(_LEGACY_IV_LENGTH, _LEGACY_IV_LENGTH + _LEGACY_AUTH_TAG_LENGTH);
+    const ciphertext = combined.subarray(_LEGACY_IV_LENGTH + _LEGACY_AUTH_TAG_LENGTH);
 
-    const key = deriveKey();
-    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, {
-      authTagLength: AUTH_TAG_LENGTH,
+    const key = _legacyDeriveKey();
+    const decipher = crypto.createDecipheriv(_LEGACY_ALGORITHM, key, iv, {
+      authTagLength: _LEGACY_AUTH_TAG_LENGTH,
     });
     decipher.setAuthTag(authTag);
 
-    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-
-    return decrypted.toString('utf8');
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
   } catch {
-    // Decryption failed -- could be a plain-text value from before encryption
-    // was introduced, or the file was moved between machines.
-    return encrypted;
+    return null;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Encryption helpers for the AuthFile structure
-// ---------------------------------------------------------------------------
-
 /**
- * Deep-clone the auth file and encrypt sensitive fields before persistence.
+ * One-time migration: if any sensitive fields in the loaded auth file still carry
+ * the old `enc:` prefix, attempt to decrypt them.  On success the plain-text value
+ * is kept in memory and will be written back as plain JSON on the next save().
+ * On failure the field is cleared and a warning is printed.
  */
-function encryptAuthFile(authFile: AuthFile): AuthFile {
-  const clone: AuthFile = JSON.parse(JSON.stringify(authFile));
-
-  // Encrypt provider API keys
-  for (const providerName of Object.keys(clone.providers) as LLMProviderName[]) {
-    const cred = clone.providers[providerName];
-    if (cred?.apiKey && cred.apiKey.length > 0 && !cred.apiKey.startsWith(ENC_PREFIX)) {
-      cred.apiKey = encryptValue(cred.apiKey);
-    }
-  }
-
-  // Encrypt GitHub access token
-  if (
-    clone.identity.github?.accessToken &&
-    clone.identity.github.accessToken.length > 0 &&
-    !clone.identity.github.accessToken.startsWith(ENC_PREFIX)
-  ) {
-    clone.identity.github.accessToken = encryptValue(clone.identity.github.accessToken);
-  }
-
-  return clone;
-}
-
-/**
- * Decrypt sensitive fields in an auth file that was loaded from disk.
- * Plain-text values (from before encryption was added) pass through unchanged.
- */
-function decryptAuthFile(authFile: AuthFile): AuthFile {
-  // Decrypt provider API keys
+function migrateEncryptedFields(authFile: AuthFile): void {
+  // Provider API keys
   for (const providerName of Object.keys(authFile.providers) as LLMProviderName[]) {
     const cred = authFile.providers[providerName];
-    if (cred?.apiKey && cred.apiKey.startsWith(ENC_PREFIX)) {
-      cred.apiKey = decryptValue(cred.apiKey);
+    if (cred?.apiKey?.startsWith(ENC_PREFIX)) {
+      const decrypted = _legacyDecrypt(cred.apiKey);
+      if (decrypted !== null) {
+        cred.apiKey = decrypted;
+      } else {
+        process.stderr.write(
+          `[nimbus] Warning: could not decrypt stored API key for provider "${providerName}". ` +
+          'The key has been cleared — please run `nimbus login` to re-enter it.\n'
+        );
+        delete cred.apiKey;
+      }
     }
   }
 
-  // Decrypt GitHub access token
+  // GitHub access token
   if (authFile.identity.github?.accessToken?.startsWith(ENC_PREFIX)) {
-    authFile.identity.github.accessToken = decryptValue(authFile.identity.github.accessToken);
+    const decrypted = _legacyDecrypt(authFile.identity.github.accessToken);
+    if (decrypted !== null) {
+      authFile.identity.github.accessToken = decrypted;
+    } else {
+      process.stderr.write(
+        '[nimbus] Warning: could not decrypt stored GitHub access token. ' +
+        'The token has been cleared — please run `nimbus connect github` to re-authenticate.\n'
+      );
+      // Clear the github identity since accessToken is required (not optional in the type)
+      delete authFile.identity.github;
+    }
   }
-
-  return authFile;
 }
 
 /**
@@ -205,8 +151,8 @@ export class AuthStore {
 
   /**
    * Load auth file from disk, creating if necessary.
-   * Encrypted values are transparently decrypted so all public accessors
-   * return plain-text credentials.
+   * Stored as plain JSON (industry standard: gh, terraform, AWS CLI all do this).
+   * Performs a one-time migration for legacy enc:-prefixed values from older versions.
    */
   load(): AuthFile {
     if (this.authFile) {
@@ -234,8 +180,19 @@ export class AuthStore {
       parsed.identity = parsed.identity || {};
       parsed.providers = parsed.providers || {};
 
-      // Decrypt sensitive fields (backward-compatible with plain-text files)
-      this.authFile = decryptAuthFile(parsed);
+      // One-time migration: decrypt any legacy enc:-prefixed fields and save back as plain text
+      const hasLegacyEncryption = Object.values(parsed.providers).some(c => c?.apiKey?.startsWith(ENC_PREFIX))
+        || parsed.identity.github?.accessToken?.startsWith(ENC_PREFIX);
+      if (hasLegacyEncryption) {
+        migrateEncryptedFields(parsed);
+        // Persist the decrypted values immediately so migration only runs once
+        this.authFile = parsed;
+        try {
+          this.save(parsed);
+        } catch { /* non-critical — in-memory values are still correct */ }
+      }
+
+      this.authFile = parsed;
       return this.authFile;
     } catch {
       // If file is corrupted, start fresh
@@ -246,8 +203,7 @@ export class AuthStore {
 
   /**
    * Save auth file to disk with secure permissions (0600).
-   * Sensitive fields are encrypted before writing so they are never stored
-   * in plain text.
+   * Credentials are stored as plain JSON — file permissions provide the security boundary.
    */
   save(authFile?: AuthFile): void {
     this.ensureDirectory();
@@ -260,9 +216,7 @@ export class AuthStore {
     fileToSave.updatedAt = new Date().toISOString();
     this.authFile = fileToSave;
 
-    // Encrypt sensitive fields in a deep clone before writing to disk
-    const encrypted = encryptAuthFile(fileToSave);
-    const content = JSON.stringify(encrypted, null, 2);
+    const content = JSON.stringify(fileToSave, null, 2);
     fs.writeFileSync(this.authPath, content, { mode: 0o600 });
 
     // Ensure permissions are set correctly even if file already existed

@@ -285,6 +285,15 @@ export class LLMRouter {
   }
 
   /**
+   * Re-initialize all providers from scratch (e.g. after a `nimbus login` updates auth.json).
+   * Clears the existing provider map and re-runs the full discovery/configuration logic.
+   */
+  public reinitializeProviders(): void {
+    this.providers.clear();
+    this.initializeProviders();
+  }
+
+  /**
    * Register a custom provider
    */
   registerProvider(provider: LLMProvider): void {

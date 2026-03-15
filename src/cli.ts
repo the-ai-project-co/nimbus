@@ -336,6 +336,17 @@ export async function runCommand(args: string[]): Promise<void> {
     return;
   }
 
+  // nimbus connect <provider>
+  if (command === 'connect') {
+    if (subcommand === 'github') {
+      const { connectGitHubCommand } = await import('./commands/connect-github');
+      await connectGitHubCommand();
+      return;
+    }
+    process.stderr.write(`Unknown connect target: ${subcommand || '(none)'}. Supported: nimbus connect github\n`);
+    process.exit(1);
+  }
+
   // nimbus version
   if (command === 'version' || command === '-v' || command === '--version') {
     const options: VersionOptions = {};
@@ -607,6 +618,20 @@ export async function runCommand(args: string[]): Promise<void> {
         options.rejectAllImprovements = true;
       } else if (arg === '--mock') {
         options.mock = true;
+      } else if (arg === '--yes' || arg === '-y') {
+        options.yes = true;
+      } else if (arg === '--provider' && args[i + 1]) {
+        options.provider = args[++i] as GenerateTerraformOptions['provider'];
+      } else if (arg === '--gcp-project' && args[i + 1]) {
+        options.gcpProject = args[++i];
+      } else if (arg === '--azure-subscription' && args[i + 1]) {
+        options.azureSubscription = args[++i];
+      } else if (arg === '--json') {
+        options.jsonOutput = true;
+      } else if (arg === '--questionnaire') {
+        options.questionnaire = true;
+      } else if (arg === '--conversational') {
+        options.conversational = true;
       }
     }
 

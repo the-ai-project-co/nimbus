@@ -22,12 +22,13 @@ import { CONFIG_KEYS } from '../config/types';
 
 let tmpDir: string;
 
-// Patch os.homedir so MCP/plugin files go into a temp dir
+// Patch os.homedir so MCP/plugin files go into a temp dir.
+// Use globalThis to avoid TDZ — vi.mock factories are hoisted before let bindings.
 vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof os>('node:os');
   return {
     ...actual,
-    homedir: () => tmpDir ?? actual.homedir(),
+    homedir: () => (globalThis as any).__nimbus_test_tmpDir ?? actual.homedir(),
   };
 });
 
@@ -195,11 +196,13 @@ describe('M4 — config primaryClouds key', () => {
 describe('M5 — MCP server management', () => {
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nimbus-mcp-test-'));
+    (globalThis as any).__nimbus_test_tmpDir = tmpDir;
     vi.resetModules();
   });
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+    (globalThis as any).__nimbus_test_tmpDir = undefined;
     vi.resetModules();
   });
 

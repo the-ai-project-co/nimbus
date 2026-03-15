@@ -40,7 +40,7 @@ import {
   approveActionForSession,
   type PermissionSessionState,
 } from '../../agent/permissions';
-import { FileWatcher } from '../../watcher';
+import { FileWatcher, type FileChangeEvent } from '../../watcher';
 import { HookEngine } from '../../hooks/engine';
 import { getLSPManager } from '../../lsp/manager';
 import { DEVOPS_LANGUAGE_IDS } from '../../lsp/languages';
@@ -178,10 +178,11 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
   // M5: Also notify on DevOps file changes (debounced 30s per file)
   const devopsChangeDebounce = new Map<string, ReturnType<typeof setTimeout>>();
 
-  watcher.on('change', (changedPath: string) => {
-    if (changedPath.endsWith('NIMBUS.md')) {
+  watcher.on('change', (event: FileChangeEvent) => {
+    const filePath = event.path;
+    if (filePath.endsWith('NIMBUS.md')) {
       try {
-        nimbusInstructions = readFileSync(changedPath, 'utf-8');
+        nimbusInstructions = readFileSync(filePath, 'utf-8');
         addMessage({
           id: crypto.randomUUID(),
           role: 'system',
@@ -194,7 +195,6 @@ export async function startInkChat(options: InkChatOptions = {}): Promise<void> 
     }
 
     // M5: Notify on DevOps file changes (debounced 30s per file)
-    const filePath = typeof changedPath === 'string' ? changedPath : (changedPath as any)?.path ?? '';
     const isDevOps = /\.(tf|yaml|yml)$|Dockerfile|docker-compose/i.test(filePath);
     if (isDevOps) {
       const existing = devopsChangeDebounce.get(filePath);

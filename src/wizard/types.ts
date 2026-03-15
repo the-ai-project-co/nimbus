@@ -157,6 +157,9 @@ export interface TerraformWizardContext {
   // Preferences
   savePreferences?: boolean;
   organizationPolicy?: string;
+
+  /** When true, accept all defaults without prompting (--yes flag). */
+  yes?: boolean;
 }
 
 // Wizard events

@@ -23,8 +23,6 @@ import {
   getProviderNames,
   getDefaultModel,
   validateProviderApiKey,
-  GitHubDeviceFlow,
-  completeGitHubAuth,
   type LoginWizardContext,
   type LLMProviderName,
   type LLMProviderCredential,
@@ -92,22 +90,14 @@ function createWizardSteps(): WizardStep<LoginWizardContext>[] {
       execute: welcomeStep,
     },
 
-    // Step 2: GitHub Identity (optional)
-    {
-      id: 'github-identity',
-      title: 'GitHub Identity',
-      execute: githubIdentityStep,
-      canSkip: true,
-    },
-
-    // Step 3: LLM Provider Configuration Loop
+    // Step 2: LLM Provider Configuration Loop
     {
       id: 'providers-loop',
       title: 'LLM Provider Configuration',
       execute: providersLoopStep,
     },
 
-    // Step 4: Set Default Provider
+    // Step 3: Set Default Provider
     {
       id: 'set-default',
       title: 'Set Default Provider',
@@ -115,7 +105,7 @@ function createWizardSteps(): WizardStep<LoginWizardContext>[] {
       condition: ctx => ctx.configuredProviders.length > 1,
     },
 
-    // Step 5: Complete
+    // Step 4: Complete
     {
       id: 'complete',
       title: 'Setup Complete',
@@ -175,106 +165,7 @@ async function welcomeStep(_ctx: LoginWizardContext): Promise<StepResult> {
 }
 
 /**
- * Step 2: GitHub Identity (optional)
- */
-async function githubIdentityStep(_ctx: LoginWizardContext): Promise<StepResult> {
-  ui.section('GitHub Identity (Optional)');
-
-  // Check if already authenticated
-  const existingIdentity = authStore.getIdentity();
-  if (existingIdentity) {
-    ui.info(`Currently signed in as: ${existingIdentity.username}`);
-    const useExisting = await confirm({
-      message: 'Keep existing GitHub identity?',
-      defaultValue: true,
-    });
-
-    if (useExisting) {
-      return { success: true, data: { githubIdentity: existingIdentity } };
-    }
-  }
-
-  // Ask if they want to sign in with GitHub
-  const shouldSignIn = await confirm({
-    message: 'Sign in with GitHub?',
-    defaultValue: true,
-  });
-
-  if (!shouldSignIn) {
-    ui.info('Skipping GitHub sign-in');
-    return { success: true, data: { skipGitHub: true } };
-  }
-
-  // GitHub Device Flow
-  ui.newLine();
-  ui.info('Starting GitHub Device Flow authentication...');
-  ui.newLine();
-
-  try {
-    const deviceFlow = new GitHubDeviceFlow();
-
-    // Request device code
-    ui.startSpinner({ message: 'Requesting authorization code...' });
-    const deviceCode = await deviceFlow.requestDeviceCode();
-    ui.stopSpinnerSuccess('Authorization code received');
-
-    // Display code for user
-    ui.newLine();
-    ui.box({
-      title: 'GitHub Authorization',
-      content: [
-        `Open ${deviceCode.verification_uri} in your browser`,
-        'and enter this code:',
-        '',
-        `    ${deviceCode.user_code}`,
-        '',
-        'Waiting for authorization...',
-      ],
-      style: 'rounded',
-      borderColor: 'yellow',
-      padding: 1,
-    });
-    ui.newLine();
-
-    // Poll for authorization
-    ui.startSpinner({ message: 'Waiting for authorization...' });
-
-    const accessToken = await deviceFlow.waitForAuthorization(() => {
-      // This callback is called on each poll
-    });
-
-    ui.stopSpinnerSuccess('Authorization successful');
-
-    // Fetch user profile
-    ui.startSpinner({ message: 'Fetching user profile...' });
-    const identity = await completeGitHubAuth(accessToken);
-    ui.stopSpinnerSuccess(
-      `Signed in as ${identity.username}${identity.name ? ` (${identity.name})` : ''}`
-    );
-
-    // Save identity
-    authStore.setIdentity(identity);
-
-    return { success: true, data: { githubIdentity: identity } };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    ui.stopSpinnerFail(`GitHub authentication failed: ${message}`);
-
-    const skipGitHub = await confirm({
-      message: 'Continue without GitHub sign-in?',
-      defaultValue: true,
-    });
-
-    if (skipGitHub) {
-      return { success: true, data: { skipGitHub: true } };
-    }
-
-    return { success: false, error: message };
-  }
-}
-
-/**
- * Step 3: LLM Provider Configuration Loop
+ * Step 2 (now Step 2): LLM Provider Configuration Loop
  */
 async function providersLoopStep(_ctx: LoginWizardContext): Promise<StepResult> {
   ui.section('LLM Provider Configuration');
@@ -555,6 +446,9 @@ async function completeStep(ctx: LoginWizardContext): Promise<StepResult> {
   // Next steps
   content.push('Run `nimbus generate terraform` to get started!');
   content.push('');
+  content.push('To link your GitHub identity (optional):');
+  content.push('  run nimbus connect github');
+  content.push('');
 
   ui.box({
     title: '✓ Setup Complete',
@@ -634,7 +528,6 @@ async function runNonInteractive(options: LoginOptions): Promise<boolean> {
  */
 export async function loginCloudCommand(provider: 'aws' | 'gcp' | 'azure'): Promise<void> {
   const { execFileSync } = await import('node:child_process');
-  const { existsSync } = await import('node:fs');
   const { execSync } = await import('node:child_process');
 
   const checkInPath = (cmd: string): boolean => {

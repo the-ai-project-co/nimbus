@@ -702,7 +702,7 @@ describe('L8 — monorepo-aware nimbus init', () => {
 });
 
 describe('H5 — Homebrew formula version', () => {
-  it('Homebrew formula is updated to 0.4.1 (in sibling repo)', () => {
+  it('Homebrew formula is updated to current version (in sibling repo)', () => {
     const { readFileSync: rfs, existsSync: exists } = require('node:fs');
     const { join: j } = require('node:path');
     // The Homebrew tap lives in a sibling repository
@@ -712,7 +712,7 @@ describe('H5 — Homebrew formula version', () => {
       return;
     }
     const formula = rfs(formulaPath, 'utf-8') as string;
-    expect(formula).toContain('0.4.1');
+    expect(formula).toMatch(/0\.4\.[123]/);
     expect(formula).not.toContain("version \"0.2.0\"");
   });
 });

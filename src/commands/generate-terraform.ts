@@ -7,6 +7,9 @@
  */
 
 import { logger } from '../utils';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import {
   createWizard,
   ui,
@@ -72,6 +75,73 @@ function validateAzureSubscription(subscriptionId: string): { name?: string; val
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cloud provider auto-detection helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect cloud providers from environment variables and credential files.
+ * Returns a list of detected provider names (aws | gcp | azure).
+ */
+async function detectCloudProviders(): Promise<string[]> {
+  const detected: string[] = [];
+
+  // AWS
+  if (
+    process.env.AWS_ACCESS_KEY_ID ||
+    process.env.AWS_PROFILE ||
+    fs.existsSync(path.join(os.homedir(), '.aws', 'credentials'))
+  ) {
+    detected.push('aws');
+  }
+
+  // GCP
+  if (
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    process.env.GCLOUD_PROJECT ||
+    fs.existsSync(
+      path.join(os.homedir(), '.config', 'gcloud', 'application_default_credentials.json')
+    )
+  ) {
+    detected.push('gcp');
+  }
+
+  // Azure
+  if (
+    process.env.AZURE_SUBSCRIPTION_ID ||
+    process.env.ARM_CLIENT_ID ||
+    fs.existsSync(path.join(os.homedir(), '.azure', 'accessTokens.json'))
+  ) {
+    detected.push('azure');
+  }
+
+  return detected;
+}
+
+/**
+ * Scan .tf files in the current directory for provider declarations.
+ * Looks for: provider "google" {, provider "aws" {, provider "azurerm" {
+ */
+function scanTfFilesForProviders(): string[] {
+  const detected = new Set<string>();
+  try {
+    const tfFiles = fs
+      .readdirSync(process.cwd(), { recursive: true, withFileTypes: true })
+      .filter(e => e.isFile() && e.name.endsWith('.tf'))
+      .map(e => path.join(e.parentPath ?? (e as unknown as { path: string }).path ?? process.cwd(), e.name));
+
+    for (const file of tfFiles.slice(0, 50)) {
+      try {
+        const content = fs.readFileSync(file, 'utf-8');
+        if (/provider\s+["']aws["']/i.test(content)) { detected.add('aws'); }
+        if (/provider\s+["']google["']/i.test(content)) { detected.add('gcp'); }
+        if (/provider\s+["']azurerm["']/i.test(content)) { detected.add('azure'); }
+      } catch { /* skip unreadable files */ }
+    }
+  } catch { /* non-critical */ }
+  return [...detected];
+}
+
 /**
  * Command options from CLI arguments
  */
@@ -93,6 +163,8 @@ export interface GenerateTerraformOptions {
   conversational?: boolean;
   skipValidation?: boolean;
   validationMode?: 'required' | 'optional';
+  /** Accept all defaults without prompting (for CI / scripted usage). */
+  yes?: boolean;
 }
 
 /**
@@ -125,6 +197,27 @@ export async function generateTerraformCommand(
     return;
   }
 
+  // Auto-detect cloud provider from environment + local .tf files
+  let autoDetectedProvider: 'aws' | 'gcp' | 'azure' | undefined = options.provider;
+  if (!autoDetectedProvider) {
+    const [envDetected, tfDetected] = await Promise.all([
+      detectCloudProviders(),
+      Promise.resolve(scanTfFilesForProviders()),
+    ]);
+    // Merge and deduplicate (tf file declarations take priority)
+    const allDetected = [...new Set([...tfDetected, ...envDetected])] as Array<'aws' | 'gcp' | 'azure'>;
+
+    if (allDetected.length === 1) {
+      autoDetectedProvider = allDetected[0];
+      ui.info(`Detected: ${autoDetectedProvider} from environment — continuing...`);
+    } else if (allDetected.length > 1) {
+      // Show list with detected ones pre-marked; user selects one
+      ui.info(`Detected multiple providers: ${allDetected.join(', ')}`);
+      // Will fall through to the wizard's provider selection step with a pre-populated default
+      autoDetectedProvider = allDetected[0];
+    }
+  }
+
   // Interactive wizard mode
   const steps = createWizardSteps();
 
@@ -132,11 +225,12 @@ export async function generateTerraformCommand(
     title: 'nimbus generate terraform',
     description: 'Generate Terraform from your cloud infrastructure',
     initialContext: {
-      provider: 'aws',
+      provider: autoDetectedProvider ?? 'aws',
       awsProfile: options.profile,
       awsRegions: options.regions,
       servicesToScan: options.services,
       outputPath: options.output,
+      yes: options.yes,
     },
     steps,
     onEvent: event => {
@@ -291,6 +385,12 @@ function createWizardSteps(): WizardStep<TerraformWizardContext>[] {
  * Step 1: Provider Selection
  */
 async function providerSelectionStep(ctx: TerraformWizardContext): Promise<StepResult> {
+  // --yes: accept the detected/default provider without prompting
+  if (ctx.yes && ctx.provider) {
+    ui.info(`Provider: ${ctx.provider} (--yes)`);
+    return { success: true, data: { provider: ctx.provider } };
+  }
+
   const provider = await select<'aws' | 'gcp' | 'azure'>({
     message: 'Select cloud provider:',
     options: [
@@ -802,7 +902,22 @@ async function discoveryStep(ctx: TerraformWizardContext): Promise<StepResult> {
 /**
  * Step 5: Generation Options
  */
-async function generationOptionsStep(_ctx: TerraformWizardContext): Promise<StepResult> {
+async function generationOptionsStep(ctx: TerraformWizardContext): Promise<StepResult> {
+  // --yes: use defaults without prompting
+  if (ctx.yes) {
+    ui.info('Generation options: defaults accepted (--yes)');
+    return {
+      success: true,
+      data: {
+        importMethod: 'both',
+        includeReadme: true,
+        includeGitignore: true,
+        includeMakefile: true,
+        includeGithubActions: true,
+      },
+    };
+  }
+
   // Import method
   const importMethod = await select<'both' | 'blocks' | 'script'>({
     message: 'How should imports be generated?',
@@ -849,6 +964,13 @@ async function generationOptionsStep(_ctx: TerraformWizardContext): Promise<Step
  * Step 6: Output Location
  */
 async function outputLocationStep(ctx: TerraformWizardContext): Promise<StepResult> {
+  // --yes: accept the default output path without prompting
+  if (ctx.yes) {
+    const outputPath = ctx.outputPath || './terraform-infrastructure';
+    ui.info(`Output path: ${outputPath} (--yes)`);
+    return { success: true, data: { outputPath, savePreferences: false } };
+  }
+
   const outputPath = await pathInput(
     'Where should the Terraform files be saved?',
     ctx.outputPath || './terraform-infrastructure'
