@@ -1,0 +1,12 @@
+{
+  "name": "the-ai-project-co/nimbus",
+  "description": "AI-powered cloud engineering agent for your terminal — Terraform, Kubernetes, Helm, and 11+ LLM providers in a single binary",
+  "accepts": [
+    {
+      "network": "eip155:8453",
+      "asset": "USDC",
+      "address": "YOUR_WALLET_ADDRESS"
+    }
+  ],
+  "resources": []
+}
