@@ -181,8 +181,8 @@ jobs:
       - name: Verify package contents
         if: steps.check-token.outputs.has_token == 'true'
         run: |
-          echo "Checking entry point exists..."
-          test -f src/nimbus.ts || (echo "ERROR: src/nimbus.ts not found" && exit 1)
+          echo "Checking compiled entry point exists..."
+          test -f dist/src/nimbus.js || (echo "ERROR: dist/src/nimbus.js not found — run tsc first" && exit 1)
 
           echo "Previewing package contents..."
           npm pack --dry-run

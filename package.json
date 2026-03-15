@@ -8,13 +8,11 @@
   },
   "files": [
     "bin/",
-    "src/",
-    "dist/",
+    "dist/src/",
     "completions/",
     "README.md",
     "CHANGELOG.md",
-    "package.json",
-    "tsconfig.json"
+    "package.json"
   ],
   "publishConfig": {
     "access": "public"
