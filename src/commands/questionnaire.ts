@@ -708,9 +708,9 @@ async function runPostGenerationValidation(outputDir: string): Promise<void> {
     if (stdout.includes('Success')) {
       ui.print(ui.dim(`  ${stdout.trim()}`));
     }
-  } catch (_error: unknown) {
+  } catch (error: unknown) {
     ui.stopSpinnerFail('Terraform validation failed');
-    const output = error.stdout || error.stderr || error.message;
+    const output = (error as any).stdout || (error as any).stderr || (error as any).message;
     ui.print(ui.dim(`  ${output}`));
   }
 
@@ -726,13 +726,13 @@ async function runPostGenerationValidation(outputDir: string): Promise<void> {
     if (stdout) {
       ui.print(ui.dim(`  ${stdout.trim()}`));
     }
-  } catch (_error: unknown) {
-    if (error.code === 'ENOENT') {
+  } catch (error: unknown) {
+    if ((error as any).code === 'ENOENT') {
       ui.info('tflint not found - skipping lint check');
       ui.print(ui.dim('  Install tflint for additional validation'));
     } else {
       ui.warning('tflint found issues');
-      const output = error.stdout || error.stderr || error.message;
+      const output = (error as any).stdout || (error as any).stderr || (error as any).message;
       ui.print(ui.dim(`  ${output}`));
     }
   }
@@ -757,12 +757,12 @@ async function runPostGenerationValidation(outputDir: string): Promise<void> {
     } else if (stdout.trim()) {
       ui.print(ui.dim(`  ${stdout.trim()}`));
     }
-  } catch (_error: unknown) {
-    if (error.code === 'ENOENT') {
+  } catch (error: unknown) {
+    if ((error as any).code === 'ENOENT') {
       ui.info('Security scanning available with checkov. Install: pip install checkov');
     } else {
       ui.warning('checkov found security issues');
-      const output = error.stdout || error.stderr || error.message;
+      const output = (error as any).stdout || (error as any).stderr || (error as any).message;
       // Parse passed/failed from output even on non-zero exit
       const passedMatch = output.match(/Passed checks: (\d+)/);
       const failedMatch = output.match(/Failed checks: (\d+)/);

@@ -331,7 +331,7 @@ export const readFileTool: ToolDefinition = {
       }
 
       return ok(content);
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(`Failed to read file: ${message}`);
     }
@@ -400,7 +400,7 @@ export const editFileTool: ToolDefinition = {
 
       await fs.writeFile(input.path, updated, 'utf-8');
       return ok(`Successfully edited ${input.path}`);
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(`Failed to edit file: ${message}`);
     }
@@ -488,7 +488,7 @@ export const multiEditTool: ToolDefinition = {
 
       await fs.writeFile(input.path, result, 'utf-8');
       return ok(`Successfully applied ${input.edits.length} edit(s) to ${input.path}`);
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(`Failed to apply multi-edit: ${message}`);
     }
@@ -518,7 +518,7 @@ export const writeFileTool: ToolDefinition = {
       await fs.mkdir(path.dirname(input.path), { recursive: true });
       await fs.writeFile(input.path, input.content, 'utf-8');
       return ok(`Successfully wrote ${input.path}`);
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(`Failed to write file: ${message}`);
     }
@@ -562,7 +562,7 @@ export const bashTool: ToolDefinition = {
       });
       const combined = [stdout, stderr].filter(Boolean).join('\n');
       return ok(combined || '(no output)');
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       if (error !== null && typeof error === 'object' && 'stdout' in error) {
         // Process errors still carry partial output
         const execErr = error as {
@@ -607,7 +607,7 @@ export const globTool: ToolDefinition = {
         return ok('No files matched the pattern.');
       }
       return ok(matches.join('\n'));
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(`Glob search failed: ${message}`);
     }
@@ -652,7 +652,7 @@ export const grepTool: ToolDefinition = {
         maxBuffer: 10 * 1024 * 1024,
       });
       return ok(stdout || 'No matches found.');
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       if (
         error !== null &&
         typeof error === 'object' &&
@@ -703,7 +703,7 @@ export const listDirTool: ToolDefinition = {
       });
 
       return ok(lines.join('\n'));
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(`Failed to list directory: ${message}`);
     }
@@ -793,7 +793,7 @@ export const webfetchTool: ToolDefinition = {
       }
 
       return ok(text);
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return err(`Fetch failed: ${message}`);
     }
@@ -900,7 +900,7 @@ export const todoWriteTool: ToolDefinition = {
       return ok(
         `Task list updated (${input.tasks.length} task${input.tasks.length === 1 ? '' : 's'}):\n${summary.join('\n')}`
       );
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       // Fallback to original placeholder behavior on DB failure.
       const message = error instanceof Error ? error.message : String(error);
       return err(`Failed to update tasks: ${message}`);
@@ -1120,7 +1120,7 @@ export const webSearchTool: ToolDefinition = {
       // DuckDuckGo HTML search (better results than Instant Answer API)
       const result = await searchDuckDuckGo(input.query, input.maxResults);
       return ok(result);
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       return err(`Web search failed: ${msg}`);
     }

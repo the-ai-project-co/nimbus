@@ -536,7 +536,7 @@ export async function costEstimateCommand(options: CostEstimateOptions): Promise
       ui.print(
         `  ${ui.dim('curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh')} (Linux)`
       );
-    } catch (_error) {
+    } catch (error) {
       ui.stopSpinnerFail('Cost estimation failed');
       ui.error(
         `Built-in estimator error: ${error instanceof Error ? error.message : String(error)}`
