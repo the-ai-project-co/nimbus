@@ -9,7 +9,7 @@
   },
   "exclude": [
     "node_modules",
-    "src/__tests__",
+    "test",
     "src/build.ts",
     "**/*.test.ts",
     "**/*.spec.ts"
