@@ -64,6 +64,18 @@ If `ANTHROPIC_API_KEY` (or any [supported provider key](docs/guides/configuratio
 
 ---
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=the-ai-project-co%2Fnimbus&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=the-ai-project-co/nimbus&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=the-ai-project-co/nimbus&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=the-ai-project-co/nimbus&type=date&legend=top-left" />
+ </picture>
+</a>
+
+---
+
 ## License
 
 [MIT](LICENSE)
